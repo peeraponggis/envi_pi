@@ -481,7 +481,8 @@ async function tmd_obs(ctx: Ctx): Promise<HandlerResult> {
  *   key ส่งเป็น query `api_key=` หรือ header `API-Key` ได้ทั้งคู่
  *   flood: STAC `resources/stac/flood/collections/flood1day_r2/items` → item เดียว `items_flood1day_r2`
  *          assets.data = GeoJSON พื้นที่น้ำท่วมทั้งประเทศจากภาพดาวเทียม (วันไม่มีน้ำท่วม = FeatureCollection ว่าง)
- *          flood3day/7day/30day มี collection แต่ไม่มี item (ณ วันตรวจ) · gi-service/*/flood-recurrence ตอบ 404
+ *          flood3day/7day/30day มี collection แต่ไม่มี item (ณ วันตรวจ) · gi-service/<ver>/flood-recurrence ตอบ 404
+ *          ⚠️ ห้ามเขียน "/*/" ในคอมเมนต์ — ตัวรวมโค้ดของ Supabase อ่านเป็นปิดคอมเมนต์ (deploy ล้ม 3 ก.ย. 2569)
  *   burn-scar: `resources/features/burn-scar?bbox=&limit=` 79,435 โพลิกอน (props: date "YYYYMMDD - YYYYMMDD", area_rai, lu_name, pv_tn, ap_tn, tb_tn)
  */
 const GISTDA = "https://api-gateway.gistda.or.th/api/2.0";
