@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.2.0"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar
+export const VERSION = "1.2.1"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR)
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -151,7 +151,16 @@ function chunk<T>(a: T[], n = 500): T[][] {
   return out;
 }
 
+/** ตัดแถวที่คีย์ onConflict ซ้ำกันในชุดเดียว (แถวหลังชนะ) — Postgres ปฏิเสธ "ON CONFLICT DO UPDATE command cannot affect row a second time" (เจอจริงกับ DGR หน้า 8) */
+function dedupe(rows: Json[], onConflict: string): Json[] {
+  const cols = onConflict.split(",").map((c) => c.trim());
+  const m = new Map<string, Json>();
+  for (const r of rows) m.set(cols.map((c) => String(r[c] ?? "")).join(""), r);
+  return [...m.values()];
+}
+
 async function upsert(ctx: Ctx, table: string, rows: Json[], onConflict: string): Promise<number> {
+  rows = dedupe(rows, onConflict);
   if (ctx.dry || rows.length === 0) return rows.length;
   let n = 0;
   for (const part of chunk(rows)) {
