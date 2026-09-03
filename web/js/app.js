@@ -231,7 +231,7 @@ function renderAir(rep) {
 function renderSat(sat) {
   const pm = sat.latest?.PM25?.value, lv = core.pm25Level(pm);
   return `<div class="result-item"><span class="result-label">🛰️ PM2.5 จากดาวเทียม (GISTDA) จังหวัด${esc(sat.name_th)}</span><br>
-    <b style="color:${lv.color}">${pm ?? '—'}</b> µg/m³ · ${esc(lv.label)} <small class="dim">· ${esc(core.ago(sat.observed_at))} · ระดับจังหวัด</small></div>`;
+    <b style="color:${lv.color}">${pm != null ? Number(pm).toFixed(1) : '—'}</b> µg/m³ · ${esc(lv.label)} <small class="dim">· ${esc(core.ago(sat.observed_at))} · ระดับจังหวัด</small></div>`;
 }
 
 function listItems(items, fmt, empty) {

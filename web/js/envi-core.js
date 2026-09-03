@@ -259,9 +259,12 @@ export async function reverseGeocode(lat, lng) {
 
 export function formatThaiAddress(addr) {
   if (!addr) return null;
-  const sub = addr.subdistrict || addr.village || addr.suburb || addr.quarter || '';
-  const dist = addr.district || addr.city_district || addr.town || addr.county || '';
-  const prov = addr.province || addr.state || addr.city || '';
+  // Nominatim ส่งชื่อมาพร้อมคำนำหน้าเต็ม ("อำเภอเมืองปทุมธานี", "จังหวัดปทุมธานี") — ตัดออกก่อนเติม ต./อ./จ.
+  const strip = (s) => String(s ?? '').replace(/^(ตำบล|แขวง|อำเภอ|เขต|จังหวัด)\s*/, '').trim();
+  const sub = strip(addr.subdistrict || addr.village || addr.suburb || addr.quarter);
+  const dist = strip(addr.district || addr.city_district || addr.town || addr.county);
+  const prov = strip(addr.province || addr.state || addr.city);
+  if (prov === 'กรุงเทพมหานคร') return [sub && `แขวง${sub}`, dist && `เขต${dist}`, prov].filter(Boolean).join(' ');
   return [sub && `ต.${sub}`, dist && `อ.${dist}`, prov && `จ.${prov}`].filter(Boolean).join(' ') || null;
 }
 

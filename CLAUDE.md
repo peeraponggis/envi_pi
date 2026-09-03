@@ -35,8 +35,18 @@
 - LDD landuse = CC BY-NC-ND ห้าม simplify · HII = CC BY-NC · แสดงเครดิตทุกแหล่ง (แถบล่างขวาแผนที่อ่านจาก `sources.agency`)
 - endpoint ราชการส่วนใหญ่ **ไม่มีเอกสาร** (Air4Thai, GISTDA PM2.5, Royal Rain) — เปลี่ยนได้ทุกเมื่อ อย่าเชื่อโครงสร้างจากความจำ ให้ดู `ingest_runs.error`
 
-## สถานะ (3 ก.ย. 2569)
-- ✅ โค้ดเฟส 0-1 ครบ: SQL 8 ไฟล์ · Edge Function handlers air4thai/gistda_pm25/gistda_hotspot/tmd_quake/dgr_wells/royalrain/tmd_obs · หน้าเว็บ index + import · เทสต์
-- ⏳ รอผู้ใช้: สร้างโปรเจกต์ Supabase → กรอก config.js → รัน SQL → deploy Edge → ตั้ง Vault/Secrets (ตาม docs/ขั้นตอนติดตั้ง)
-- ⬜ ยังไม่ได้ทดสอบกับ Supabase จริง — **โครงสร้าง JSON ของ GISTDA PM2.5 / hotspot / DGR เขียนแบบเดา (defensive pick)** ต้องดูผลจริงรอบแรกแล้วปรับ handler
-- ⬜ เฟส 2-3: นำเข้า SHP (ป่าสงวน ลุ่มน้ำ ดินถล่ม) · เฟส 4: TMD key + DEDE · เฟส 5: GISTDA gateway key
+## สถานะ (3 ก.ย. 2569 — ติดตั้งจริงแล้ว)
+- ✅ โปรเจกต์ Supabase `envi-pi` ref `mplexdeaqgrdoqqhypqb` (Org ใหม่ `envi-pi` แผน Free, บัญชี Gmail แยกของผู้ใช้) — SQL ทั้ง 7 ไฟล์รันผ่าน · Vault มี `envi_ingest_url` + `envi_cron_token`
+- ✅ Edge Function `envi-ingest` v1.0.1 deploy แล้ว (Verify JWT ปิด · Secret `ENVI_CRON_TOKEN` ตั้งแล้ว) · cron 11 job · `cron_enabled=true` 7 แหล่ง: air4thai, tmd_quake, gistda_hotspot_modis/viirs, gistda_pm25, royalrain_radar, dgr_wells
+- ✅ ข้อมูลจริงเข้าแล้ว: สถานี Air4Thai 173 · hotspot 1,533 · แผ่นดินไหว 10 · PM2.5 ดาวเทียม 77 จังหวัด · เรดาร์ 9 · บ่อบาดาลกำลังทยอย (cursor)
+- ⬜ ยังไม่มีผู้ใช้ใน Authentication → ผู้ใช้ต้องสร้างเองแล้ว `update profiles set role='admin'` (บันทึกผล/นำเข้าไฟล์ยังใช้ไม่ได้จนกว่าจะมี)
+- ⬜ เฟส 2-3: นำเข้า SHP (ป่าสงวน ลุ่มน้ำ ดินถล่ม) ผ่าน import.html · เฟส 4: TMD key + DEDE · เฟส 5: GISTDA gateway key
+- ⚠️ `upsertStations()` อ่าน id กลับด้วย select ที่ PostgREST จำกัด 1,000 แถว — พอสำหรับ Air4Thai/TMD แต่ถ้าแหล่งไหน >1,000 สถานีและต้องเก็บ observations ต้องแบ่ง `.range()`
+
+## บทเรียนจากการติดตั้งจริง (3 ก.ย. 2569 — อย่าทำซ้ำ)
+- **revoke execute จาก public อย่างเดียวไม่พอ** — Supabase ตั้ง default privileges ให้ anon/authenticated ได้ EXECUTE โดยตรง ต้อง `revoke … from public, anon, authenticated, service_role` แล้ว grant กลับ (เจอ: anon เรียก purge_old_observations() ได้)
+- **air4thai.pcd.go.th ส่ง TLS chain ผิด** (leaf Let's Encrypt YR1 แต่แนบ intermediate ของ Sectigo) → Deno ตอบ `UnknownIssuer` · แก้ด้วย `Deno.createHttpClient({ caCerts: [YR1] })` ในฟังก์ชัน · YR1 หมดอายุ 2 ก.ย. 2571 ต้องเปลี่ยนก่อนถึงวันนั้น
+- **GISTDA MapServer ไม่รองรับ pagination** (`resultOffset`/`resultRecordCount` = error 400) → แบ่งหน้าด้วย `where FID > N` · geometry เป็น multipoint
+- **DGR `?Page=N` คืน N×1000 แถวเริ่มที่ offset (N-1)×1000** (Page=60 = 58,723 แถว) ไม่มีพารามิเตอร์ขนาดหน้า → ใช้ลำดับหน้า 1,2,4,8,16,32,64 ทีละ 10k แถวต่อรอบ · แถวอยู่ใน `result`
+- **Dashboard ควบคุมด้วยเบราว์เซอร์อัตโนมัติ**: ช่อง Secrets เป็น React input พิมพ์ด้วย synthetic key ไม่ติด ต้องใช้ native value setter + `input` event · สวิตช์ Verify JWT ก็ต้อง `el.click()` ผ่าน JS · Monaco ของ SQL Editor: `monaco.editor.getModels()[0].setValue()` แล้ว fetch ไฟล์จาก raw.githubusercontent.com ด้วย **commit SHA** (branch URL แคช ~5 นาที)
+- **Nominatim ส่งคำนำหน้าเต็ม** ("อำเภอเมืองปทุมธานี") → strip ก่อนเติม อ./จ.

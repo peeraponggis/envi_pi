@@ -90,7 +90,9 @@ test('summarizePvgis(): เลือกชั่วโมงตามเดื�
 
 test('formatThaiAddress(): ประกอบ ต./อ./จ. เท่าที่มี', () => {
   assert.equal(core.formatThaiAddress({ subdistrict: 'คลองหนึ่ง', district: 'คลองหลวง', province: 'ปทุมธานี' }), 'ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี');
-  assert.equal(core.formatThaiAddress({ state: 'กรุงเทพมหานคร' }), 'จ.กรุงเทพมหานคร');
+  // Nominatim จริงส่งคำนำหน้าเต็มมา (เจอ 3 ก.ย. 2569) — ต้องไม่ได้ "อ.อำเภอเมือง"
+  assert.equal(core.formatThaiAddress({ subdistrict: 'ตำบลบ้านกลาง', district: 'อำเภอเมืองปทุมธานี', province: 'จังหวัดปทุมธานี' }), 'ต.บ้านกลาง อ.เมืองปทุมธานี จ.ปทุมธานี');
+  assert.equal(core.formatThaiAddress({ quarter: 'แขวงสีลม', city_district: 'เขตบางรัก', state: 'กรุงเทพมหานคร' }), 'แขวงสีลม เขตบางรัก กรุงเทพมหานคร');
   assert.equal(core.formatThaiAddress(null), null);
 });
 

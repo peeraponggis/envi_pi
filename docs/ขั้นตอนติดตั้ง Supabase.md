@@ -93,6 +93,17 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 - Edge Function: แก้ `supabase/functions/envi-ingest/index.ts` → เพิ่ม `VERSION` → วางทับใน Dashboard → Deploy · `ingest_runs.fn_version` จะบอกว่ารุ่นไหนรันอยู่
 - หน้าเว็บ: `node --test test/*.test.mjs` ต้องผ่านก่อน push
 
+## สิ่งที่ทำไปแล้วจริง (3 ก.ย. 2569)
+
+ข้อ 0, 1, 3, 4 ทำครบแล้วบนโปรเจกต์ `mplexdeaqgrdoqqhypqb` (Org `envi-pi`, Free) · Edge Function v1.0.1 · cron เปิด 7 แหล่ง
+**ยังค้างข้อ 2 (สร้างผู้ใช้ + ตั้ง admin)** และข้อ 5 (นำเข้าไฟล์นิ่ง)
+
+สิ่งที่เจอตอนทำจริงและแก้ไปแล้ว (ถ้าทำซ้ำในโปรเจกต์ใหม่จะเจออีก):
+- ไฟล์ 3 รุ่นแรก anon ยังเรียก `purge_old_observations()` ได้ → แก้ให้ revoke จาก anon/authenticated ด้วย (ไฟล์ปัจจุบันถูกแล้ว)
+- Air4Thai ใช้ใบรับรอง Let's Encrypt YR1 แต่ส่ง chain ผิด → Edge Function ฝัง CA ไว้แล้ว (หมดอายุ 2 ก.ย. 2571 — ก่อนถึงให้โหลดใหม่จาก `http://yr1.i.lencr.org/` หรือ intermediate ตัวใหม่ตาม AIA ของ leaf)
+- GISTDA hotspot ไม่รองรับ pagination · DGR คืน N×1000 แถวต่อหน้า → handler ปัจจุบันรองรับแล้ว
+- ช่อง Secrets และสวิตช์ Verify JWT ใน Dashboard ไม่รับการพิมพ์/คลิกจากเครื่องมืออัตโนมัติ ต้องทำด้วยมือหรือ set ค่าผ่าน JS
+
 ## ปัญหาที่พบบ่อย
 
 อาการ | สาเหตุ | แก้
