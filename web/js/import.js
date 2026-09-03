@@ -65,16 +65,29 @@ export function csvRowToStation(r) {
   };
 }
 
+/** แบ่งชุดตามจำนวน **และ** ขนาดไบต์ — โพลิกอนป่าสงวนบางแปลงใหญ่ 1 MB (ป่าจริม) ส่ง 200 แปลงทีเดียวไม่ไหว */
+export function makeBatches(items, size, maxBytes = 1_500_000) {
+  const out = []; let cur = [], bytes = 0;
+  for (const it of items) {
+    const b = JSON.stringify(it).length;
+    if (cur.length && (cur.length >= size || bytes + b > maxBytes)) { out.push(cur); cur = []; bytes = 0; }
+    cur.push(it); bytes += b;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
 async function rpcBatches(name, buildArgs, items, size) {
   const sb = await core.getClient();
   let inserted = 0, skipped = 0; const errors = [];
-  for (let i = 0; i < items.length; i += size) {
-    const part = items.slice(i, i + size);
+  const batches = makeBatches(items, size);
+  for (let i = 0; i < batches.length; i++) {
+    const part = batches[i];
     const { data, error } = await sb.rpc(name, buildArgs(part));
-    if (error) { errors.push(error.message); log(`  ชุด ${i / size + 1}: ล้ม — ${error.message}`); continue; }
+    if (error) { errors.push(error.message); log(`  ชุด ${i + 1}: ล้ม — ${error.message}`); continue; }
     inserted += data.inserted; skipped += data.skipped;
     if (data.errors?.length) errors.push(...data.errors);
-    log(`  ชุด ${i / size + 1}/${Math.ceil(items.length / size)}: เข้า ${data.inserted} ข้าม ${data.skipped}`);
+    log(`  ชุด ${i + 1}/${batches.length}: เข้า ${data.inserted} ข้าม ${data.skipped}`);
   }
   log(`สรุป: เข้า ${inserted} · ข้าม ${skipped}${errors.length ? ' · ตัวอย่างข้อผิดพลาด: ' + [...new Set(errors)].slice(0, 3).join(' | ') : ''}`);
   return { inserted, skipped };

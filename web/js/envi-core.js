@@ -128,9 +128,17 @@ export async function fetchStationsLatest(sourcePrefix) {
   return unwrap(await sb.from('v_station_latest').select('*').like('source_id', `${sourcePrefix}%`).limit(5000)) ?? [];
 }
 
-/** เหตุการณ์ y วันล่าสุดตามชนิด */
+/**
+ * เหตุการณ์ y วันล่าสุดตามชนิด
+ * ⚠️ ชั้นประวัติ (ดินถล่ม DMR 56,177 จุด ไม่มีปี) ต้องอ่านจากตาราง events ตรง ๆ
+ *    เพราะวิว v_recent_events กรอง 30 วัน — ส่ง days > 3650 เพื่อบอกว่าเป็นชั้นประวัติ
+ */
 export async function fetchRecentEvents(kind, days = 7, limit = 5000) {
   const sb = await getClient();
+  if (days > 3650) {
+    return unwrap(await sb.from('events').select('id, source_id, kind, occurred_at, lat, lng, magnitude, title, province, props, imported_manually')
+      .eq('kind', kind).limit(limit)) ?? [];
+  }
   const since = new Date(Date.now() - days * 86400e3).toISOString();
   return unwrap(await sb.from('v_recent_events').select('*').eq('kind', kind).gte('occurred_at', since)
     .order('occurred_at', { ascending: false }).limit(limit)) ?? [];

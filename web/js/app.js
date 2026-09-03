@@ -120,8 +120,9 @@ const EVENT_STYLE = {
 };
 async function drawEvents() {
   clearEntities('events');
-  const wanted = [['hotspot', 7], ['earthquake', 30], ['landslide', 36500], ['flood', 30]];
-  const counts = {};
+  // ดินถล่ม DMR มี 56,177 จุดทั้งประเทศ — ไม่วาดทั้งหมด (Cesium อืด) แสดงเฉพาะที่อยู่ใน 10 กม. ของจุดวิเคราะห์ผ่าน site_report
+  const wanted = [['hotspot', 7], ['earthquake', 30], ['flood', 30]];
+  const counts = { landslide: 'เฉพาะรอบจุดวิเคราะห์' };
   for (const [kind, days] of wanted) {
     let rows = [];
     try { rows = await core.fetchRecentEvents(kind, days, kind === 'hotspot' ? 5000 : 2000); } catch { rows = []; }
@@ -137,6 +138,22 @@ async function drawEvents() {
     }
   }
   $('eventLegend').innerHTML = Object.entries(EVENT_STYLE).map(([k, s]) => `<span class="lg"><i style="background:${s.color}"></i>${esc(s.label)} (${counts[k] ?? 0})</span>`).join('');
+}
+
+/** จุดดินถล่มใน 10 กม. ของจุดวิเคราะห์ (จาก site_report) — วาดแทนการโหลดทั้ง 56k จุด */
+function drawNearbyLandslides(rep) {
+  state.entities.events = state.entities.events.filter((e) => { if (e.__nearby) { state.viewer.entities.remove(e); return false; } return true; });
+  const st = EVENT_STYLE.landslide;
+  for (const x of rep?.landslides_10km?.items ?? []) {
+    const ent = state.viewer.entities.add({
+      name: st.label, description: `<p><b>${esc(x.title ?? 'ดินถล่ม')}</b></p><p>ห่าง ${Math.round(x.distance_m)} ม.${x.props?.remark ? ' · ' + esc(x.props.remark) : ''}</p><p><small>ที่มา: กรมทรัพยากรธรณี (บัญชีดินถล่ม 2532-2562)</small></p>`,
+      position: Cesium.Cartesian3.fromDegrees(x.lng, x.lat),
+      point: { pixelSize: st.size, color: Cesium.Color.fromCssColorString(st.color).withAlpha(0.9), outlineColor: Cesium.Color.WHITE.withAlpha(0.6), outlineWidth: 1, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      show: state.category === 'disaster' || state.category === 'water',
+    });
+    ent.__nearby = true;
+    state.entities.events.push(ent);
+  }
 }
 
 // ════════════════════════════════════════════════════════════ แท็บหมวด
@@ -180,6 +197,7 @@ async function analyze() {
     return;
   }
   state.report = rep.value;
+  drawNearbyLandslides(rep.value);
   renderReport();
 
   // แสงอาทิตย์: เรียก API จริง (เบื้องหลัง ไม่บล็อกหมวดอื่น)

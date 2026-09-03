@@ -2,7 +2,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as core from '../web/js/envi-core.js';
-import { parseCsv, csvRowToEvent, csvRowToStation } from '../web/js/import.js';
+import { parseCsv, csvRowToEvent, csvRowToStation, makeBatches } from '../web/js/import.js';
+
+test('makeBatches(): แบ่งตามจำนวนและขนาดไบต์ (ป่าจริม 1 MB ต้องไม่ไปรวมกับแปลงอื่นจนเกิน)', () => {
+  const small = { a: 'x'.repeat(100) }, big = { a: 'y'.repeat(1_000_000) };
+  const b = makeBatches([big, big, small, small, big], 3, 1_500_000);
+  assert.deepEqual(b.map((x) => x.length), [1, 3, 1]);              // big สองตัวติดกันต้องแยกชุด
+  assert.deepEqual(makeBatches([small, small, small, small], 3).map((x) => x.length), [3, 1]);
+  assert.deepEqual(makeBatches([], 3), []);
+});
 
 test('num(): ค่าจากหน่วยงานเป็น string + sentinel ทุกแบบ = null', () => {
   assert.equal(core.num('37.5'), 37.5);
