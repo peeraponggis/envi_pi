@@ -117,8 +117,9 @@ values
  'https://power.larc.nasa.gov/api/temporal/daily/point', 'open_json', 'NASA open', null, null, '2026-09-03', 'เบราว์เซอร์เรียกสด → api_cache', '{}'),
 ('pvgis', 'solar', 'EU JRC PVGIS 5.3', 'ผลผลิต PV / รายชั่วโมง / TMY',
  'https://re.jrc.ec.europa.eu/api/v5_3/', 'open_json', 'JRC open', null, null, '2026-09-03', '30 คำขอ/วินาที/IP · เบราว์เซอร์เรียกสด', '{}'),
-('dede_solar', 'solar', 'กรมพัฒนาพลังงานทดแทนและอนุรักษ์พลังงาน', 'รังสีอาทิตย์ 38 สถานี (XLSX รายปี)',
- 'https://pei.dede.go.th/dataset/sed01', 'static_file', 'CC BY', null, null, '2026-09-03', 'นำเข้าเป็น stations + observations_daily', '{}'),
+('dede_solar', 'solar', 'กรมพัฒนาพลังงานทดแทนและอนุรักษ์พลังงาน', 'แผนที่ความเข้มรังสีอาทิตย์รายตำบล 7,416 จุด พ.ศ. 2560 (MJ/m²/วัน รายเดือน)',
+ 'https://pei.dede.go.th/dataset/sed01', 'static_file', 'CC BY', null, null, '2026-09-03',
+ 'นำเข้าแล้ว 3 ก.ย. 69: ชุด "38 สถานี" จริง ๆ เป็น XLSX รายตำบลทั้งประเทศ มี lat/lon + 12 เดือน → stations (station_type solar_grid, meta.monthly/annual_kwh_m2) · หน้าเว็บใช้ nearest_stations(…,''dede_solar'')', '{"file":"data_solar_intensity_2560.xlsx","unit":"MJ/m2/day"}'),
 ('nasa_gibs_ndvi', 'vegetation', 'NASA GIBS', 'MODIS NDVI 8 วัน (WMTS)',
  'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/', 'wms', 'NASA open', null, null, '2026-09-03', 'tile สด คงจากไฟล์ V2.9.0', '{}')
 

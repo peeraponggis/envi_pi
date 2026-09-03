@@ -386,13 +386,15 @@ async function loadSolar(lat, lng) {
   state.solar = { loading: true };
   if (state.category === 'solar') renderReport();
   const dt = new Date($('datetime').value || Date.now());
-  const [np, pv] = await Promise.allSettled([
+  const [np, pv, de] = await Promise.allSettled([
     core.withCache(core.cacheKey('nasa_power', lat, lng), () => core.fetchNasaPower(lat, lng), { sourceId: 'nasa_power' }),
     core.withCache(core.cacheKey(`pvgis:${dt.getMonth() + 1}-${dt.getHours()}`, lat, lng), () => core.fetchPvgisHour(lat, lng, dt.getMonth() + 1, dt.getHours()), { sourceId: 'pvgis' }),
+    core.nearestStations(lat, lng, 15000, 'dede_solar', 1),          // แผนที่รังสีระดับตำบลของ พพ. (ในฐานข้อมูล)
   ]);
   state.solar = {
     nasa: np.status === 'fulfilled' ? np.value : { error: np.reason?.message },
     pvgis: pv.status === 'fulfilled' ? pv.value : { error: pv.reason?.message },
+    dede: de.status === 'fulfilled' ? (de.value?.[0] ?? null) : null,
   };
   if (state.category === 'solar') renderReport();
 }
@@ -400,10 +402,18 @@ function renderSolar() {
   const s = state.solar;
   if (!s || s.loading) return '<div class="result-item loading">🔄 กำลังเรียก NASA POWER และ PVGIS…</div>';
   const n = s.nasa?.payload, p = s.pvgis?.payload;
-  if (!n) return `<div class="result-item err">NASA POWER: ${esc(s.nasa?.error ?? 'ไม่มีข้อมูล')}</div>`;
+  // แผนที่รังสีอาทิตย์ระดับตำบลของ พพ. (พ.ศ. 2560, MJ/m²/วัน รายเดือน) — ข้อมูลไทยทางการ แสดงก่อน NASA
+  const d = s.dede, dm = d?.meta ?? {};
+  const MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const dede = d ? `
+    <div class="result-item"><span class="result-label">🇹🇭 แผนที่ศักยภาพแสงอาทิตย์ พพ. (${esc(d.name_th)})</span> <span class="src">ห่าง ${km(d.distance_m)}</span><br>
+      <b class="big">${dm.annual_kwh_m2 ?? '—'}</b> kWh/m²/ปี ${dm.annual_kwh_m2 ? badge(core.interpretGHI(dm.annual_kwh_m2)) : ''} · เฉลี่ย ${dm.annual_avg_mj ?? '—'} MJ/m²/วัน (${dm.annual_avg_kwh_day ?? '—'} kWh/m²/วัน)
+      <div class="hours">${(dm.monthly ?? []).map((v, i) => `<div class="hr" title="${MON[i]} ${v ?? '—'} MJ/m²/วัน"><span>${MON[i]}</span><i style="display:block;width:16px;height:${Math.round(((v ?? 0) - 12) * 6)}px;background:#ffb300;border-radius:2px;margin-top:auto"></i><b>${v != null ? v.toFixed(1) : '—'}</b></div>`).join('')}</div>
+      <small class="dim">ที่มา: กรมพัฒนาพลังงานทดแทนและอนุรักษ์พลังงาน ข้อมูลความเข้มรังสี พ.ศ. 2560 ระดับตำบล (CC BY) · ${esc(d.area_th ?? '')}</small></div>` : '';
+  if (!n) return dede + `<div class="result-item err">NASA POWER: ${esc(s.nasa?.error ?? 'ไม่มีข้อมูล')}</div>`;
   const inst = p?.instantGhi ?? 800, ta = p?.airTemp ?? n.airTemp ?? 30, ws = p?.windSpeed ?? n.windSpeed ?? 1;
   const mt = core.moduleTemp({ instantGhi: inst, windSpeed: ws, airTemp: ta });
-  return `
+  return dede + `
     <div class="result-item"><span class="result-label">☀️ รังสีรวมแนวราบ GHI</span> <span class="src">NASA POWER ${n.year}${s.nasa.cached ? ' · แคช' : ''}</span><br>
       <b class="big">${n.ghi}</b> kWh/m²/ปี ${badge(core.interpretGHI(n.ghi))}<br><small class="dim">รวมจากค่ารายวัน ${n.days} วัน · กริด 0.5°</small></div>
     <div class="result-item"><span class="result-label">☁️ รังสีกระจาย (Diffuse)</span><br>
