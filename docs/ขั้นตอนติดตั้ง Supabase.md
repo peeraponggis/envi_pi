@@ -103,7 +103,7 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 ตำบลโพลิกอน DWR (`dwr_tambon` 7,639 แปลง, GeoJSON ย่อแล้ว 51 MB) นำเข้าแล้ว 3 ก.ย. 69 — ใช้เวลาประมาณ 1 นาทีผ่าน RPC ชุดละ ≤150 แปลง/1.5 MB
 แผนที่รังสีอาทิตย์ พพ. (`dede_solar` 7,416 ตำบล จาก `data/raw/dede_solar_2560.xlsx` → `dede_solar_rows.json` → RPC `import_stations`) นำเข้าแล้ว 3 ก.ย. 69
 โรงงาน กรมโรงงานฯ 68,116 แห่ง (`data/raw/diw_*.csv` → `diw_events_rows.json` ผูกพิกัดศูนย์กลางตำบล → RPC `import_events` source `diw_factory` kind other) นำเข้าแล้ว 3 ก.ย. 69 · migration 900 (`site_report` เพิ่ม factories_5km / eia_20km) รันแล้ว
-EIA สผ.: `node scripts/scrape_eia.mjs list` แล้ว `detail` (รันซ้ำได้ เขียนต่อจากที่มี) → สร้างแถวด้วยขั้นตอนเดียวกับโรงงาน → source `onep_eia`
+EIA สผ. นำเข้าแล้ว 3 ก.ย. 69 (13,350 โครงการ): `node scripts/scrape_eia.mjs list` → `node scripts/scrape_eia.mjs detail` (~45 นาที รันซ้ำได้ เขียนต่อจากที่มี) → `node scripts/build_eia_rows.mjs` → RPC `import_events` source `onep_eia` kind other · อัปเดตครั้งถัดไปทำ 3 ขั้นเดิม (detail ดึงเฉพาะ id ใหม่)
 **ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · NASA FIRMS MAP_KEY (สำรอง)
 
 ⚠️ บทเรียน deploy Edge Function ผ่าน Dashboard: ถ้า deploy ล้มด้วย "Failed to bundle … could not be parsed" ให้หาคอมเมนต์ที่มีลำดับ slash-star-slash (เช่นเขียน path ที่มี `*` คั่นด้วย `/`) — bundler อ่านเป็นปิดคอมเมนต์ ทั้งที่ `node --check` ผ่าน
