@@ -46,8 +46,11 @@
   ลุ่มน้ำหลัก 28 (`dwr_main_basin`) · ลุ่มน้ำสาขา 359 (`dwr_sub_basin`) · จังหวัด 77 (`dwr_province`) · อำเภอ 883 (`dwr_amphoe`) · แรมซาร์ 113 (`onep_ramsar`) · เขื่อน 1,087 (stations `dwr_dam`) · สถานีอุทกวิทยา 126 (`dwr_hyd_station`)
   ชั้นที่ยังไม่ดึง: Tambon 7,640 โพลิกอน · WELL 72,658 · NAT_WTR_BODY 28,394 · 25_BASIN · พื้นที่ชุ่มน้ำท้องถิ่น 36,408 จุด · ประสิทธิภาพการระบายน้ำ (เส้น)
 - ✅ **ตารางดัชนี `layer_features_idx`** (ST_Subdivide 256 จุดยอด, migration 700) — site_report ใช้ตารางนี้ทำ point-in-polygon; ก่อนมีดัชนี โพลิกอนลุ่มน้ำหลัก/แรมซาร์ทำให้ 57014 statement timeout · trigger เติมดัชนีเองเมื่อ import · ถ้าดัชนีเพี้ยนรัน `select * from rebuild_layer_index(null)`
-- ⬜ ยังไม่ได้นำเข้า: การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV · ชั้นคุณภาพลุ่มน้ำ (ไม่มีบน ArcGIS ของ DWR)
-- ⬜ เฟส 4: TMD key + DEDE · เฟส 5: GISTDA gateway key
+- ✅ **เฟส 4 สภาพอากาศ (3 ก.ย. 69 เย็น)**: TMD **NWP API** (JWT ผู้ใช้สมัครเอง หมดอายุ ก.ย. 2570) เก็บเป็น Secret `TMD_NWP_TOKEN` · Edge `envi-ingest` v1.1.0 มี action สาธารณะ `{"action":"forecast","lat","lng"}` (ไม่ต้องมี cron token, CORS เปิด) แคช 1 ชม./พิกัดปัด 2 ตำแหน่งใน `api_cache` · แท็บสภาพอากาศแสดง 24 ชม. + 7 วัน
+  ⚠️ ผู้ใช้ **ไม่ได้สมัคร TMD API ชุดเก่า (uid/ukey)** — handler `tmd_today`/`tmd_3h` (สถานีตรวจวัดจริง 122 สถานี) ยังรันไม่ได้ ถ้าต้องการต้องสมัครแยกที่ data.tmd.go.th/api
+  ⚠️ token JWT ของ TMD ถูกวางในแชตตอนส่งให้ — ถ้ากังวลให้ revoke แล้วออกใหม่ที่ data.tmd.go.th/nwpapi แล้วอัปเดต Secret
+- ⬜ ยังไม่ได้นำเข้า: การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV · ชั้นคุณภาพลุ่มน้ำ (ไม่มีบน ArcGIS ของ DWR) · DEDE รังสีอาทิตย์ 38 สถานี (XLSX)
+- ⬜ เฟส 5: GISTDA gateway key (น้ำท่วม/รอยไหม้) · NASA FIRMS key
 - ⚠️ `upsertStations()` อ่าน id กลับด้วย select ที่ PostgREST จำกัด 1,000 แถว — พอสำหรับ Air4Thai/TMD แต่ถ้าแหล่งไหน >1,000 สถานีและต้องเก็บ observations ต้องแบ่ง `.range()`
 
 ## บทเรียนจากการติดตั้งจริง (3 ก.ย. 2569 — อย่าทำซ้ำ)

@@ -97,7 +97,9 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 
 ข้อ 0-5 ทำครบแล้วบนโปรเจกต์ `mplexdeaqgrdoqqhypqb` (Org `envi-pi`, Free) · Edge Function v1.0.1 · cron เปิด 7 แหล่ง · admin 1 คน
 ข้อ 5 นำเข้าแล้ว: ป่าสงวนแห่งชาติ 1,221 แปลง · ดินถล่ม 56,177 จุด · ศูนย์กลางตำบล 7,364 — ทำผ่าน session admin ในเบราว์เซอร์ (fetch GeoJSON/JSON จาก dev server แล้วเรียก RPC import_* ทีละชุด) ไม่ได้ใช้ปุ่มเลือกไฟล์ใน import.html
-**ยังค้าง**: ลุ่มน้ำ/อุทยาน (DWR ต้องกดดาวน์โหลดเองในเบราว์เซอร์ที่ https://webgis.dwr.go.th/downloads แล้วเอาไฟล์ .zip/.rar มาไว้ `data/raw/`) · การใช้ที่ดิน LDD รายจังหวัด · CSV EIA/โรงงาน
+ชั้น DWR (ลุ่มน้ำหลัก/สาขา จังหวัด/อำเภอ แรมซาร์ เขื่อน สถานีอุทกฯ) นำเข้าแล้วจาก `gis.dwr.go.th/arcgis/rest/services` ด้วย `node scripts/fetch_arcgis.mjs <layer-url> <out.geojson>` → `npx mapshaper -simplify interval=15 keep-shapes` → RPC `import_features` (ไม่ต้องใช้หน้า downloads)
+เฟส 4 สภาพอากาศ: Secret `TMD_NWP_TOKEN` ตั้งแล้ว (JWT จาก data.tmd.go.th/nwpapi หมดอายุ ก.ย. 2570 — ต่ออายุแล้วอัปเดต Secret) · Edge v1.1.0 action `forecast`
+**ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด · CSV EIA/โรงงาน · DEDE 38 สถานี (XLSX) · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · เฟส 5 key GISTDA gateway / FIRMS
 
 สิ่งที่เจอตอนทำจริงและแก้ไปแล้ว (ถ้าทำซ้ำในโปรเจกต์ใหม่จะเจออีก):
 - ไฟล์ 3 รุ่นแรก anon ยังเรียก `purge_old_observations()` ได้ → แก้ให้ revoke จาก anon/authenticated ด้วย (ไฟล์ปัจจุบันถูกแล้ว)
