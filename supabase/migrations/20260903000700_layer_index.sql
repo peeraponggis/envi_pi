@@ -42,10 +42,12 @@ declare n int;
 begin
   delete from public.layer_features_idx where feature_id = p_feature_id;
   insert into public.layer_features_idx (feature_id, layer_id, geom)
-  select f.id, f.layer_id, ST_Subdivide(ST_MakeValid(f.geom), 256)
+  -- ST_MakeValid อาจคืน GEOMETRYCOLLECTION (โพลิกอน+เส้น+จุด) → ดึงเฉพาะส่วนที่เป็นพื้นที่ (ST_CollectionExtract …, 3)
+  -- ถ้ากรองด้วย GeometryType ก่อน จะพลาดฟีเจอร์ที่ถูก MakeValid ตอนนำเข้า (เจอ: ลุ่มน้ำหลักติดดัชนีแค่ 11/28)
+  select f.id, f.layer_id, ST_Subdivide(ST_CollectionExtract(ST_MakeValid(f.geom), 3), 256)
     from public.layer_features f
    where f.id = p_feature_id
-     and GeometryType(f.geom) in ('POLYGON', 'MULTIPOLYGON');
+     and ST_Dimension(f.geom) = 2;
   get diagnostics n = row_count;
   return n;
 end $$;
@@ -57,10 +59,10 @@ language plpgsql security definer set search_path = public, extensions as $$
 begin
   delete from public.layer_features_idx i where p_layer is null or i.layer_id = p_layer;
   insert into public.layer_features_idx (feature_id, layer_id, geom)
-  select f.id, f.layer_id, ST_Subdivide(ST_MakeValid(f.geom), 256)
+  select f.id, f.layer_id, ST_Subdivide(ST_CollectionExtract(ST_MakeValid(f.geom), 3), 256)
     from public.layer_features f
    where (p_layer is null or f.layer_id = p_layer)
-     and GeometryType(f.geom) in ('POLYGON', 'MULTIPOLYGON');
+     and ST_Dimension(f.geom) = 2;
   return query
     select i.layer_id, count(distinct i.feature_id), count(*)
       from public.layer_features_idx i
