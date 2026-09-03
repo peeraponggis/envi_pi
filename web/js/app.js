@@ -316,14 +316,16 @@ function renderWater(rep) {
 /** ที่ตั้งจากชั้นขอบเขตการปกครอง (กรมการปกครอง 2556 ผ่าน DWR) — แม่นกว่า Nominatim และไม่ต้องยิงเน็ต */
 function adminAddress(rep) {
   const hits = rep?.layer_hits ?? [];
+  const tam = hits.find((x) => x.layer_id === 'dwr_tambon');
   const amp = hits.find((x) => x.layer_id === 'dwr_amphoe'), prov = hits.find((x) => x.layer_id === 'dwr_province');
-  if (!amp && !prov) return null;
-  // ฟิลด์ของ DWR มีคำนำหน้ามาแล้ว ("อ.เมืองปทุมธานี", "จ.ปทุมธานี") — ตัดก่อนแล้วเติมให้เป็นแบบเดียวกัน
-  const strip = (s) => String(s ?? '').replace(/^(อ\.|จ\.|เขต|อำเภอ|จังหวัด)\s*/, '').trim();
-  const p = strip(prov?.feature ?? amp?.props?.PROV_NAM_T);
-  const a = strip(amp?.feature);
+  if (!tam && !amp && !prov) return null;
+  // ฟิลด์ของ DWR มีคำนำหน้ามาแล้ว ("ต.เกาะนางคำ", "อ.เมืองปทุมธานี", "จ.ปทุมธานี") — ตัดก่อนแล้วเติมให้เป็นแบบเดียวกัน
+  const strip = (s) => String(s ?? '').replace(/^(ต\.|อ\.|จ\.|แขวง|เขต|ตำบล|อำเภอ|จังหวัด)\s*/, '').trim();
+  const p = strip(prov?.feature ?? amp?.props?.PROV_NAM_T ?? tam?.props?.PROV_NAM_T);
+  const a = strip(amp?.feature ?? tam?.props?.AMPHOE_T);
+  const t = strip(tam?.feature);
   const isBkk = /กรุงเทพ/.test(p);
-  return [a && `${isBkk ? 'เขต' : 'อ.'}${a}`, p && (isBkk ? p : `จ.${p}`)].filter(Boolean).join(' ');
+  return [t && `${isBkk ? 'แขวง' : 'ต.'}${t}`, a && `${isBkk ? 'เขต' : 'อ.'}${a}`, p && (isBkk ? p : `จ.${p}`)].filter(Boolean).join(' ');
 }
 
 /** ชั้นโพลิกอนแยกตามแท็บ — ขอบเขตการปกครอง (dwr_province/amphoe) แสดงในหัวรายงานแทน */
