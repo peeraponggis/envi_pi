@@ -63,7 +63,7 @@ declare
     {"name":"envi_hotspot_modis",       "cron":"25 */6 * * *", "sql":"select public.trigger_ingest(''gistda_hotspot_modis'')"},
     {"name":"envi_hotspot_viirs",       "cron":"35 */6 * * *", "sql":"select public.trigger_ingest(''gistda_hotspot_viirs'')"},
     {"name":"envi_royalrain",           "cron":"*/30 * * * *", "sql":"select public.trigger_ingest(''royalrain'')"},
-    {"name":"envi_dgr_wells",           "cron":"45 20 * * 0",  "sql":"select public.trigger_ingest(''dgr_wells'')"},
+    {"name":"envi_dgr_wells",           "cron":"50 * * * *",   "sql":"select public.trigger_ingest(''dgr_wells'')"},
     {"name":"envi_tmd_today",           "cron":"50 */3 * * *", "sql":"select public.trigger_ingest(''tmd_today'')"},
     {"name":"envi_tmd_3h",              "cron":"55 */3 * * *", "sql":"select public.trigger_ingest(''tmd_3h'')"},
     {"name":"envi_rollup_daily",        "cron":"30 18 * * *",  "sql":"select public.rollup_daily()"},

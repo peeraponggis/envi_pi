@@ -377,38 +377,47 @@ async function tmd_quake(ctx: Ctx): Promise<HandlerResult> {
   return { rows: n };
 }
 
-/** บ่อน้ำบาดาล DGR — 118 หน้า ดึงทีละ 8 หน้าต่อรอบ จำหน้าไว้ใน cursor */
+/**
+ * บ่อน้ำบาดาล DGR — API แบ่งหน้าเพี้ยน (ตรวจ 3 ก.ย. 2569):
+ *   ?Page=N คืนแถวตั้งแต่ offset (N-1)×1000 จำนวน N×1000 แถว (Page=60 คืน 58,723 แถว!) ไม่มีพารามิเตอร์ขนาดหน้า
+ *   → ครอบคลุมทั้ง 117,617 แถวด้วยลำดับหน้า 1,2,4,8,16,32,64 (ช่วง [(N-1)k, (2N-1)k) ต่อกันพอดี)
+ *   หน้าใหญ่ (64 ≈ 55k แถว) เกินเวลา CPU ของ Edge ถ้า upsert ทีเดียว → แต่ละรอบ upsert แค่ 10,000 แถว
+ *   จำตำแหน่งใน cursor {seq_idx, offset} · ครบทั้งลำดับแล้ววนใหม่ (cron รายชั่วโมง ≈ 16 รอบต่อรอบใหญ่)
+ *   โครงสร้างจริง: { total, last_page_url, next_page_url, result: [...] } — แถวอยู่ใน "result"
+ */
 async function dgr_wells(ctx: Ctx): Promise<HandlerResult> {
-  const PAGES_PER_RUN = 8;
-  let page = Number(ctx.cursor?.next_page ?? 1);
-  let lastPage = Number(ctx.cursor?.last_page ?? 0);
+  const SEQ = [1, 2, 4, 8, 16, 32, 64], SLICE = 10000;
+  let idx = Math.min(Number(ctx.cursor?.seq_idx ?? 0), SEQ.length - 1);
+  let offset = Number(ctx.cursor?.offset ?? 0);
+  const page = SEQ[idx];
+  const j = await fetchJson(`${String(ctx.source.url)}?Page=${page}`) as Json;
+  const data = (Array.isArray(j.result) ? j.result : Array.isArray(j.data) ? j.data : []) as Json[];
+  const slice = data.slice(offset, offset + SLICE);
   const rows: Json[] = [];
-  for (let i = 0; i < PAGES_PER_RUN; i++) {
-    const url = `${String(ctx.source.url)}?page=${page}`;
-    const j = await fetchJson(url) as Json;
-    // โครงสร้างจริง (ตรวจ 3 ก.ย. 2569): { total, last_page_url, next_page_url, result: [...] } — แถวอยู่ใน "result"
-    const data = (Array.isArray(j.result) ? j.result : Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : []) as Json[];
-    if (!lastPage && typeof j.last_page_url === "string") lastPage = Number((j.last_page_url.match(/[Pp]age=(\d+)/) ?? [])[1] ?? 0);
-    lastPage = Number(j.last_page ?? lastPage ?? 0);
-    for (const w of data) {
-      const lat = num(pick(w, ["lat", "latitude"])), lng = num(pick(w, ["long", "lng", "longitude"]));
-      if (lat === null || lng === null || lat < 5 || lat > 21 || lng < 97 || lng > 106) continue;
-      rows.push({
-        ext_id: String(pick(w, ["no", "well_no", "id"]) ?? `${lat},${lng}`),
-        name_th: (pick(w, ["locat", "location", "name"]) as string) ?? null,
-        area_th: [w.tumbolname, w.ampurname, w.provincenam].filter(Boolean).join(" "),
-        province: (w.provincenam as string) ?? null, station_type: "well", lat, lng,
-        meta: { depth_drill_m: num(w.deeptdrill), depth_dev_m: num(w.deepdev), yield_m3h: num(w.yiel),
-                static_m: num(w.static), well_type: w.welltypename, wdd: w.wdd },
-      });
-    }
-    if (data.length === 0 || (lastPage && page >= lastPage) || !j.next_page_url) { page = 0; break; }
-    page++;
+  for (const w of slice) {
+    const lat = num(pick(w, ["lat", "latitude"])), lng = num(pick(w, ["long", "lng", "longitude"]));
+    if (lat === null || lng === null || lat < 5 || lat > 21 || lng < 97 || lng > 106) continue;
+    rows.push({
+      ext_id: String(pick(w, ["no", "well_no", "id"]) ?? `${lat},${lng}`),
+      name_th: (pick(w, ["locat", "location", "name"]) as string) ?? null,
+      area_th: [w.mubanname && ("บ้าน" + w.mubanname), w.tumbolname && ("ต." + w.tumbolname),
+                w.ampurname && ("อ." + w.ampurname), w.provincenam && ("จ." + w.provincenam)].filter(Boolean).join(" "),
+      province: (w.provincenam as string) ?? null, station_type: "well", lat, lng,
+      meta: { depth_drill_m: num(w.deeptdrill), depth_dev_m: num(w.deepdev), yield_m3h: num(w.yiel),
+              static_m: num(w.static), well_type: w.welltypename, water: w.bwdname ?? null, wdd: w.wdd || null },
+    });
   }
-  const n = (await upsertStations(ctx, "dgr_wells", rows)).size;
-  const next = page === 0 ? 1 : page;
-  return { rows: rows.length, cursor: { next_page: next, last_page: lastPage, completed: page === 0 },
-           note: `ถึงหน้า ${page === 0 ? lastPage + " (ครบ วนใหม่)" : page - 1} จาก ${lastPage || "?"} · สถานีทั้งหมด ${n}` };
+  const total = (await upsertStations(ctx, "dgr_wells", rows)).size;
+  const done = Math.min(offset + SLICE, data.length);
+  offset += SLICE;
+  let completed = false;
+  if (offset >= data.length) { offset = 0; idx++; }
+  if (idx >= SEQ.length) { idx = 0; completed = true; }
+  return {
+    rows: rows.length,
+    cursor: { seq_idx: idx, offset, last_page: page, api_total: j.total ?? null, completed },
+    note: `หน้า ${page}: แถว ${done}/${data.length} · ในฐาน ${total} บ่อ${completed ? " · ครบรอบ วนใหม่" : ""}`,
+  };
 }
 
 /** เรดาร์ฝนหลวง — เก็บ URL รูปล่าสุดต่อสถานีใน latest_observations.extra */
