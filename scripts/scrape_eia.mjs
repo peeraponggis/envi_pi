@@ -62,12 +62,21 @@ async function listAll() {
 
 function parseDetail(html) {
   const text = strip(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, ' ').replace(/<\/(div|p|tr|td|li|h\d)>/g, '\n'));
-  const grab = (label) => { const m = text.match(new RegExp(label + '\\s*:\\s*(.*?)(?=\\s+[ก-๙A-Za-z(][^:]{2,40}\\s*:|$)')); return m ? m[1].trim() : null; };
+  // ตัดค่าที่ "ป้ายถัดไป" ที่รู้จักเท่านั้น — รุ่นแรกใช้ lookahead กว้าง ๆ แล้วตัดคำว่า "จังหวัด…" ทิ้งก่อนถึง "โทรศัพท์ :" (เจอ 3 ก.ย. 2569)
+  const LABELS = ['ชื่อโครงการเดิม', 'ชื่อโครงการ', 'ประเภทรายงาน', 'เหตุผลในการขอเสนอรายงาน', 'เลขที่หนังสือเห็นชอบ', 'วันที่แจ้งเห็นชอบ',
+    'ประเภทโครงการรอง', 'ประเภทโครงการ', 'ที่ตั้งโครงการ', 'โทรศัพท์', 'โทรสาร', 'อีเมล', 'เว็บไซต์', 'นิติบุคคลผู้ทำรายงาน',
+    'เจ้าของโครงการเดิม', 'เจ้าของโครงการ', 'สถานภาพของโครงการ', 'เลขที่ใบอนุญาต/คำขอ', 'หน่วยงานอนุญาต', 'หมายเหตุ'];
+  const NEXT = '(?=\\s*(?:' + LABELS.map((l) => l.replace(/[/()]/g, '\\$&')).join('|') + ')\\s*(?:\\(ถ้ามี\\))?\\s*:|\\s*พื้นที่คุ้มครองสิ่งแวดล้อม|\\s*ย้อนกลับ|$)';
+  const grab = (label) => { const m = text.match(new RegExp(label.replace(/[/()]/g, '\\$&') + '\\s*(?:\\(ถ้ามี\\))?\\s*:\\s*([\\s\\S]*?)' + NEXT)); return m ? m[1].replace(/\s+/g, ' ').trim() : null; };
   const loc = grab('ที่ตั้งโครงการ') ?? '';
-  const lm = loc.match(/(?:ตำบล|แขวง)\s*([^\s]+)?\s*(?:อำเภอ|เขต)\s*([^\s]+)?\s*จังหวัด\s*([^\s\d]+)?\s*(\d{5})?/);
+  // ที่ตั้งมีหลายรูปแบบ: "ตำบลX อำเภอY จังหวัดZ 12345" · "ตำบลX อำเภอY" · "อำเภอY" · "แขวงX เขตY" · มีเลขที่/ถนน/นิคมนำหน้า
+  const tambon = loc.match(/(?:ตำบล|แขวง)\s*([ก-๙A-Za-z0-9.]+)/)?.[1] ?? null;
+  const amphoe = loc.match(/(?:อำเภอ|เขต)\s*([ก-๙A-Za-z0-9.]+)/)?.[1] ?? null;
+  const province = loc.match(/จังหวัด\s*([ก-๙A-Za-z.]+)/)?.[1] ?? (/กรุงเทพ/.test(loc) ? 'กรุงเทพมหานคร' : null);
+  const postcode = loc.match(/\b(\d{5})\b/)?.[1] ?? null;
   return {
     report_type: grab('ประเภทรายงาน'), category: grab('ประเภทโครงการ'), subcategory: grab('ประเภทโครงการรอง'),
-    location: loc || null, tambon: lm?.[1] ?? null, amphoe: lm?.[2] ?? null, province: lm?.[3] ?? null, postcode: lm?.[4] ?? null,
+    location: loc || null, tambon, amphoe, province, postcode,
     consultant: grab('นิติบุคคลผู้ทำรายงาน'), owner: grab('เจ้าของโครงการ'), project_status: grab('สถานภาพของโครงการ'),
     approval_no: grab('เลขที่หนังสือเห็นชอบ'), approval_date: grab('วันที่แจ้งเห็นชอบ'),
   };
