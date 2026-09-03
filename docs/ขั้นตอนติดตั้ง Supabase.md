@@ -100,6 +100,7 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 ชั้น DWR (ลุ่มน้ำหลัก/สาขา จังหวัด/อำเภอ แรมซาร์ เขื่อน สถานีอุทกฯ) นำเข้าแล้วจาก `gis.dwr.go.th/arcgis/rest/services` ด้วย `node scripts/fetch_arcgis.mjs <layer-url> <out.geojson>` → `npx mapshaper -simplify interval=15 keep-shapes` → RPC `import_features` (ไม่ต้องใช้หน้า downloads)
 เฟส 4 สภาพอากาศ: Secret `TMD_NWP_TOKEN` ตั้งแล้ว (JWT จาก data.tmd.go.th/nwpapi หมดอายุ ก.ย. 2570 — ต่ออายุแล้วอัปเดต Secret) · Edge v1.1.0 action `forecast`
 เฟส 5 GISTDA: Secret `GISTDA_API_KEY` ตั้งแล้ว · migration 800 (`replace_layer_features`) รันแล้ว · cron `envi_gistda_flood` ทุก 6 ชม. (เปิดแล้ว) · Edge v1.2.0 action `burnscar`
+ตำบลโพลิกอน DWR (`dwr_tambon` 7,639 แปลง, GeoJSON ย่อแล้ว 51 MB) นำเข้าแล้ว 3 ก.ย. 69 — ใช้เวลาประมาณ 1 นาทีผ่าน RPC ชุดละ ≤150 แปลง/1.5 MB
 **ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด · CSV EIA/โรงงาน · DEDE 38 สถานี (XLSX) · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · NASA FIRMS MAP_KEY (สำรอง)
 
 ⚠️ บทเรียน deploy Edge Function ผ่าน Dashboard: ถ้า deploy ล้มด้วย "Failed to bundle … could not be parsed" ให้หาคอมเมนต์ที่มีลำดับ slash-star-slash (เช่นเขียน path ที่มี `*` คั่นด้วย `/`) — bundler อ่านเป็นปิดคอมเมนต์ ทั้งที่ `node --check` ผ่าน
