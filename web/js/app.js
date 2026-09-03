@@ -226,7 +226,8 @@ function renderReport() {
   if (cat === 'air') body = renderAir(rep);
   else if (cat === 'disaster') body = renderDisaster(rep);
   else if (cat === 'water') body = renderWater(rep);
-  else if (cat === 'forest' || cat === 'eia') body = renderLayers(rep, cat);
+  else if (cat === 'forest') body = renderLayers(rep, cat);
+  else if (cat === 'eia') body = renderEia(rep);
   else if (cat === 'vegetation') body = `<div class="result-item">ชั้น NDVI จาก NASA GIBS (MODIS Terra 8 วัน) แสดงบนแผนที่แล้ว — ปรับความจางด้วยแถบเลื่อนด้านซ้าย<br><small class="dim">ค่า NDVI รายจุดต้องใช้ภาพดาวเทียมความละเอียดสูง (เฟสถัดไป)</small></div>`;
   else if (cat === 'solar') body = renderSolar(rep);
   else if (cat === 'weather') body = renderWeather(rep);
@@ -353,6 +354,20 @@ async function loadForecast(lat, lng) {
 const COND_ICON = { 1: '☀️', 2: '🌤️', 3: '⛅', 4: '☁️', 5: '🌦️', 6: '🌧️', 7: '🌧️', 8: '⛈️', 9: '🥶', 10: '🧊', 11: '🌬️', 12: '🥵' };
 const hh = (iso) => new Date(iso).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
 const dd = (iso) => new Date(iso).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', weekday: 'short', day: 'numeric', month: 'short' });
+
+/** แท็บ EIA/โรงงาน — โรงงานกรมโรงงานฯ (พิกัดศูนย์กลางตำบล) + โครงการ EIA/IEE สผ. */
+function renderEia(rep) {
+  const f = rep.factories_5km ?? {}, e = rep.eia_20km ?? {};
+  return `
+    <div class="result-item"><span class="result-label">🏭 โรงงาน (กรมโรงงานอุตสาหกรรม) ใน 5 กม.</span> <b>${f.count ?? 0}</b> แห่ง${f.waste_handlers ? ` · <span style="color:var(--warn)">กิจการจัดการของเสีย ${f.waste_handlers} แห่ง</span>` : ''}
+      ${f.by_type?.length ? `<ul class="lst">${f.by_type.map((x) => `<li>${esc(x.type)} <b>${x.n}</b></li>`).join('')}</ul>` : '<div class="dim">ไม่พบ</div>'}
+      ${listItems(f.items, (x) => `${x.waste_handler === 'true' ? '♻️ ' : ''}<b>${esc(x.name)}</b> · ${esc(x.type ?? '')} · จำพวก ${esc(x.class ?? '')}${x.hp ? ` · ${x.hp} แรงม้า` : ''} · ต.${esc(x.tambon ?? '')} <small class="dim">~${km(x.distance_m)}</small>`, '')}
+      <small class="dim">พิกัดโรงงานเป็น <b>ศูนย์กลางตำบล</b> (CSV ของกรมมีแค่ที่อยู่) · โรงงานจำพวก 2-3 ทั้งประเทศ 68,116 แห่ง อัปเดต ส.ค. 2569</small></div>
+    <div class="result-item"><span class="result-label">📋 โครงการ EIA/IEE (สผ. Smart EIA) ใน 20 กม.</span> <b>${e.count ?? 0}</b> โครงการ
+      ${listItems(e.items, (x) => `<b>${esc(x.name)}</b> · ${esc(x.category ?? '')} · ${esc(x.status ?? '')}${x.approval_date ? ` · ${esc(x.approval_date)}` : ''}<br><small class="dim">${esc(x.location ?? '')} · <a href="https://eia.onep.go.th/eia/detail?id=${esc(x.id)}" target="_blank" rel="noopener">รายละเอียด</a></small>`, 'ยังไม่มีข้อมูล EIA ในรัศมี (กำลังทยอยนำเข้าจาก Smart EIA)')}
+      <small class="dim">พิกัดโครงการเป็นศูนย์กลางตำบล/อำเภอตามที่ตั้งในทะเบียน สผ.</small></div>
+    ${renderLayers(rep, 'eia')}`;
+}
 
 function renderWeather(rep) {
   const fc = state.forecast;

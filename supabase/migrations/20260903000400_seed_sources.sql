@@ -93,10 +93,12 @@ values
  'http://gistdaportal.gistda.or.th/data/rest/services/opendata/Tambon/MapServer', 'arcgis_rest', 'DGA Open Government License', null, null, '2026-09-03', 'HTTP only', '{}'),
 
 -- ── EIA / โรงงาน / ขยะ ──────────────────────────────────────────────────────
-('onep_eia', 'eia', 'สำนักงานนโยบายและแผนทรัพยากรธรรมชาติและสิ่งแวดล้อม', 'Smart EIA Plus 13,508 โครงการ',
- 'https://eia.onep.go.th/site/eia', 'browser_only', 'ไม่ระบุ', null, null, '2026-09-03', 'ไม่มี API ไม่มีพิกัด · นำเข้า CSV ด้วยมือ', '{}'),
-('diw_factory', 'eia', 'กรมโรงงานอุตสาหกรรม', 'โรงงานประเภท 101/105/106 (CSV รายเดือน)',
- 'https://gdcatalog.go.th/dataset/gdpublish-diw-d01-01', 'static_file', 'ไม่ระบุ', null, null, '2026-09-03', 'ระดับตำบล ไม่มีพิกัด', '{}'),
+('onep_eia', 'eia', 'สำนักงานนโยบายและแผนทรัพยากรธรรมชาติและสิ่งแวดล้อม', 'Smart EIA Plus ทะเบียนโครงการ EIA/IEE (13,508 โครงการ)',
+ 'https://eia.onep.go.th/site/eia', 'browser_only', 'ไม่ระบุ (ทะเบียนสาธารณะ)', null, null, '2026-09-03',
+ 'ไม่มี API (services/web/eia/list ตอบ 401) · ดึงด้วย scripts/scrape_eia.mjs (รายการ POST 100 แถว/หน้า + หน้ารายละเอียดเพื่อเอาที่ตั้งตำบล/อำเภอ) → events kind=other พิกัด = ศูนย์กลางตำบล/อำเภอ', '{}'),
+('diw_factory', 'eia', 'กรมโรงงานอุตสาหกรรม', 'ทะเบียนโรงงานจำพวก 2-3 ทั้งประเทศ + กิจการจัดการของเสีย 101/105/106 (CSV)',
+ 'https://data.go.th/dataset/factype31', 'static_file', 'Open Data Common / CC BY', null, null, '2026-09-03',
+ 'นำเข้าแล้ว 3 ก.ย. 69: 68,116 แห่ง (factype3 67,695 + factype2 3,220 + fac101-105-106 2,940 ซ้อนทับ) → events kind=other · ไม่มีพิกัดในไฟล์ ผูกกับศูนย์กลางตำบล dopa_tambon (ระดับตำบล 97.7%, อำเภอ 2.3%) · ไฟล์: data.go.th/dataset/factype31, factype2, factype101-105-1061', '{"geocode":"tambon_centroid"}'),
 ('pcd_waste', 'waste', 'กรมควบคุมมลพิษ', 'สถานการณ์ขยะมูลฝอยรายจังหวัด',
  'https://thaimsw.pcd.go.th/report_country.php', 'browser_only', 'ไม่ระบุ', null, null, '2026-09-03', 'HTML เท่านั้น', '{}'),
 ('tgo_tver', 'eia', 'องค์การบริหารจัดการก๊าซเรือนกระจก', 'โครงการ T-VER',

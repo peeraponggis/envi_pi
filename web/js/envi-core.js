@@ -461,6 +461,10 @@ export function summarizeReport(rep) {
   if (ls) out.push({ key: 'landslide', text: `ประวัติดินถล่ม ${ls} จุดใน 10 กม.` });
   const w = rep.wells_5km?.count ?? 0;
   if (w) out.push({ key: 'wells', text: `บ่อบาดาล ${w} บ่อใน 5 กม.` });
+  const fc = rep.factories_5km?.count ?? 0, fw = rep.factories_5km?.waste_handlers ?? 0;
+  if (fc) out.push({ key: 'factories', text: `โรงงาน ${fc} แห่งใน 5 กม.${fw ? ` (จัดการของเสีย ${fw})` : ''} — พิกัดระดับตำบล`, level: fw ? 'warning' : '' });
+  const ec = rep.eia_20km?.count ?? 0;
+  if (ec) out.push({ key: 'eia', text: `โครงการ EIA/IEE ${ec} โครงการใน 20 กม.` });
   // ขอบเขตจังหวัด/อำเภอ (dwr_province, dwr_amphoe) ไปอยู่ในหัวรายงานแล้ว ไม่ต้องซ้ำในบรรทัดนี้
   const hits = (rep.layer_hits ?? []).filter((x) => !/^dwr_(province|amphoe|tambon)$/.test(x.layer_id ?? ''));
   if (hits.length) out.push({ key: 'layers', text: 'อยู่ในเขต: ' + hits.map((x) => `${x.layer}${x.feature ? ' — ' + x.feature : ''}`).join(' · ') });
