@@ -278,9 +278,12 @@ function adminAddress(rep) {
   const hits = rep?.layer_hits ?? [];
   const amp = hits.find((x) => x.layer_id === 'dwr_amphoe'), prov = hits.find((x) => x.layer_id === 'dwr_province');
   if (!amp && !prov) return null;
-  const p = prov?.feature ?? amp?.props?.PROV_NAM_T ?? '';
+  // ฟิลด์ของ DWR มีคำนำหน้ามาแล้ว ("อ.เมืองปทุมธานี", "จ.ปทุมธานี") — ตัดก่อนแล้วเติมให้เป็นแบบเดียวกัน
+  const strip = (s) => String(s ?? '').replace(/^(อ\.|จ\.|เขต|อำเภอ|จังหวัด)\s*/, '').trim();
+  const p = strip(prov?.feature ?? amp?.props?.PROV_NAM_T);
+  const a = strip(amp?.feature);
   const isBkk = /กรุงเทพ/.test(p);
-  return [amp && `${isBkk ? 'เขต' : 'อ.'}${amp.feature}`, p && (isBkk ? p : `จ.${p}`)].filter(Boolean).join(' ');
+  return [a && `${isBkk ? 'เขต' : 'อ.'}${a}`, p && (isBkk ? p : `จ.${p}`)].filter(Boolean).join(' ');
 }
 
 /** ชั้นโพลิกอนแยกตามแท็บ — ขอบเขตการปกครอง (dwr_province/amphoe) แสดงในหัวรายงานแทน */

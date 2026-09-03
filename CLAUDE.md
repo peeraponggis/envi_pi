@@ -42,9 +42,12 @@
 - ✅ ผู้ใช้ admin: `wisemenow9@gmail.com` (สร้าง 3 ก.ย. 69)
 - ✅ เฟส 2-3 นำเข้าแล้ว (3 ก.ย. 69, ผ่าน RPC import_* ด้วย session admin ในเบราว์เซอร์): ป่าสงวนแห่งชาติ 1,221 แปลง (layer `rfd_reserve_forest`, simplify 15 m) · ดินถล่ม DMR 56,177 จุด (events, `YEAR_DATA` ว่างทั้งหมด → occurred_at = 1970-01-01) · ศูนย์กลางตำบล 7,364 (stations `dopa_tambon`)
   ไฟล์ดิบ+GeoJSON อยู่ `data/raw/` (gitignore) · SHP ทั้งสองเป็น UTM zone 47 WGS84 มาใน .rar (แตกด้วย WinRAR ที่ `C:\Program Files\WinRAR\UnRAR.exe`)
-- ⬜ ยังไม่ได้นำเข้า: ลุ่มน้ำ/ชั้นคุณภาพลุ่มน้ำ/อุทยาน จาก DWR WebGIS (ปุ่มดาวน์โหลดเป็น JS/token ต้องกดเองในเบราว์เซอร์) · การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV
+- ✅ **DWR ArcGIS REST** (`https://gis.dwr.go.th/arcgis/rest/services` เปิดสาธารณะ 27 ชั้น — พบจากหน้า webgis.dwr.go.th/projects ที่เปิด web map ของ ArcGIS Enterprise) ดึงด้วย `scripts/fetch_arcgis.mjs` แล้วนำเข้าแล้ว (3 ก.ย. 69 บ่าย):
+  ลุ่มน้ำหลัก 28 (`dwr_main_basin`) · ลุ่มน้ำสาขา 359 (`dwr_sub_basin`) · จังหวัด 77 (`dwr_province`) · อำเภอ 883 (`dwr_amphoe`) · แรมซาร์ 113 (`onep_ramsar`) · เขื่อน 1,087 (stations `dwr_dam`) · สถานีอุทกวิทยา 126 (`dwr_hyd_station`)
+  ชั้นที่ยังไม่ดึง: Tambon 7,640 โพลิกอน · WELL 72,658 · NAT_WTR_BODY 28,394 · 25_BASIN · พื้นที่ชุ่มน้ำท้องถิ่น 36,408 จุด · ประสิทธิภาพการระบายน้ำ (เส้น)
+- ✅ **ตารางดัชนี `layer_features_idx`** (ST_Subdivide 256 จุดยอด, migration 700) — site_report ใช้ตารางนี้ทำ point-in-polygon; ก่อนมีดัชนี โพลิกอนลุ่มน้ำหลัก/แรมซาร์ทำให้ 57014 statement timeout · trigger เติมดัชนีเองเมื่อ import · ถ้าดัชนีเพี้ยนรัน `select * from rebuild_layer_index(null)`
+- ⬜ ยังไม่ได้นำเข้า: การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV · ชั้นคุณภาพลุ่มน้ำ (ไม่มีบน ArcGIS ของ DWR)
 - ⬜ เฟส 4: TMD key + DEDE · เฟส 5: GISTDA gateway key
-- ⚠️ ไม่มี GeoJSON ขอบเขตจังหวัด/อำเภอทางการบน data.go.th หรือ GISTDA opendata — ที่ใกล้สุดคือ "ขอบเขตการปกครอง (FGDS)" 39 MB RAR ของ DWR (ต้องดาวน์โหลดผ่านเบราว์เซอร์)
 - ⚠️ `upsertStations()` อ่าน id กลับด้วย select ที่ PostgREST จำกัด 1,000 แถว — พอสำหรับ Air4Thai/TMD แต่ถ้าแหล่งไหน >1,000 สถานีและต้องเก็บ observations ต้องแบ่ง `.range()`
 
 ## บทเรียนจากการติดตั้งจริง (3 ก.ย. 2569 — อย่าทำซ้ำ)
