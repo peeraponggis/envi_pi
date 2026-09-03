@@ -95,8 +95,9 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 
 ## สิ่งที่ทำไปแล้วจริง (3 ก.ย. 2569)
 
-ข้อ 0, 1, 3, 4 ทำครบแล้วบนโปรเจกต์ `mplexdeaqgrdoqqhypqb` (Org `envi-pi`, Free) · Edge Function v1.0.1 · cron เปิด 7 แหล่ง
-**ยังค้างข้อ 2 (สร้างผู้ใช้ + ตั้ง admin)** และข้อ 5 (นำเข้าไฟล์นิ่ง)
+ข้อ 0-5 ทำครบแล้วบนโปรเจกต์ `mplexdeaqgrdoqqhypqb` (Org `envi-pi`, Free) · Edge Function v1.0.1 · cron เปิด 7 แหล่ง · admin 1 คน
+ข้อ 5 นำเข้าแล้ว: ป่าสงวนแห่งชาติ 1,221 แปลง · ดินถล่ม 56,177 จุด · ศูนย์กลางตำบล 7,364 — ทำผ่าน session admin ในเบราว์เซอร์ (fetch GeoJSON/JSON จาก dev server แล้วเรียก RPC import_* ทีละชุด) ไม่ได้ใช้ปุ่มเลือกไฟล์ใน import.html
+**ยังค้าง**: ลุ่มน้ำ/อุทยาน (DWR ต้องกดดาวน์โหลดเองในเบราว์เซอร์ที่ https://webgis.dwr.go.th/downloads แล้วเอาไฟล์ .zip/.rar มาไว้ `data/raw/`) · การใช้ที่ดิน LDD รายจังหวัด · CSV EIA/โรงงาน
 
 สิ่งที่เจอตอนทำจริงและแก้ไปแล้ว (ถ้าทำซ้ำในโปรเจกต์ใหม่จะเจออีก):
 - ไฟล์ 3 รุ่นแรก anon ยังเรียก `purge_old_observations()` ได้ → แก้ให้ revoke จาก anon/authenticated ด้วย (ไฟล์ปัจจุบันถูกแล้ว)

@@ -39,8 +39,12 @@
 - ✅ โปรเจกต์ Supabase `envi-pi` ref `mplexdeaqgrdoqqhypqb` (Org ใหม่ `envi-pi` แผน Free, บัญชี Gmail แยกของผู้ใช้) — SQL ทั้ง 7 ไฟล์รันผ่าน · Vault มี `envi_ingest_url` + `envi_cron_token`
 - ✅ Edge Function `envi-ingest` v1.0.1 deploy แล้ว (Verify JWT ปิด · Secret `ENVI_CRON_TOKEN` ตั้งแล้ว) · cron 11 job · `cron_enabled=true` 7 แหล่ง: air4thai, tmd_quake, gistda_hotspot_modis/viirs, gistda_pm25, royalrain_radar, dgr_wells
 - ✅ ข้อมูลจริงเข้าแล้ว: สถานี Air4Thai 173 · hotspot 1,533 · แผ่นดินไหว 10 · PM2.5 ดาวเทียม 77 จังหวัด · เรดาร์ 9 · บ่อบาดาลกำลังทยอย (cursor)
-- ⬜ ยังไม่มีผู้ใช้ใน Authentication → ผู้ใช้ต้องสร้างเองแล้ว `update profiles set role='admin'` (บันทึกผล/นำเข้าไฟล์ยังใช้ไม่ได้จนกว่าจะมี)
-- ⬜ เฟส 2-3: นำเข้า SHP (ป่าสงวน ลุ่มน้ำ ดินถล่ม) ผ่าน import.html · เฟส 4: TMD key + DEDE · เฟส 5: GISTDA gateway key
+- ✅ ผู้ใช้ admin: `wisemenow9@gmail.com` (สร้าง 3 ก.ย. 69)
+- ✅ เฟส 2-3 นำเข้าแล้ว (3 ก.ย. 69, ผ่าน RPC import_* ด้วย session admin ในเบราว์เซอร์): ป่าสงวนแห่งชาติ 1,221 แปลง (layer `rfd_reserve_forest`, simplify 15 m) · ดินถล่ม DMR 56,177 จุด (events, `YEAR_DATA` ว่างทั้งหมด → occurred_at = 1970-01-01) · ศูนย์กลางตำบล 7,364 (stations `dopa_tambon`)
+  ไฟล์ดิบ+GeoJSON อยู่ `data/raw/` (gitignore) · SHP ทั้งสองเป็น UTM zone 47 WGS84 มาใน .rar (แตกด้วย WinRAR ที่ `C:\Program Files\WinRAR\UnRAR.exe`)
+- ⬜ ยังไม่ได้นำเข้า: ลุ่มน้ำ/ชั้นคุณภาพลุ่มน้ำ/อุทยาน จาก DWR WebGIS (ปุ่มดาวน์โหลดเป็น JS/token ต้องกดเองในเบราว์เซอร์) · การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV
+- ⬜ เฟส 4: TMD key + DEDE · เฟส 5: GISTDA gateway key
+- ⚠️ ไม่มี GeoJSON ขอบเขตจังหวัด/อำเภอทางการบน data.go.th หรือ GISTDA opendata — ที่ใกล้สุดคือ "ขอบเขตการปกครอง (FGDS)" 39 MB RAR ของ DWR (ต้องดาวน์โหลดผ่านเบราว์เซอร์)
 - ⚠️ `upsertStations()` อ่าน id กลับด้วย select ที่ PostgREST จำกัด 1,000 แถว — พอสำหรับ Air4Thai/TMD แต่ถ้าแหล่งไหน >1,000 สถานีและต้องเก็บ observations ต้องแบ่ง `.range()`
 
 ## บทเรียนจากการติดตั้งจริง (3 ก.ย. 2569 — อย่าทำซ้ำ)
