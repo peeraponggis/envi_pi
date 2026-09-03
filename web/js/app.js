@@ -396,6 +396,9 @@ async function loadSolar(lat, lng) {
     pvgis: pv.status === 'fulfilled' ? pv.value : { error: pv.reason?.message },
     dede: de.status === 'fulfilled' ? (de.value?.[0] ?? null) : null,
   };
+  if (state.solar.dede) {
+    try { state.solar.dede.meta = await core.fetchStationMeta(state.solar.dede.station_id); } catch { /* ไม่มี meta ก็แสดงเท่าที่มี */ }
+  }
   if (state.category === 'solar') renderReport();
 }
 function renderSolar() {

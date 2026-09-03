@@ -164,6 +164,13 @@ export async function nearestStations(lat, lng, radiusM = 50000, source = null, 
   return unwrap(await sb.rpc('nearest_stations', { p_lat: lat, p_lng: lng, p_radius_m: radiusM, p_source: source, p_limit: limit })) ?? [];
 }
 
+/** meta ของสถานีหนึ่งแถว — nearest_stations() ไม่คืน meta (เจอ 3 ก.ย. 69 ตอนต่อแผนที่รังสี พพ.) */
+export async function fetchStationMeta(stationId) {
+  const sb = await getClient();
+  const row = unwrap(await sb.from('stations').select('meta').eq('id', stationId).maybeSingle());
+  return row?.meta ?? {};
+}
+
 export async function layerFeaturesBbox(layerId, bbox, tolerance = 0) {
   const sb = await getClient();
   const [minx, miny, maxx, maxy] = bbox;
