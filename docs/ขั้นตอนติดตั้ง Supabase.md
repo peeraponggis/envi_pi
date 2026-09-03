@@ -104,7 +104,8 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 แผนที่รังสีอาทิตย์ พพ. (`dede_solar` 7,416 ตำบล จาก `data/raw/dede_solar_2560.xlsx` → `dede_solar_rows.json` → RPC `import_stations`) นำเข้าแล้ว 3 ก.ย. 69
 โรงงาน กรมโรงงานฯ 68,116 แห่ง (`data/raw/diw_*.csv` → `diw_events_rows.json` ผูกพิกัดศูนย์กลางตำบล → RPC `import_events` source `diw_factory` kind other) นำเข้าแล้ว 3 ก.ย. 69 · migration 900 (`site_report` เพิ่ม factories_5km / eia_20km) รันแล้ว
 EIA สผ. นำเข้าแล้ว 3 ก.ย. 69 (13,350 โครงการ): `node scripts/scrape_eia.mjs list` → `node scripts/scrape_eia.mjs detail` (~45 นาที รันซ้ำได้ เขียนต่อจากที่มี) → `node scripts/build_eia_rows.mjs` → RPC `import_events` source `onep_eia` kind other · อัปเดตครั้งถัดไปทำ 3 ขั้นเดิม (detail ดึงเฉพาะ id ใหม่)
-**ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · NASA FIRMS MAP_KEY (สำรอง)
+**ลดขนาด DB (3 ก.ย. 69 ค่ำ)**: หลัง EIA/โรงงาน DB ขึ้น 537 MB เกินโควตา Free 500 MB (Dashboard ขึ้น "EXCEEDING USAGE LIMITS") → รัน migration 1000 `compact_layers` (เก็บโพลิกอนเป็นชิ้น ST_Subdivide สำเนาเดียวใน `layer_features`, ลบ `layer_features_idx`, ตัด props โรงงานที่ซ้ำ) แล้วรัน **ทีละคำสั่ง** `vacuum full public.layer_features;` → `vacuum full public.events;` → `vacuum full public.stations;` → เหลือ **326 MB** · ตรวจขนาดด้วย `select pg_size_pretty(pg_database_size(current_database()));` · ป้ายเตือนบน Dashboard หายเองภายในราว 1 ชม.
+**ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด (**ข้ามไปก่อน** — ผู้ใช้เลือกลดขนาด DB แทนอัป Pro; ถ้าจะทำต้องอัป Pro 8 GB หรือเก็บชั้นใหญ่นอก Postgres) · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · NASA FIRMS MAP_KEY (สำรอง)
 
 ⚠️ บทเรียน deploy Edge Function ผ่าน Dashboard: ถ้า deploy ล้มด้วย "Failed to bundle … could not be parsed" ให้หาคอมเมนต์ที่มีลำดับ slash-star-slash (เช่นเขียน path ที่มี `*` คั่นด้วย `/`) — bundler อ่านเป็นปิดคอมเมนต์ ทั้งที่ `node --check` ผ่าน
 
