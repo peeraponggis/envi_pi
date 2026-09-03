@@ -23,7 +23,12 @@ export const isConfigured = () =>
 
 function offlineClient(reason = 'ออฟไลน์ — ต่อเน็ตแล้วลองใหม่') {
   const off = { data: null, error: { message: reason, offline: true } };
-  const chain = () => new Proxy(() => {}, { get: () => chain(), apply: () => Promise.resolve(off) });
+  // ต้องต่อโซ่ได้ทุกแบบ (.from().select().like().order()…) และ await ได้ทุกจุด
+  // — ต่างจาก pi-core ที่ await ทันทีหลัง select
+  const chain = () => new Proxy(function () {}, {
+    get: (_t, prop) => (prop === 'then' ? (resolve) => resolve(off) : chain()),
+    apply: () => chain(),
+  });
   return {
     __offline: true,
     auth: {

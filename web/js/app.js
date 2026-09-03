@@ -27,9 +27,11 @@ async function initMap() {
     animation: false, timeline: false, fullscreenButton: false,
   });
   const v = state.viewer;
+  // ⚠️ UrlTemplateImageryProvider ใน Cesium 1.115 ใช้ constructor ตรง ๆ — ไม่มี .fromUrl()
+  //    (ไฟล์ V2.9.0 เดิมเรียก fromUrl แล้วล้มเงียบใน try/catch ทำให้แผนที่ดำ)
   const add = async (key, url, opts = {}, show = true, alpha = 1) => {
     try {
-      const p = await Cesium.UrlTemplateImageryProvider.fromUrl(url, { tilingScheme: new Cesium.WebMercatorTilingScheme(), ...opts });
+      const p = new Cesium.UrlTemplateImageryProvider({ url, tilingScheme: new Cesium.WebMercatorTilingScheme(), ...opts });
       const l = new Cesium.ImageryLayer(p); l.show = show; l.alpha = alpha;
       v.imageryLayers.add(l); state.layers[key] = l;
     } catch (e) { console.warn('โหลดชั้น', key, 'ไม่ได้', e); }

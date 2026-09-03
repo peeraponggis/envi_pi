@@ -2,6 +2,7 @@
    ห้ามนิยามสีใหม่นอกตัวแปร --brand/--ink/--surface/--line ของ pi.css ยกเว้นสีระดับ AQI ที่มาจาก config.js */
 
 html, body { height: 100%; overflow: hidden; }
+[hidden] { display: none !important; }   /* .result-panel/.cat-panel ตั้ง display เอง ต้องให้ hidden ชนะ */
 .app-container { display: flex; width: 100vw; height: 100vh; }
 
 .sidebar {
