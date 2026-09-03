@@ -161,6 +161,11 @@ end $$;
 -- เผื่อจุดที่คำนวณหนักจริง ให้เวลาเพิ่ม (ค่าเริ่มต้นของ Supabase สำหรับ anon สั้น)
 alter function public.site_report(double precision, double precision) set statement_timeout = '15s';
 alter function public.layer_features_bbox(text, double precision, double precision, double precision, double precision, double precision, int) set statement_timeout = '15s';
+-- นำเข้าโพลิกอนยักษ์ (แรมซาร์บางแปลงหลายแสนจุดยอด + ST_IsValid + subdivide ใน trigger) ต้องการเวลามากกว่าค่าเริ่มต้นของ authenticated
+alter function public.import_features(text, jsonb, text, text) set statement_timeout = '120s';
+alter function public.import_events(text, event_kind, jsonb) set statement_timeout = '120s';
+alter function public.import_stations(text, jsonb) set statement_timeout = '120s';
+alter function public.rebuild_layer_index(text) set statement_timeout = '600s';
 
 -- ── สิทธิ์ ──────────────────────────────────────────────────────────────────
 do $$
