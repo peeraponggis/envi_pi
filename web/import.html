@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="leaf">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>envi_pi — นำเข้าไฟล์นิ่ง (admin/editor)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/pi.css">
+  <link rel="stylesheet" href="css/envi.css">
+  <style>html, body { overflow: auto; }</style>
+</head>
+<body>
+  <div class="page">
+    <h1>📥 นำเข้าไฟล์นิ่งเข้า envi_pi</h1>
+    <div class="dim">สำหรับ admin/editor เท่านั้น · SHP ต้องแปลงเป็น GeoJSON ก่อน: <code>npx mapshaper -i ไฟล์.shp encoding=utf8 -proj wgs84 -o ไฟล์.geojson</code> · <a href="index.html">← กลับหน้าแผนที่</a></div>
+    <div id="userBox" class="userbox" style="margin:10px 0"></div>
+
+    <div class="card" id="cardLayer">
+      <h2>1. ชั้นโพลิกอน (GeoJSON) → layers / layer_features</h2>
+      <div class="dim">ป่าสงวน (กรมป่าไม้) · ลุ่มน้ำ/อุทยาน (กรมทรัพยากรน้ำ) · การใช้ที่ดิน (กรมพัฒนาที่ดิน) · ส่งชุดละ 200 ฟีเจอร์</div>
+      <div class="row">
+        <div><label>รหัสชั้น (a-z0-9_)</label><input id="layerId" placeholder="rfd_reserve_forest"></div>
+        <div><label>ชื่อชั้น (ไทย)</label><input id="layerName" placeholder="ป่าสงวนแห่งชาติ"></div>
+        <div><label>แหล่งข้อมูล (sources.id)</label><select id="layerSource"></select></div>
+      </div>
+      <div class="row">
+        <div><label>ฟิลด์ชื่อฟีเจอร์ใน properties</label><input id="layerNameKey" placeholder="NAME_T หรือ name"></div>
+        <div><label>ฟิลด์รหัส (ไม่บังคับ)</label><input id="layerExtKey" placeholder="ID"></div>
+        <div><label>ไฟล์ GeoJSON</label><input type="file" id="layerFile" accept=".geojson,.json"></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn-analyze sm" id="btnLayer">นำเข้าชั้นโพลิกอน</button></div>
+    </div>
+
+    <div class="card" id="cardEvents">
+      <h2>2. เหตุการณ์จุด (CSV) → events</h2>
+      <div class="dim">ดินถล่ม (กรมทรัพยากรธรณี) · EIA (สผ.) · โรงงาน · คอลัมน์ที่รู้จัก: <code>lat, lng|long|lon, occurred_at|date, title|name, province, magnitude, ext_id|id</code> คอลัมน์อื่นเก็บใน props · วันที่ พ.ศ. แปลงให้อัตโนมัติ</div>
+      <div class="row">
+        <div><label>แหล่งข้อมูล (sources.id)</label><select id="evSource"></select></div>
+        <div><label>ชนิด</label><select id="evKind"><option value="landslide">landslide</option><option value="flood">flood</option><option value="warning">warning</option><option value="hotspot">hotspot</option><option value="other">other (EIA/โรงงาน)</option></select></div>
+        <div><label>ไฟล์ CSV (UTF-8)</label><input type="file" id="evFile" accept=".csv,.txt"></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn-analyze sm" id="btnEvents">นำเข้าเหตุการณ์</button></div>
+    </div>
+
+    <div class="card" id="cardStations">
+      <h2>3. สถานี/จุดตรวจวัด (CSV) → stations</h2>
+      <div class="dim">สถานีรังสี พพ. 38 แห่ง · ศูนย์กลางตำบล · คอลัมน์: <code>ext_id|id, name_th|name, name_en, area_th, province, station_type, lat, lng|long|lon</code> ที่เหลือลง meta</div>
+      <div class="row">
+        <div><label>แหล่งข้อมูล (sources.id)</label><select id="stSource"></select></div>
+        <div><label>ไฟล์ CSV (UTF-8)</label><input type="file" id="stFile" accept=".csv,.txt"></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn-analyze sm" id="btnStations">นำเข้าสถานี</button></div>
+    </div>
+
+    <div class="card">
+      <h2>บันทึกการทำงาน</h2>
+      <pre class="log" id="log">พร้อม</pre>
+    </div>
+
+    <div class="card">
+      <h2>สถานะการดึงข้อมูลอัตโนมัติ (ingest_runs ล่าสุด)</h2>
+      <table class="tbl" id="runs"><thead><tr><th>แหล่ง</th><th>เวลา</th><th>ผล</th><th>แถว</th><th>หมายเหตุ</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <dialog id="loginDlg" class="dlg">
+    <form id="loginForm" method="dialog">
+      <h2>เข้าสู่ระบบ</h2>
+      <label>อีเมล<input type="email" id="loginEmail" required></label>
+      <label>รหัสผ่าน<input type="password" id="loginPass" required></label>
+      <div id="loginErr" class="err"></div>
+      <div class="row"><button type="submit" class="btn-analyze sm">เข้าสู่ระบบ</button></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/import.js"></script>
+</body>
+</html>

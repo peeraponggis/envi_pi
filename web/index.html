@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>envi_pi — ข้อมูลผลกระทบด้านสิ่งแวดล้อม ประเทศไทย</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/pi.css">
+  <link rel="stylesheet" href="css/envi.css">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <header class="top">
+        <h1>🌏 envi_pi</h1>
+        <div class="sub">ข้อมูลผลกระทบด้านสิ่งแวดล้อม จากหน่วยราชการไทย</div>
+        <div id="userBox" class="userbox"></div>
+      </header>
+
+      <div class="control-panel">
+        <label class="lbl">หมวดข้อมูล</label>
+        <div class="api-tabs" id="tabs"></div>
+
+        <div class="form-group">
+          <label for="coords">พิกัด (ละติจูด, ลองจิจูด) — หรือคลิกบนแผนที่</label>
+          <input type="text" id="coords" placeholder="14.0189, 100.5577">
+        </div>
+        <div class="form-group">
+          <label for="datetime">วัน-เวลาจำลอง (ใช้กับหมวดแสงอาทิตย์)</label>
+          <input type="datetime-local" id="datetime">
+        </div>
+
+        <section data-panel="air" class="cat-panel">
+          <label class="chk"><input type="checkbox" id="chkAqTile"> ซ้อนแผนที่ PM2.5 รายชั่วโมง (GISTDA)</label>
+          <div id="airLegend" class="legend"></div>
+        </section>
+        <section data-panel="disaster" class="cat-panel" hidden>
+          <div id="eventLegend" class="legend"></div>
+        </section>
+        <section data-panel="water" class="cat-panel" hidden>
+          <div class="hint">บ่อบาดาล (กรมทรัพยากรน้ำบาดาล) · ลุ่มน้ำ (กรมทรัพยากรน้ำ) · เรดาร์ฝนหลวง — เฟส 2</div>
+        </section>
+        <section data-panel="forest" class="cat-panel" hidden>
+          <div class="hint">ป่าสงวนแห่งชาติ (กรมป่าไม้) · การใช้ที่ดิน (กรมพัฒนาที่ดิน) · อุทยาน — นำเข้าผ่าน import.html (เฟส 3)</div>
+        </section>
+        <section data-panel="eia" class="cat-panel" hidden>
+          <div class="hint">EIA (สผ.) · โรงงาน (กรมโรงงานฯ) · ขยะ (คพ.) — ไม่มี API นำเข้า CSV ด้วยมือ (เฟส 3)</div>
+        </section>
+        <section data-panel="vegetation" class="cat-panel" hidden>
+          <div class="slider-title"><span>🎛️ ความจางชั้น NDVI (NASA GIBS)</span><span id="opacityVal">55%</span></div>
+          <input type="range" class="opacity-slider" id="ndviOpacity" min="0" max="1" step="0.05" value="0.55">
+          <div class="legend-scale"><div style="background:rgba(120,40,0,1)"></div><div style="background:rgba(255,200,0,1)"></div><div style="background:rgba(140,230,60,1)"></div><div style="background:rgba(0,100,0,1)"></div></div>
+          <div class="scale-lbl"><span>ตึก/ดินว่าง</span><span>พืชพรรณหนาแน่น</span></div>
+        </section>
+        <section data-panel="solar" class="cat-panel" hidden>
+          <div class="hint">NASA POWER (รายปี) + PVGIS (รายชั่วโมง) เรียกสดแล้วแคช 30 วัน · สถานี พพ. 38 แห่ง — เฟส 4</div>
+        </section>
+        <section data-panel="weather" class="cat-panel" hidden>
+          <div class="hint">กรมอุตุนิยมวิทยา 122 สถานี + พยากรณ์กริด 3 กม. — ต้องสมัคร API key (เฟส 4)</div>
+        </section>
+
+        <button class="btn-analyze" id="btnAnalyze">🔎 วิเคราะห์จุดนี้</button>
+        <div id="status" class="status" hidden></div>
+        <div class="tools"><button class="btn-sm" id="btnRefresh">↻ โหลดข้อมูลล่าสุด</button></div>
+
+        <div class="help">
+          🎮 <b>ควบคุมแผนที่ 3D:</b> ซ้ายลาก = เลื่อน · ขวาลาก = หมุน/ก้มเงย · ล้อ = ซูม · คลิก = เลือกพิกัด
+        </div>
+      </div>
+
+      <div id="resultPanel" class="result-panel" hidden>
+        <div class="panel-header">
+          <span class="panel-title">📊 ผลการวิเคราะห์พื้นที่</span>
+          <span><button id="btnSave" class="btn-sm" hidden>💾 บันทึก</button> <button class="panel-close-btn" id="btnClose">×</button></span>
+        </div>
+        <div id="panelBody" class="panel-body"></div>
+      </div>
+    </aside>
+
+    <main class="map-wrapper">
+      <div id="cesiumContainer"></div>
+      <div class="version-tag">envi_pi 1.0 · <span id="credits">ที่มาข้อมูล: หน่วยราชการไทย</span></div>
+    </main>
+  </div>
+
+  <dialog id="loginDlg" class="dlg">
+    <form id="loginForm" method="dialog">
+      <h2>เข้าสู่ระบบ</h2>
+      <p class="dim">เฉพาะผู้ที่ผู้ดูแลสร้างบัญชีให้ใน Supabase Authentication</p>
+      <label>อีเมล<input type="email" id="loginEmail" required autocomplete="username"></label>
+      <label>รหัสผ่าน<input type="password" id="loginPass" required autocomplete="current-password"></label>
+      <div id="loginErr" class="err"></div>
+      <div class="row"><button type="button" class="btn-sm" onclick="document.getElementById('loginDlg').close()">ยกเลิก</button><button type="submit" class="btn-analyze sm">เข้าสู่ระบบ</button></div>
+    </form>
+  </dialog>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

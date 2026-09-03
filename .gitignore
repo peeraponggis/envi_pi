@@ -1,0 +1,19 @@
+# ห้าม commit ความลับ — key/token อยู่ใน Supabase Secrets/Vault เท่านั้น
+.env
+.env.*
+*.secret
+supabase/.temp/
+supabase/.env
+
+# ไฟล์ข้อมูลดิบที่ดาวน์โหลดมาแปลง (ใหญ่ และเป็นของหน่วยงาน)
+data/raw/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.zip
+
+node_modules/
+.DS_Store
+Thumbs.db

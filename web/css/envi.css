@@ -1,0 +1,118 @@
+/* envi.css — override เฉพาะหน้าแผนที่ (พื้นมืดตามไฟล์ V2.9.0) บนตัวแปรของ pi.css
+   ห้ามนิยามสีใหม่นอกตัวแปร --brand/--ink/--surface/--line ของ pi.css ยกเว้นสีระดับ AQI ที่มาจาก config.js */
+
+html, body { height: 100%; overflow: hidden; }
+.app-container { display: flex; width: 100vw; height: 100vh; }
+
+.sidebar {
+  width: 440px; min-width: 440px; background: var(--surface); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; overflow-y: auto; z-index: 10; box-shadow: var(--shadow);
+}
+.map-wrapper { flex: 1; position: relative; }
+#cesiumContainer { width: 100%; height: 100%; }
+.cesium-viewer-bottom { display: none !important; }
+
+.top { padding: 16px 20px 10px; border-bottom: 1px solid var(--line); }
+.top h1 { font-size: 20px; color: var(--brand); }
+.top .sub { font-size: 12px; color: var(--ink-3); }
+.userbox { margin-top: 8px; font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lnk { color: var(--brand); font-size: 12px; }
+
+.control-panel { padding: 16px 20px; }
+.lbl, .form-group label { display: block; font-size: 12px; color: var(--ink-3); margin-bottom: 4px; }
+.form-group { margin-bottom: 12px; }
+.form-group input {
+  width: 100%; padding: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 6px; font-size: 13px; font-family: inherit;
+}
+.api-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
+.tab-btn {
+  flex: 1 1 30%; padding: 7px 4px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2);
+  font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: inherit;
+}
+.tab-btn.active { background: var(--brand-soft); color: var(--brand); border-color: var(--brand-line); }
+
+.cat-panel { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
+.chk { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+.hint, .dim { color: var(--ink-3); font-size: 11.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; }
+.legend .lg { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-2); }
+.legend .lg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.legend .hint { flex-basis: 100%; }
+.slider-title { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--warn); margin-bottom: 6px; }
+.opacity-slider { width: 100%; accent-color: var(--brand); }
+.legend-scale { display: flex; height: 8px; margin: 6px 0 2px; border-radius: 2px; overflow: hidden; }
+.legend-scale div { flex: 1; }
+.scale-lbl { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-3); }
+
+.btn-analyze {
+  width: 100%; padding: 11px; background: var(--brand); border: none; color: var(--on-brand); font-weight: 700;
+  border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit;
+}
+.btn-analyze:hover { background: var(--brand-dark); }
+.btn-analyze.sm { width: auto; padding: 8px 16px; font-size: 13px; }
+.btn-sm {
+  padding: 5px 10px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2);
+  border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.btn-sm:hover { border-color: var(--brand-line); color: var(--brand); }
+.tools { margin-top: 8px; display: flex; gap: 6px; }
+.status { margin-top: 10px; padding: 8px 10px; border-radius: 6px; font-size: 12px; background: var(--info-bg); color: var(--info); }
+.status.good { background: var(--good-bg); color: var(--good); }
+.status.warn { background: var(--warn-bg); color: var(--warn); }
+.status.crit { background: var(--crit-bg); color: var(--crit); }
+.help { margin-top: 12px; font-size: 11px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 8px; line-height: 1.5; }
+
+.result-panel { border-top: 1px solid var(--line); display: flex; flex-direction: column; flex: 1; }
+.panel-header { padding: 10px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+.panel-title { font-size: 14px; font-weight: 700; color: var(--warn); }
+.panel-close-btn { background: transparent; border: none; color: var(--crit); font-weight: 700; font-size: 18px; cursor: pointer; }
+.panel-body { padding: 14px 20px 24px; font-size: 13px; }
+.result-item { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); line-height: 1.5; }
+.result-item:last-child { border-bottom: none; }
+.result-label { font-weight: 700; color: var(--brand); }
+.src { float: right; font-size: 11px; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 1px 6px; }
+.addr { color: var(--warn); font-weight: 600; }
+.summary .sum-line { font-size: 12.5px; }
+.sum-good { color: var(--good); } .sum-warning { color: var(--warn); } .sum-danger { color: var(--crit); }
+.aqi-big { display: flex; align-items: baseline; gap: 10px; margin: 8px 0; padding: 8px 12px; border-left: 4px solid; background: var(--surface-2); border-radius: 4px; }
+.aqi-big b { font-size: 34px; line-height: 1; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+.cell { background: var(--surface-2); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
+.cell span { font-size: 10px; color: var(--ink-3); } .cell b { font-size: 16px; } .cell small { font-size: 9.5px; color: var(--ink-3); }
+.lst { margin: 6px 0 0; padding-left: 18px; font-size: 12px; }
+.lst li { margin-bottom: 3px; }
+.big { font-size: 18px; }
+.vars { font-size: 11px; color: var(--ink-3); margin-top: 6px; background: var(--surface-2); padding: 6px 8px; border-radius: 4px; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; margin-left: 5px; }
+.badge-good { background: var(--good-bg); color: var(--good); }
+.badge-warning { background: var(--warn-bg); color: var(--warn); }
+.badge-danger { background: var(--crit-bg); color: var(--crit); }
+.loading { text-align: center; padding: 20px; color: var(--ink-3); }
+.err { color: var(--crit); font-size: 12px; }
+
+.version-tag {
+  position: absolute; bottom: 10px; right: 10px; z-index: 1000; background: rgba(0,0,0,.75); color: #c8e6c9;
+  padding: 4px 10px; border-radius: 4px; font-size: 11px; max-width: 70%; pointer-events: none;
+}
+
+.dlg { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 20px 24px; width: 340px; font-family: inherit; }
+.dlg::backdrop { background: rgba(0,0,0,.6); }
+.dlg h2 { font-size: 16px; margin-bottom: 4px; }
+.dlg label { display: block; font-size: 12px; color: var(--ink-3); margin: 10px 0 4px; }
+.dlg input, .dlg select { width: 100%; padding: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; font-family: inherit; }
+.dlg .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* หน้า import */
+.page { max-width: 900px; margin: 0 auto; padding: 24px; }
+.page h1 { color: var(--brand); font-size: 20px; margin-bottom: 4px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin: 14px 0; }
+.card h2 { font-size: 15px; margin-bottom: 8px; }
+.card label { display: block; font-size: 12px; color: var(--ink-3); margin: 8px 0 3px; }
+.card input, .card select, .card textarea { width: 100%; padding: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; font-family: inherit; font-size: 13px; }
+.card .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.card .row > * { flex: 1; }
+pre.log { background: var(--surface-2); padding: 10px; border-radius: 6px; font-size: 12px; max-height: 260px; overflow: auto; white-space: pre-wrap; }
+table.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.tbl th, table.tbl td { border-bottom: 1px solid var(--line); padding: 5px 6px; text-align: left; }
+html:not([data-theme]) body { background: var(--bg); }

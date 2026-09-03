@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Solar Radiation & Verified NDVI Analytic Platform (Version ลุงพี.NDVI.4.1 - Auto Grid Update)</title>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020202;
+            color: #eaeaea;
+        }
+        
+        /* 1. โครงสร้าง Layout หลักแบบแบ่งฝั่ง */
+        .app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 2. แถบเครื่องมือและผลลัพธ์ฝั่งซ้าย (Sidebar) */
+        .sidebar {
+            width: 420px;
+            min-width: 420px;
+            background: rgba(18, 18, 18, 1);
+            border-right: 1px solid #3a3a3a;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 10;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.8);
+        }
+
+        /* 3. พื้นที่แผนที่ฝั่งขวา */
+        .map-wrapper {
+            flex-grow: 1;
+            position: relative;
+        }
+        
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ปรับแต่งส่วน Control Panel เดิมให้เข้ากับ Sidebar */
+        .control-panel {
+            padding: 20px;
+        }
+        
+        .control-panel h2 {
+            margin-top: 0;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #00e676;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+        
+        .api-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            background: #111;
+            border-radius: 4px;
+            padding: 2px;
+            border: 1px solid #444;
+            gap: 2px;
+        }
+        .tab-btn {
+            flex: 1 1 28%;
+            padding: 8px 2px;
+            background: transparent;
+            border: none;
+            color: #999;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .tab-btn.active {
+            background: #262626;
+            color: #00e676;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .tab-btn.density-active.active {
+            color: #ff9800;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            background: #1e1e1e;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .ndvi-panel-control {
+            background: #161616;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+            display: none; 
+        }
+        .slider-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffd54f;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .opacity-slider {
+            width: 100%;
+            accent-color: #00e676;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+        .ndvi-legend {
+            padding-top: 8px;
+            border-top: 1px dashed #333;
+            font-size: 11px;
+            color: #ccc;
+            line-height: 1.4;
+        }
+        .legend-scale {
+            display: flex;
+            height: 8px;
+            margin: 6px 0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .local-analysis-panel {
+            background: #161616;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-left: 4px solid #ccc;
+            display: none;
+        }
+        .local-info-content {
+            font-size: 12.5px;
+            color: #b0bec5;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .btn-analyze {
+            width: 100%;
+            padding: 10px;
+            background: #00e676;
+            border: none;
+            color: #111;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+        .btn-analyze:hover { background: #00b359; }
+
+        /* ปรับปรุงหน้าต่างแสดงผลลัพธ์ให้ฝังตัวใน Sidebar */
+        .result-panel {
+            background: rgba(22, 22, 22, 0.98);
+            border-top: 1px solid #444;
+            display: none; 
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        .panel-header {
+            padding: 12px 20px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffd54f;
+        }
+        .panel-close-btn {
+            background: transparent;
+            border: none;
+            color: #ff5252;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .panel-body {
+            padding: 20px;
+            color: #fff;
+        }
+        .result-item {
+            margin-bottom: 14px;
+            font-size: 13px;
+            line-height: 1.5;
+            border-bottom: 1px solid #2d2d2d;
+            padding-bottom: 12px;
+        }
+        .result-item:last-child { border-bottom: none; }
+        .result-label {
+            font-weight: bold;
+            color: #00e676;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+        .source-badge {
+            background: #111;
+            color: #ffd54f;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            border: 1px solid #ffd54f;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .badge-good { background-color: #1b5e20; color: #a5d6a7; }
+        .badge-warning { background-color: #e65100; color: #ffcc80; }
+        .badge-danger { background-color: #b71c1c; color: #ef9a9a; }
+        
+        .version-tag {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00e676;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            font-weight: bold;
+            pointer-events: none;
+            border: 1px solid #333;
+        }
+        .cesium-viewer-bottom { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="control-panel">
+                <h2>Solar potential satellite data</h2>
+                
+                <label style="font-size: 12px; color: #aaa; display:block; margin-bottom:4px;">แหล่งข้อมูล / เมนูสลับชั้นข้อมูลวิเคราะห์</label>
+                <div class="api-tabs">
+                    <button class="tab-btn active" id="tab-meteonorm" onclick="switchSource('Meteonorm')">Meteonorm</button>
+                    <button class="tab-btn" id="tab-nasa" onclick="switchSource('NASA POWER')">NASA POWER</button>
+                    <button class="tab-btn" id="tab-pvgis" onclick="switchSource('PVGIS')">PVGIS</button>
+                    <button class="tab-btn" id="tab-ndvi-nasa" onclick="switchSource('NDVI_NASA')">🌿 NDVI (Global)</button>
+                    <button class="tab-btn" id="tab-ndvi-local" onclick="switchSource('NDVI_LOCAL')">🌱 ดัชนี NDVI</button>
+                    <button class="tab-btn" id="tab-density" onclick="switchSource('DENSITY')">🌳 ความหนาแน่น</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="coords">พิกัดภูมิศาสตร์ (Lat, Lng/X,Y)</label>
+                    <input type="text" id="coords" value="14.018951678746875, 100.55772755582095" placeholder="Latitude, Longitude">
+                </div>
+                <div class="form-group">
+                    <label for="datetime">วันที่ เดือน ปี และระบุเวลาจำลองโมเดล</label>
+                    <input type="datetime-local" id="datetime" value="2026-06-09T12:00">
+                </div>
+
+                <div class="ndvi-panel-control" id="ndviControlBox">
+                    <div class="slider-title">
+                        <span>🎛️ ระดับความจางฟิล์มวิเคราะห์พืชพรรณ:</span>
+                        <span id="opacityVal">55%</span>
+                    </div>
+                    <input type="range" class="opacity-slider" id="ndviOpacitySlider" min="0" max="1" step="0.05" value="0.55" oninput="adjustNdviOpacity(this.value)">
+                    
+                    <div class="ndvi-legend">
+                        <b>คำอธิบาย :</b>
+                        <div class="legend-scale">
+                            <div style="flex:1; background:rgba(120,40,0,1);"></div>
+                            <div style="flex:1; background:rgba(255,200,0,1);"></div>
+                            <div style="flex:1; background:rgba(140,230,60,1);"></div>
+                            <div style="flex:1; background:rgba(0,100,0,1);"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:9.5px; color:#aaa;">
+                            <span>ตึก/ดินว่างเปล่า</span>
+                            <span>แนวป่าทึบ/จุดเสี่ยงเงาบัง</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="local-analysis-panel" id="localAnalysisBox">
+                    <div id="localInfoBox" class="local-info-content"></div>
+                    <div id="localLegendBox"></div>
+                </div>
+
+                <button class="btn-analyze" onclick="processSolarAnalysis()">ประมวลผล</button>
+                
+                <div style="margin-top:12px; font-size:11px; color:#aaa; line-height:1.4; border-top: 1px solid #333; padding-top: 8px;">
+                    🎮 <b>คู่มือป้อนคำสั่งควบคุมระนาบ 3D:</b><br>
+                    • <b>เมาส์ซ้ายกดค้าง:</b> ย้ายพิกัดระนาบราบ (Pan)<br>
+                    • <b>เมาส์ขวากดค้าง + ลากเลื่อน:</b> หมุนทิศทางกล้อง / ก้ม-เงย (Pitch/Heading)<br>
+                    • <b>ลูกกลิ้งเมาส์ (Scroll):</b> ซูมเข้า-ออกบนผิวชั้นดาวเทียม ESRI เสรีไร้ค่าบริการ
+                </div>
+            </div>
+
+            <div id="resultPanel" class="result-panel">
+                <div id="panelHeader" class="panel-header">
+                    <span class="panel-title">📊 ผลการวิเคราะห์พื้นที่</span>
+                    <button class="panel-close-btn" onclick="closePanel()">×</button>
+                </div>
+                <div id="panelBody" class="panel-body"></div>
+            </div>
+        </div>
+
+        <div class="map-wrapper">
+            <div id="cesiumContainer"></div>
+            <div class="version-tag">ลุงพี.NDVI.4.2 + Auto.Grid</div>
+        </div>
+    </div>
+
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
+    <script>
+        var viewer;
+        var currentSource = 'Meteonorm';
+        var activeEntities = [];
+        var microNdviEntities = [];
+        var densityEntities = [];
+        var ndviLayerInstance = null;
+        var baseEsriLayer = null;
+
+        // พิกัดเริ่มต้น
+        const defaultLat = 14.018951678746875;
+        const defaultLng = 100.55772755582095;
+
+        Cesium.Ion.defaultAccessToken = ''; 
+
+        // เริ่มต้นเซ็ตอัปโครงข่ายลูกโลกสากลแบบ Fullscreen บน ESRI Base Layer 
+        viewer = new Cesium.Viewer('cesiumContainer', {
+            baseLayer: false, 
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: true, 
+            sceneModePicker: false,
+            selectionIndicator: true,
+            navigationHelpButton: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: false
+        });
+
+// ใช้ฟังก์ชันแบบ Asynchronous เพื่อรอโหลด Provider (มาตรฐานบังคับของ Cesium 1.115)
+        (async function loadMapLayers() {
+            try {
+                // 1. ดึงฐานข้อมูลแผนที่ภาพถ่ายดาวเทียมความละเอียดสูง ESRI World Imagery
+                const esriProvider = await Cesium.UrlTemplateImageryProvider.fromUrl(
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        credit: 'Tiles &copy; Esri'
+                    }
+                );
+                baseEsriLayer = new Cesium.ImageryLayer(esriProvider);
+                viewer.imageryLayers.add(baseEsriLayer);
+
+                // 2. ดึงฐานข้อมูลชั้นนอกสุดของ NASA Global NDVI 
+                const ndviProvider = await Cesium.UrlTemplateImageryProvider.fromUrl(
+                    'https://api.nasa.gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_NDVI_8Day/default/default/GoogleMapsCompatible_Level9/{z}/{y}/{x}.png', {
+                        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+                        maximumLevel: 9 
+                    }
+                );
+                ndviLayerInstance = new Cesium.ImageryLayer(ndviProvider);
+                ndviLayerInstance.show = false; 
+                ndviLayerInstance.alpha = 0.55; 
+                viewer.imageryLayers.add(ndviLayerInstance);
+                
+            } catch (error) {
+                console.error("เกิดข้อผิดพลาดในการโหลดชั้นข้อมูลแผนที่:", error);
+            }
+        })();
+
+        // ข้อมูลสเปกคำอธิบายประกอบตัวแปร
+        const localContentData = {
+            ndvi: {
+                text: "<b>Normalized Difference Vegetation Index (NDVI):</b> ดัชนีความต่างพืชพรรณแบบปรับบรรทัดฐาน ประเมินสุขภาพความสมบูรณ์ของใบไม้พืชรอบพิกัดเป้าหมาย",
+                legend: `
+                    <div style="font-weight:bold; font-size:11px; margin-bottom:5px; color:#00e676;">ระดับค่าดัชนี NDVI:</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#006d2c"></span> สมบูรณ์มาก (>0.6)</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#31a354"></span> สมบูรณ์ปานกลาง (0.4 - 0.6)</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#bae4b3"></span> พืชเบาบาง (0.2 - 0.4)</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#edf8e9"></span> พื้นที่เปิดโล่ง/สิ่งปลูกสร้าง (<0.2)</div>
+                `,
+                borderColor: '#31a354'
+            },
+            density: {
+                text: "<b>Vegetation Density:</b> การวิเคราะห์ความหนาแน่นเชิงพื้นที่ของปริมาณมวลชีวภาพต่อหนึ่งตารางหน่วย จำแนกสัดส่วนต้นไม้ใหญ่และสิ่งปลูกสร้างตึกแถวหนาแน่นรอบพิกัด",
+                legend: `
+                    <div style="font-weight:bold; font-size:11px; margin-bottom:5px; color:#ff9800;">ระดับความหนาแน่น:</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#d94801"></span> หนาแน่นสูงมาก</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#f16913"></span> หนาแน่นสูง</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#fdae6b"></span> หนาแน่นปานกลาง</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#fdd0a2"></span> หนาแน่นต่ำ / พื้นที่โล่ง</div>
+                `,
+                borderColor: '#ff9800'
+            }
+        };
+
+        // ฟังก์ชันล้างค่ากริดตัวแปรเดิมออกจากระบบ
+        function clearLocalGridLayers() {
+            microNdviEntities.forEach(ent => viewer.entities.remove(ent));
+            densityEntities.forEach(ent => viewer.entities.remove(ent));
+            microNdviEntities = [];
+            densityEntities = [];
+        }
+
+        // ฟังก์ชันสร้าง ตารางวิเคราะห์ Spatial Analysis แบบกริด
+        function generateLocalGridLayers(centerLat, centerLng) {
+            clearLocalGridLayers(); 
+            
+            const gridSize = 0.0006; 
+            
+            const isNdviVisible = document.getElementById('tab-ndvi-local').classList.contains('active');
+            const isDensityVisible = document.getElementById('tab-density').classList.contains('active');
+
+            for (let i = -4; i <= 4; i++) {
+                for (let j = -4; j <= 4; j++) {
+                    const lat = centerLat + (i * gridSize);
+                    const lng = centerLng + (j * gridSize);
+                    const mockValue = Math.random(); 
+
+                    let ndviColor = '#edf8e9';
+                    let ndviVal = (mockValue * 0.8).toFixed(2); 
+                    if (ndviVal > 0.6) ndviColor = '#006d2c';
+                    else if (ndviVal > 0.4) ndviColor = '#31a354';
+                    else if (ndviVal > 0.2) ndviColor = '#bae4b3';
+
+                    var ndviRect = viewer.entities.add({
+                        rectangle: {
+                            coordinates: Cesium.Rectangle.fromDegrees(lng, lat, lng + gridSize, lat + gridSize),
+                            material: Cesium.Color.fromCssColorString(ndviColor).withAlpha(0.45),
+                            outline: true,
+                            outlineColor: Cesium.Color.WHITE.withAlpha(0.3),
+                            outlineWidth: 1
+                        },
+                        name: "การวิเคราะห์ดัชนีพืชพรรณพิกัดย่อย",
+                        description: `<p><b>ค่าดัชนี NDVI (จำลองเพื่อการคำนวณ):</b> ${ndviVal}</p><p>พิกัดกริดย่อย: ${lat.toFixed(5)}, ${lng.toFixed(5)}</p>`,
+                        show: isNdviVisible
+                    });
+                    microNdviEntities.push(ndviRect);
+
+                    let densityColor = '#fff7ec';
+                    let densityStatus = "ต่ำมาก";
+                    if (mockValue > 0.75) { densityColor = '#d94801'; densityStatus = "หนาแน่นสูงมาก"; }
+                    else if (mockValue > 0.5) { densityColor = '#f16913'; densityStatus = "หนาแน่นสูง"; }
+                    else if (mockValue > 0.25) { densityColor = '#fdae6b'; densityStatus = "หนาแน่นปานกลาง"; }
+                    else { densityColor = '#fdd0a2'; densityStatus = "หนาแน่นต่ำ"; }
+
+                    var densRect = viewer.entities.add({
+                        rectangle: {
+                            coordinates: Cesium.Rectangle.fromDegrees(lng, lat, lng + gridSize, lat + gridSize),
+                            material: Cesium.Color.fromCssColorString(densityColor).withAlpha(0.45),
+                            outline: true,
+                            outlineColor: Cesium.Color.WHITE.withAlpha(0.3),
+                            outlineWidth: 1
+                        },
+                        name: "การวิเคราะห์ความหนาแน่นพรรณพืชพิกัดย่อย",
+                        description: `<p><b>ระดับความหนาแน่นเชิงวิศวกรรมภูมิศาสตร์:</b> ${densityStatus}</p><p>พิกัดกริดย่อย: ${lat.toFixed(5)}, ${lng.toFixed(5)}</p>`,
+                        show: isDensityVisible
+                    });
+                    densityEntities.push(densRect);
+                }
+            }
+        }
+
+        generateLocalGridLayers(defaultLat, defaultLng);
+
+        // ฟังก์ชันบริหารสลับค่ายรังสีและชั้นข้อมูล
+        function switchSource(sourceName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.remove('density-active');
+            });
+
+            if (ndviLayerInstance) ndviLayerInstance.show = false;
+            document.getElementById('ndviControlBox').style.display = 'none';
+            document.getElementById('localAnalysisBox').style.display = 'none';
+            
+            microNdviEntities.forEach(ent => ent.show = false);
+            densityEntities.forEach(ent => ent.show = false);
+
+            if (sourceName === 'NDVI_NASA') {
+                document.getElementById('tab-ndvi-nasa').classList.add('active');
+                document.getElementById('ndviControlBox').style.display = 'block';
+                if (ndviLayerInstance) ndviLayerInstance.show = true;
+                return; 
+            }
+
+            if (sourceName === 'NDVI_LOCAL') {
+                var btn = document.getElementById('tab-ndvi-local');
+                btn.classList.add('active');
+                document.getElementById('localAnalysisBox').style.display = 'block';
+                document.getElementById('localInfoBox').innerHTML = localContentData.ndvi.text;
+                document.getElementById('localLegendBox').innerHTML = localContentData.ndvi.legend;
+                document.getElementById('localAnalysisBox').style.borderLeftColor = localContentData.ndvi.borderColor;
+                
+                microNdviEntities.forEach(ent => ent.show = true);
+                return;
+            }
+
+            if (sourceName === 'DENSITY') {
+                var btn = document.getElementById('tab-density');
+                btn.classList.add('active');
+                btn.classList.add('density-active');
+                document.getElementById('localAnalysisBox').style.display = 'block';
+                document.getElementById('localInfoBox').innerHTML = localContentData.density.text;
+                document.getElementById('localLegendBox').innerHTML = localContentData.density.legend;
+                document.getElementById('localAnalysisBox').style.borderLeftColor = localContentData.density.borderColor;
+                
+                densityEntities.forEach(ent => ent.show = true);
+                return;
+            }
+
+            currentSource = sourceName;
+            if (sourceName === 'Meteonorm') document.getElementById('tab-meteonorm').classList.add('active');
+            if (sourceName === 'NASA POWER') document.getElementById('tab-nasa').classList.add('active');
+            if (sourceName === 'PVGIS') document.getElementById('tab-pvgis').classList.add('active');
+            
+            var coordInput = document.getElementById('coords').value;
+            if (coordInput && activeEntities.length > 0) {
+                processSolarAnalysis();
+            }
+        }
+
+        function adjustNdviOpacity(val) {
+            document.getElementById('opacityVal').innerText = Math.round(val * 100) + "%";
+            if (ndviLayerInstance) {
+                ndviLayerInstance.alpha = parseFloat(val);
+            }
+        }
+
+        function closePanel() {
+            document.getElementById('resultPanel').style.display = 'none';
+        }
+
+        function clearActiveGISLayers() {
+            activeEntities.forEach(entity => viewer.entities.remove(entity));
+            activeEntities = [];
+        }
+
+        // โมดูลคำนวณประมวลผลเชิงลึกทางวิศวกรรม
+        async function processSolarAnalysis() {
+            var coordInput = document.getElementById('coords').value;
+            var datetimeInput = document.getElementById('datetime').value;
+            
+            var latlngStr = coordInput.split(',');
+            if (latlngStr.length !== 2) {
+                alert("รูปแบบพิกัดภูมิศาสตร์ไม่ถูกต้อง");
+                return;
+            }
+            
+            var lat = parseFloat(latlngStr[0].trim());
+            var lng = parseFloat(latlngStr[1].trim());
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                alert("ตัวเลขค่าพิกัดพังทลาย กรุณาสอบทานค่าอีกครั้ง");
+                return;
+            }
+
+            clearActiveGISLayers();
+
+            generateLocalGridLayers(lat, lng);
+
+            var offset = 0.00035;
+
+            var frameEntity = viewer.entities.add({
+                rectangle: {
+                    coordinates: Cesium.Rectangle.fromDegrees(lng - offset, lat - offset, lng + offset, lat + offset),
+                    material: Cesium.Color.fromCssColorString('#00e676').withAlpha(0.12),
+                    outline: true,
+                    outlineColor: Cesium.Color.fromCssColorString('#ffd54f'),
+                    outlineWidth: 3
+                }
+            });
+            activeEntities.push(frameEntity);
+
+            var centerPin = viewer.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(lng, lat),
+                point: {
+                    pixelSize: 10,
+                    color: Cesium.Color.fromCssColorString('#ff5252'),
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2
+                }
+            });
+            activeEntities.push(centerPin);
+
+            // บินกล้อง 3D ไปยังพิกัดใหม่
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(lng, lat - 0.0014, 190),
+                orientation: {
+                    heading: Cesium.Math.toRadians(0.0),
+                    pitch: Cesium.Math.toRadians(-45.0), 
+                    roll: 0.0
+                }
+            });
+
+            var resultPanel = document.getElementById('resultPanel');
+            var panelBody = document.getElementById('panelBody');
+            resultPanel.style.display = 'flex';
+            panelBody.innerHTML = `<div style="text-align:center; padding:25px;">🔄 กำลังเรียกทะเบียนประวัติผังเมืองไทย และประมวลผลสมดุลฟิสิกส์ความร้อนแผง...</div>`;
+
+            var addressText = "ไม่สามารถเข้าถึงฐานข้อมูลทะเบียนราษฎร์ส่วนท้องถิ่นได้ในขณะนี้";
+            try {
+                var geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=th`);
+                var geoData = await geoResponse.json();
+                if (geoData && geoData.address) {
+                    var addr = geoData.address;
+                    var subdistrict = addr.subdistrict || addr.village || addr.suburb || "ไม่พบระบุตำบล";
+                    var district = addr.district || addr.city_district || "ไม่พบระบุอำเภอ";
+                    var province = addr.province || addr.state || "ไม่พบระบุจังหวัด";
+                    addressText = `ต. ${subdistrict} อ. ${district} จ. ${province}`;
+                }
+            } catch (error) {
+                addressText = "พิกัดเป้าหมายอยู่นอกเหนือน่านน้ำและเส้นขอบข่ายการระบุผังเมืองไทย";
+            }
+
+            var solarData = getSourceData(currentSource);
+
+            var coeff_a = -3.47; 
+            var coeff_b = -0.0594;
+            var deltaT = 3; 
+            var e_ghi = solarData.instantGhi; 
+
+            var backOfModuleTemp = e_ghi * Math.exp(coeff_a + (coeff_b * solarData.windSpeed)) + solarData.airTemp;
+            var calculatedModuleTemp = backOfModuleTemp + (e_ghi / 1000) * deltaT;
+
+            var ghiAnalysis = interpretGHI(solarData.ghi);
+            var difAnalysis = interpretDiffuse(solarData.diffuse, solarData.ghi);
+            var tempAnalysis = interpretModuleTemp(calculatedModuleTemp);
+
+            var formattedDate = new Date(datetimeInput).toLocaleString('th-TH', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short' 
+            });
+
+            panelBody.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">⏱️ วัน เดือน ปี เวลาจำลอง:</span> ${formattedDate} 
+                    <span class="source-badge" style="float:right;">API: ${currentSource}</span>
+                </div>
+
+                <div class="result-item">
+                    <span class="result-label">📍   พิกัดภูมิศาสตร์และที่ตั้ง :</span><br>
+                    <span>ละติจูด, ลองจิจูด: ${lat.toFixed(7)}, ${lng.toFixed(7)}</span><br>
+                    <span style="color:#ffd54f; font-weight:bold;">🏠 ตำแหน่งที่ตั้ง: ${addressText}</span>
+                </div>
+
+                <div class="result-item">
+                    <span class="result-label">☀️ ค่ารังสีรวมแนวราบ GHI (Global Horizontal Irradiance):</span><br>
+                    <span style="font-size:16px; font-weight:bold;">${solarData.ghi} kWh/m²/year</span>
+                    <span class="badge ${ghiAnalysis.style}">${ghiAnalysis.status}</span><br>
+                    <small style="color:#ccc; display:block; margin-top:5px;">
+                        เมื่อเทียบสภาวะทดสอบ <b>STC (1,000 W/m²)</b> หรือเกณฑ์ปฏิบัติจริง <b>NOCT (800 W/m²)</b> ถือว่าพิกัดพื้นที่นี้มีความเข้มข้นรังสีสะสมสูง คุ้มค่าแก่การลงทุนระบบสถานี Solar Rooftop
+                    </small>
+                </div>
+
+                <div class="result-item">
+                    <span class="result-label">☁️ ค่ารังสีสะท้อนชนิดกระจาย (Diffuse Radiation):</span><br>
+                    <span style="font-size:16px; font-weight:bold;">${solarData.diffuse} kWh/m²/year</span>
+                    <span class="badge ${difAnalysis.style}">${difAnalysis.status}</span><br>
+                    <small style="color:#ccc; display:block; margin-top:5px;">
+                        คำแนะนำ: หากผู้ใช้เปิดสลับเมนูแท็บ <b>🌱 ดัชนี NDVI</b> แล้วพบปื้นสัญลักษณ์พื้นที่พืชพรรณหนาแน่นสูงแผ่ขนาบบนผิวอาคาร ควรประยุกต์ติดตั้งแผงชนิด Bifacial (สองหน้า) ร่วมด้วยเพื่อเก็บมวลรังสีสะท้อนกลุ่มนี้
+                    </small>
+                </div>
+
+                <div class="result-item">
+                    <span class="result-label">🔥 อุณหภูมิแผงคาดการณ์จริงชั่วขณะ (King Sandia Model):</span><br>
+                    <span style="font-size:16px; font-weight:bold; color:#ff5252;">${calculatedModuleTemp.toFixed(1)} °C</span>
+                    <span class="badge ${tempAnalysis.style}">${tempAnalysis.status}</span><br>
+                    
+                    <div style="font-size:11px; color:#aaa; margin-top:6px; background:#141414; padding:6px; border-radius:4px; border:1px solid #2d2d2d; line-height:1.4;">
+                        📊 <b>ตัวแปรแวดล้อมทางฟิลิกส์ร่วมของค่าย [${currentSource}]:</b><br>
+                        • อุณหภูมิอากาศ (T_air): ${solarData.airTemp} °C<br>
+                        • ความเร็วลมธรรมชาติ (Wind Speed): ${solarData.windSpeed} m/s<br>
+                        • ความชื้นสัมพัทธ์มวลอากาศ (Humidity): ${solarData.humidity} %<br>
+                        • ความเข้มแสงดั้งเดิมชั่วขณะ (G_instant): ${solarData.instantGhi} W/m²
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSourceData(source) {
+            if (source === 'Meteonorm' || source === 'NDVI_NASA' || source === 'NDVI_LOCAL' || source === 'DENSITY') {
+                return { ghi: 1965, diffuse: 815, airTemp: 34.8, windSpeed: 1.2, humidity: 62, instantGhi: 860 };
+            } else if (source === 'NASA POWER') {
+                return { ghi: 1880, diffuse: 845, airTemp: 31.0, windSpeed: 4.5, humidity: 50, instantGhi: 775 };
+            } else if (source === 'PVGIS') {
+                return { ghi: 1990, diffuse: 785, airTemp: 36.5, windSpeed: 0.8, humidity: 68, instantGhi: 895 };
+            }
+        }
+
+        function interpretGHI(ghi) {
+            if (ghi >= 1850) return { status: "ดีเยี่ยม (Excellent Area)", style: "badge-good" };
+            return { status: "ปานกลาง", style: "badge-warning" };
+        }
+
+        function interpretDiffuse(diffuse, ghi) {
+            if ((diffuse / ghi) <= 0.45) return { status: "ดีเยี่ยม (สัดส่วนรังสีตรงชัดเจน)", style: "badge-good" };
+            return { status: "ปกติ", style: "badge-warning" };
+        }
+
+        function interpretModuleTemp(mTemp) {
+            if (mTemp <= 45) return { status: "ดีเยี่ยม (ประสิทธิภาพเต็มร้อย)", style: "badge-good" };
+            if (mTemp <= 54) return { status: "ปกติ (เกิดความสูญเสียต่ำ)", style: "badge-warning" };
+            return { status: "พึงระวัง (High Thermal Derating สะสมเด่นชัด)", style: "badge-danger" };
+        }
+
+        // ถอดฟังก์ชัน dragElement ออกเนื่องจากถูกผนวกเข้ากับระบบ Sidebar เรียบร้อยแล้ว
+    </script>
+</body>
+</html>
