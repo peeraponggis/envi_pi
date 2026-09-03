@@ -214,7 +214,7 @@ function renderReport() {
     <div class="result-item">
       <span class="result-label">📍 พิกัดและที่ตั้ง</span><br>
       ${rep.lat.toFixed(6)}, ${rep.lng.toFixed(6)}<br>
-      <span class="addr">🏠 ${esc(state.address ?? 'ไม่ทราบที่ตั้ง (Nominatim)')}</span>
+      <span class="addr">🏠 ${esc(adminAddress(rep) ?? state.address ?? 'ไม่ทราบที่ตั้ง')}</span>${adminAddress(rep) && state.address ? `<br><small class="dim">OSM: ${esc(state.address)}</small>` : ''}
       <small class="dim">รายงานเมื่อ ${esc(core.fmtThaiDateTime(rep.generated_at))}</small>
     </div>
     <div class="result-item summary">${core.summarizeReport(rep).map((s) => `<div class="sum-line sum-${esc(s.level ?? '')}">• ${esc(s.text)}</div>`).join('')}</div>`;
@@ -273,8 +273,24 @@ function renderWater(rep) {
     ${listItems(w.items, (x) => `${esc(x.name ?? x.area ?? 'บ่อ')} · ห่าง ${km(x.distance_m)}${x.meta?.depth_drill_m ? ` · ลึก ${x.meta.depth_drill_m} ม.` : ''}${x.meta?.yield_m3h ? ` · ${x.meta.yield_m3h} ลบ.ม./ชม.` : ''}`, 'ไม่พบ — ที่มา กรมทรัพยากรน้ำบาดาล (ต้องดึง dgr_wells ก่อน)')}</div>
     ${renderLayers(rep, 'water')}`;
 }
+/** ที่ตั้งจากชั้นขอบเขตการปกครอง (กรมการปกครอง 2556 ผ่าน DWR) — แม่นกว่า Nominatim และไม่ต้องยิงเน็ต */
+function adminAddress(rep) {
+  const hits = rep?.layer_hits ?? [];
+  const amp = hits.find((x) => x.layer_id === 'dwr_amphoe'), prov = hits.find((x) => x.layer_id === 'dwr_province');
+  if (!amp && !prov) return null;
+  const p = prov?.feature ?? amp?.props?.PROV_NAM_T ?? '';
+  const isBkk = /กรุงเทพ/.test(p);
+  return [amp && `${isBkk ? 'เขต' : 'อ.'}${amp.feature}`, p && (isBkk ? p : `จ.${p}`)].filter(Boolean).join(' ');
+}
+
+/** ชั้นโพลิกอนแยกตามแท็บ — ขอบเขตการปกครอง (dwr_province/amphoe) แสดงในหัวรายงานแทน */
+const LAYER_GROUP = {
+  forest: (id) => /^(rfd_|onep_|dnp_|ldd_)/.test(id),
+  water: (id) => /^dwr_(main_basin|sub_basin|watershed)/.test(id),
+  eia: (id) => /^(onep_eia|diw_|pcd_waste)/.test(id),
+};
 function renderLayers(rep, cat) {
-  const hits = rep.layer_hits ?? [];
+  const hits = (rep.layer_hits ?? []).filter((x) => (LAYER_GROUP[cat] ?? (() => true))(x.layer_id));
   const title = { forest: '🌳 ชั้นป่าไม้/ที่ดินที่จุดนี้ตกอยู่', eia: '🏭 EIA / โรงงาน / ขยะ', water: '🗺️ ลุ่มน้ำ / ชั้นคุณภาพลุ่มน้ำ' }[cat];
   return `<div class="result-item"><span class="result-label">${title}</span>
     ${hits.length ? `<ul class="lst">${hits.map((x) => `<li><b>${esc(x.layer)}</b>${x.feature ? ' — ' + esc(x.feature) : ''}</li>`).join('')}</ul>`

@@ -398,7 +398,8 @@ export function summarizeReport(rep) {
   if (ls) out.push({ key: 'landslide', text: `ประวัติดินถล่ม ${ls} จุดใน 10 กม.` });
   const w = rep.wells_5km?.count ?? 0;
   if (w) out.push({ key: 'wells', text: `บ่อบาดาล ${w} บ่อใน 5 กม.` });
-  const hits = rep.layer_hits ?? [];
+  // ขอบเขตจังหวัด/อำเภอ (dwr_province, dwr_amphoe) ไปอยู่ในหัวรายงานแล้ว ไม่ต้องซ้ำในบรรทัดนี้
+  const hits = (rep.layer_hits ?? []).filter((x) => !/^dwr_(province|amphoe|tambon)$/.test(x.layer_id ?? ''));
   if (hits.length) out.push({ key: 'layers', text: 'อยู่ในเขต: ' + hits.map((x) => `${x.layer}${x.feature ? ' — ' + x.feature : ''}`).join(' · ') });
   return out;
 }
