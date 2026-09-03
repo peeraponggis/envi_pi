@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.0.0";
+export const VERSION = "1.0.1"; // 1.0.1: เพิ่ม CA Let's Encrypt YR1 สำหรับ air4thai
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -84,15 +84,63 @@ function pick(o: Json, keys: string[]): unknown {
   return undefined;
 }
 
+/**
+ * ใบรับรอง CA เพิ่มเติม — เซิร์ฟเวอร์ราชการบางแห่ง (air4thai.pcd.go.th) ใช้ใบรับรอง Let's Encrypt
+ * รุ่นใหม่ (intermediate "YR1" ราก "ISRG Root YR", ออก ก.ย. 2568) แต่ส่ง chain ผิด (ส่งของ Sectigo มาแทน)
+ * เบราว์เซอร์/curl หา intermediate เองได้ (AIA) แต่ Deno/rustls ไม่ทำ → "invalid peer certificate: UnknownIssuer"
+ * จึงใส่ YR1 เป็น trust anchor เพิ่ม (ดาวน์โหลดจาก http://yr1.i.lencr.org/ 3 ก.ย. 2569 · หมดอายุ 2 ก.ย. 2571)
+ */
+const EXTRA_CA_CERTS = [`-----BEGIN CERTIFICATE-----
+MIIE2zCCAsOgAwIBAgIRAKICU/FfJpHAXcHOE7m8yk4wDQYJKoZIhvcNAQELBQAw
+LjELMAkGA1UEBhMCVVMxDTALBgNVBAoTBElTUkcxEDAOBgNVBAMTB1Jvb3QgWVIw
+HhcNMjUwOTAzMDAwMDAwWhcNMjgwOTAyMjM1OTU5WjAzMQswCQYDVQQGEwJVUzEW
+MBQGA1UEChMNTGV0J3MgRW5jcnlwdDEMMAoGA1UEAxMDWVIxMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoVi8X2xCYgMXvJxNPKp/oF13UMgmPABB07VC
+LNDtoXmt9luEZNJSBV10VyT1Pz6LD8Zq1d2gc43WNl1AdRrj4sEnazbOiz0nPpmG
+Bp2hui49oZtDIY6wdKeZAi5BbNU20CH6RSBBMLSQ9cXrH8dxdv4PAJ45ssGML68U
+SE3BsjC2a6cAN9L5CgXVIQi5tfNiTPoFZZ3S0OlXqLmmtdV95udWAb5b6e/F49Di
+CsH0Y00Ag72BVIb1hzynmKe+X0mERBTtsb3BwmpV9ipeBjMLoR/D9cHxHQCWoi5l
+TmXwY015J5rGelz1nZjJuxc2kioaX29XJBnhMkP531rSdG5uMwIDAQABo4HuMIHr
+MA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAKBggrBgEFBQcDATASBgNVHRMBAf8E
+CDAGAQH/AgEAMB0GA1UdDgQWBBQfLzW+RhSCzUCxrnksVXj699Ro+zAfBgNVHSME
+GDAWgBTe51tg0CJtQCh9Pw0B/qS1UrRRlDAyBggrBgEFBQcBAQQmMCQwIgYIKwYB
+BQUHMAKGFmh0dHA6Ly95ci5pLmxlbmNyLm9yZy8wEwYDVR0gBAwwCjAIBgZngQwB
+AgEwJwYDVR0fBCAwHjAcoBqgGIYWaHR0cDovL3lyLmMubGVuY3Iub3JnLzANBgkq
+hkiG9w0BAQsFAAOCAgEA0+zvMq3kHig1ddTmmm+RibTr9/RpX7k4buanMMRqbV/y
+IvP82zAHN3mvaw+cASuVsdpd0ikjhr4hnhJQLQOzOp2ccKrsdGOAgo0vddeISFAq
+EWEV4lmUM3vFF796up+bSgmJ1u6RupDCMxDgF8M3eLvGuj6L0lu3zkQ0KuQLnKxL
+tB0oQqn1Idg5CuuGpMvQzk29Pa3D/qHurc0EIM9SxukQuJqq63lxsYyRQFU8yMBO
+hq1w5LbfaWNRrz1uklOfI/pYkAb2E2MTZrAMQkBIE2S8Jt1F8gRc96o/xOsrgvSk
+a84AisX6xq1lz1Z7jGvrnXc4TMcjxZTjiTaihcYI1JIXZiLtEMSCa5l3cu8YWd6z
+dLRQlqRdclVjuQfNHawRJ6GWlkK0QJosivTKwdBw3KxEtzGo8yMHERbsy57gP1UX
+HOMcmZYQC0gtyR3SxfenIM/MxC3Ia2Ypab/kQ/CTnlIn2KQ5JUC6NYrGCbhFN9bp
+5lKJStEwCUnLpntcrXk5XVDCNv/5RyWpRThkGOV7GetKkQ0qAY8hCzWK6oqnAhDZ
+cjlYVdWfqOw3DIOX6EDNBgAqHarRVxyF9QZdOaXSyPJ0ueD2BYJEBgaCGQ8rAaU/
+Qc123V5LTXDZW4CcsPBDyhy4v+c8hClAyw/IkJlfBqxB9D+/wvIMHgECZ4ptP6o=
+-----END CERTIFICATE-----`];
+
+/** HTTP client ที่รู้จัก CA เพิ่มเติม — ถ้า runtime ไม่รองรับ createHttpClient ก็ใช้ fetch ปกติ */
+let _httpClient: Deno.HttpClient | null | undefined;
+function httpClient(): Deno.HttpClient | undefined {
+  if (_httpClient !== undefined) return _httpClient ?? undefined;
+  try {
+    _httpClient = Deno.createHttpClient({ caCerts: EXTRA_CA_CERTS });
+  } catch (e) {
+    console.warn("createHttpClient ไม่ได้ ใช้ fetch ปกติ:", (e as Error).message);
+    _httpClient = null;
+  }
+  return _httpClient ?? undefined;
+}
+
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
-  const r = await fetch(url, { ...init, headers: { "User-Agent": "envi-pi/" + VERSION, ...(init?.headers ?? {}) } });
+  const r = await fetch(url, { ...init, client: httpClient(), headers: { "User-Agent": "envi-pi/" + VERSION, ...(init?.headers ?? {}) } } as RequestInit);
   if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
   const text = await r.text();
   try { return JSON.parse(text); } catch { throw new Error(`ไม่ใช่ JSON (${text.slice(0, 80)}) ${url}`); }
 }
 
 async function fetchText(url: string): Promise<string> {
-  const r = await fetch(url, { headers: { "User-Agent": "envi-pi/" + VERSION } });
+  const r = await fetch(url, { client: httpClient(), headers: { "User-Agent": "envi-pi/" + VERSION } } as RequestInit);
   if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
   return await r.text();
 }
@@ -261,20 +309,28 @@ async function gistda_pm25(ctx: Ctx): Promise<HandlerResult> {
 async function gistda_hotspot(ctx: Ctx): Promise<HandlerResult> {
   const base = String(ctx.source.url).replace(/\/query.*$/, "");
   const rows: Json[] = [];
-  let offset = 0;
+  // ⚠️ MapServer ของ GISTDA ตอบ "Pagination is not supported" ทั้ง resultOffset และ resultRecordCount
+  //    แต่ maxRecordCount = 1000 → แบ่งหน้าเองด้วย where FID > <FID สูงสุดของหน้าก่อน> (ตรวจ 3 ก.ย. 2569)
+  //    ฟิลด์จริง: longitude latitude FID confident satellite datetime(epoch ms) region lu_name tb_tb ap_tn pv_tn
+  let lastFid = -1;
   for (let page = 0; page < 30; page++) {                // กันวนไม่รู้จบ: สูงสุด 30,000 จุด
-    const url = `${base}/query?where=1%3D1&outFields=*&outSR=4326&f=json&resultOffset=${offset}&resultRecordCount=1000`;
-    const j = await fetchJson(url) as { features?: Json[]; exceededTransferLimit?: boolean; error?: Json };
+    const where = encodeURIComponent(lastFid < 0 ? "1=1" : `FID > ${lastFid}`);
+    const url = `${base}/query?where=${where}&outFields=*&outSR=4326&f=json`;
+    const j = await fetchJson(url) as { features?: Json[]; exceededTransferLimit?: boolean; error?: Json; objectIdFieldName?: string };
     if (j.error) throw new Error("ArcGIS: " + JSON.stringify(j.error));
     const feats = j.features ?? [];
+    let pageMaxFid = lastFid;
     for (const f of feats) {
       const a = (f.attributes ?? {}) as Json, g = (f.geometry ?? {}) as Json;
-      const lat = num(pick(a, ["latitude", "lat", "y"])) ?? num(g.y);
-      const lng = num(pick(a, ["longitude", "long", "lon", "lng", "x"])) ?? num(g.x);
+      const fid = num(pick(a, [j.objectIdFieldName ?? "FID", "FID", "OBJECTID"]));
+      if (fid !== null && fid > pageMaxFid) pageMaxFid = fid;
+      const gp = Array.isArray(g.points) ? (g.points as number[][])[0] : null;   // esriGeometryMultipoint
+      const lat = num(pick(a, ["latitude", "lat", "y"])) ?? num(g.y) ?? (gp ? num(gp[1]) : null);
+      const lng = num(pick(a, ["longitude", "long", "lon", "lng", "x"])) ?? num(g.x) ?? (gp ? num(gp[0]) : null);
       if (lat === null || lng === null) continue;
       const at = arcgisTime(pick(a, ["acq_date", "hotspot_date", "date", "datetime", "acq_datetime"]), pick(a, ["acq_time", "time"]))
              ?? new Date().toISOString();
-      const frp = num(pick(a, ["frp", "brightness", "bright_ti4", "confidence"]));
+      const frp = num(pick(a, ["frp", "brightness", "bright_ti4", "confident", "confidence"]));
       rows.push({
         source_id: String(ctx.source.id), kind: "hotspot",
         ext_id: `${lat.toFixed(4)}|${lng.toFixed(4)}|${at}`,
@@ -284,8 +340,8 @@ async function gistda_hotspot(ctx: Ctx): Promise<HandlerResult> {
         props: a,
       });
     }
-    offset += feats.length;
-    if (!j.exceededTransferLimit || feats.length === 0) break;
+    if (feats.length < 1000 || pageMaxFid === lastFid) break;   // หน้าสุดท้าย หรือหา FID ไม่เจอ
+    lastFid = pageMaxFid;
   }
   const n = await upsert(ctx, "events", rows, "source_id,ext_id");
   return { rows: n };
@@ -330,7 +386,9 @@ async function dgr_wells(ctx: Ctx): Promise<HandlerResult> {
   for (let i = 0; i < PAGES_PER_RUN; i++) {
     const url = `${String(ctx.source.url)}?page=${page}`;
     const j = await fetchJson(url) as Json;
-    const data = (Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : []) as Json[];
+    // โครงสร้างจริง (ตรวจ 3 ก.ย. 2569): { total, last_page_url, next_page_url, result: [...] } — แถวอยู่ใน "result"
+    const data = (Array.isArray(j.result) ? j.result : Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : []) as Json[];
+    if (!lastPage && typeof j.last_page_url === "string") lastPage = Number((j.last_page_url.match(/[Pp]age=(\d+)/) ?? [])[1] ?? 0);
     lastPage = Number(j.last_page ?? lastPage ?? 0);
     for (const w of data) {
       const lat = num(pick(w, ["lat", "latitude"])), lng = num(pick(w, ["long", "lng", "longitude"]));
