@@ -260,7 +260,10 @@ begin
 end $$;
 
 -- ── 8. สิทธิ์เรียกฟังก์ชัน ───────────────────────────────────────────────────
---   ⚠️ ต้อง revoke จาก **public** ก่อน — Postgres ให้ EXECUTE กับ PUBLIC ทุกครั้งที่สร้างฟังก์ชัน
+--   ⚠️ ต้อง revoke จาก **public** และจาก **anon/authenticated/service_role** ด้วย
+--   Postgres ให้ EXECUTE กับ PUBLIC ทุกครั้งที่สร้างฟังก์ชัน และ Supabase ตั้ง default privileges
+--   ให้ anon/authenticated/service_role ได้ EXECUTE โดยตรงอีกชั้น — revoke จาก public อย่างเดียว
+--   anon ยังเรียก purge_old_observations() ได้ (เจอจริงตอนติดตั้ง 3 ก.ย. 2569)
 do $$
 declare f text;
 begin
@@ -271,10 +274,11 @@ begin
     'public.save_assessment(text,double precision,double precision,jsonb,text)',
     'public.rollup_daily(date)',
     'public.purge_old_observations(int)',
-    'public.app_role()', 'public.is_admin()', 'public.can_import()'
+    'public.app_role()', 'public.is_admin()', 'public.can_import()',
+    'public.touch_updated_at()', 'public.handle_new_user()'
   ] loop
     begin
-      execute format('revoke execute on function %s from public', f);
+      execute format('revoke execute on function %s from public, anon, authenticated, service_role', f);
     exception when others then raise warning 'revoke % : %', f, sqlerrm; end;
   end loop;
 

@@ -134,7 +134,8 @@ begin
     'public.import_events(text,event_kind,jsonb)',
     'public.import_stations(text,jsonb)'
   ] loop
-    execute format('revoke execute on function %s from public', f);
+    -- revoke จาก anon ด้วย — Supabase default privileges ให้ anon โดยตรง ไม่ใช่ผ่าน PUBLIC อย่างเดียว
+    execute format('revoke execute on function %s from public, anon, authenticated, service_role', f);
     execute format('grant execute on function %s to authenticated, service_role', f);
   end loop;
 end $$;

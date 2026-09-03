@@ -49,7 +49,7 @@ begin
   return v_req;
 end $$;
 
-revoke execute on function public.trigger_ingest(text) from public;
+revoke execute on function public.trigger_ingest(text) from public, anon, authenticated, service_role;
 grant  execute on function public.trigger_ingest(text) to service_role;
 
 -- ── 2. ตารางเวลา (UTC — ไทย = UTC+7) ────────────────────────────────────────
