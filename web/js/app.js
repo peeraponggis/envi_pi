@@ -268,9 +268,11 @@ function renderDisaster(rep) {
     <div class="result-item"><span class="result-label">🌊 น้ำท่วม 30 วัน ใน 20 กม.</span> <b>${f.count ?? 0}</b> รายการ <small class="dim">(GISTDA — ต้องมี api key เฟส 5)</small></div>`;
 }
 function renderWater(rep) {
-  const w = rep.wells_5km ?? {};
-  return `<div class="result-item"><span class="result-label">💧 บ่อน้ำบาดาล ใน 5 กม.</span> <b>${w.count ?? 0}</b> บ่อ
-    ${listItems(w.items, (x) => `${esc(x.name ?? x.area ?? 'บ่อ')} · ห่าง ${km(x.distance_m)}${x.meta?.depth_drill_m ? ` · ลึก ${x.meta.depth_drill_m} ม.` : ''}${x.meta?.yield_m3h ? ` · ${x.meta.yield_m3h} ลบ.ม./ชม.` : ''}`, 'ไม่พบ — ที่มา กรมทรัพยากรน้ำบาดาล (ต้องดึง dgr_wells ก่อน)')}</div>
+  const w = rep.wells_5km ?? {}, d = rep.dams_20km ?? {};
+  return `<div class="result-item"><span class="result-label">🏞️ เขื่อน/อ่างเก็บน้ำ ใน 20 กม.</span> <b>${d.count ?? 0}</b> แห่ง
+    ${listItems(d.items, (x) => `${esc(x.name ?? 'ไม่ระบุชื่อ')}${x.meta?.dam_type ? ` (${esc(x.meta.dam_type)})` : ''} · ห่าง ${km(x.distance_m)}`, 'ไม่พบ — ที่มา กรมทรัพยากรน้ำ (DAM)')}</div>
+    <div class="result-item"><span class="result-label">💧 บ่อน้ำบาดาล ใน 5 กม.</span> <b>${w.count ?? 0}</b> บ่อ
+    ${listItems(w.items, (x) => `${esc(x.name ?? x.area ?? 'บ่อ')} · ห่าง ${km(x.distance_m)}${x.meta?.depth_drill_m ? ` · ลึก ${x.meta.depth_drill_m} ม.` : ''}${x.meta?.yield_m3h ? ` · ${x.meta.yield_m3h} ลบ.ม./ชม.` : ''}`, 'ไม่พบ — ที่มา กรมทรัพยากรน้ำบาดาล (ทยอยดึงทุกชั่วโมง)')}</div>
     ${renderLayers(rep, 'water')}`;
 }
 /** ที่ตั้งจากชั้นขอบเขตการปกครอง (กรมการปกครอง 2556 ผ่าน DWR) — แม่นกว่า Nominatim และไม่ต้องยิงเน็ต */
