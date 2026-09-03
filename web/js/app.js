@@ -172,6 +172,7 @@ function switchCategory(key) {
   state.layers.gistda_aq && (state.layers.gistda_aq.show = key === 'air' && $('chkAqTile').checked);
   state.entities.stations.forEach((e) => (e.show = key === 'air'));
   state.entities.events.forEach((e) => (e.show = key === 'disaster' || key === 'water'));
+  if (state.burnDs) state.burnDs.show = key === 'disaster';
   renderReport();
 }
 
@@ -203,6 +204,7 @@ async function analyze() {
   // แสงอาทิตย์ + พยากรณ์อากาศ: เรียก API จริงเบื้องหลัง ไม่บล็อกหมวดอื่น
   loadSolar(c.lat, c.lng).catch((e) => console.warn('solar', e));
   loadForecast(c.lat, c.lng).catch((e) => console.warn('forecast', e));
+  loadBurnScar(c.lat, c.lng).catch((e) => console.warn('burnscar', e));
 }
 
 const badge = (lv) => (lv ? `<span class="badge badge-${lv.style ?? lv}">${esc(lv.status ?? lv.label ?? '')}</span>` : '');
@@ -257,7 +259,42 @@ function listItems(items, fmt, empty) {
   if (!items?.length) return `<div class="dim">${esc(empty)}</div>`;
   return `<ul class="lst">${items.slice(0, 12).map((x) => `<li>${fmt(x)}</li>`).join('')}${items.length > 12 ? `<li class="dim">…และอีก ${items.length - 12}</li>` : ''}</ul>`;
 }
+// ── รอยไหม้ GISTDA รอบจุด (±5 กม.) — เรียกผ่าน Edge, วาดโพลิกอนด้วย GeoJsonDataSource ──
+async function loadBurnScar(lat, lng) {
+  state.burn = { loading: true };
+  if (state.category === 'disaster') renderReport();
+  try { state.burn = await core.fetchBurnScar(lat, lng); } catch (e) { state.burn = { error: e.message }; }
+  if (state.burnDs) { state.viewer.dataSources.remove(state.burnDs, true); state.burnDs = null; }
+  if (state.burn?.features?.length) {
+    try {
+      state.burnDs = await Cesium.GeoJsonDataSource.load({ type: 'FeatureCollection', features: state.burn.features },
+        { stroke: Cesium.Color.fromCssColorString('#ff6d00'), fill: Cesium.Color.fromCssColorString('#ff6d00').withAlpha(0.35), strokeWidth: 1, clampToGround: true });
+      state.burnDs.show = state.category === 'disaster';
+      state.viewer.dataSources.add(state.burnDs);
+    } catch (e) { console.warn('burn polygons', e); }
+  }
+  if (state.category === 'disaster') renderReport();
+}
+function renderBurn() {
+  const b = state.burn;
+  if (!b || b.loading) return '<div class="result-item loading">🔄 กำลังขอรอยไหม้จาก GISTDA…</div>';
+  if (b.error) return `<div class="result-item err">รอยไหม้: ${esc(b.error)}</div>`;
+  return `<div class="result-item"><span class="result-label">🔥 รอยไหม้จากภาพดาวเทียม ใน 5 กม.</span> <span class="src">GISTDA${b.cached ? ' · แคช' : ''}</span><br>
+    <b>${b.count}</b> แปลง · รวม <b>${b.area_rai}</b> ไร่${b.latest_period ? ` · ล่าสุด ${esc(core.fmtBurnPeriod(b.latest_period))}` : ''}
+    ${b.by_landuse?.length ? `<ul class="lst">${b.by_landuse.map((x) => `<li>${esc(x.lu)} ${x.rai} ไร่</li>`).join('')}</ul>` : '<div class="dim">ไม่พบรอยไหม้ในรัศมี</div>'}
+    <small class="dim">โพลิกอนสีส้มบนแผนที่ = รอยไหม้ (แสดงสูงสุด 60 แปลง) · สะสมทุกช่วงที่ GISTDA วิเคราะห์ ไม่ใช่เฉพาะปีนี้</small></div>`;
+}
+
 function renderDisaster(rep) {
+  const h = rep.hotspots_7d_10km ?? {}, q = rep.quakes_30d_300km ?? {}, s = rep.landslides_10km ?? {}, f = rep.floods_30d_20km ?? {};
+  const flood = (rep.layer_hits ?? []).find((x) => x.layer_id === 'gistda_flood_1d');
+  return `
+    <div class="result-item"><span class="result-label">🌊 น้ำท่วมจากภาพดาวเทียมวันนี้ (GISTDA)</span><br>
+      ${flood ? `<b style="color:#2979ff">จุดนี้อยู่ในพื้นที่น้ำท่วม</b> (ภาพ ${esc(flood.props?.datetime ?? '')})` : '<span class="dim">จุดนี้ไม่อยู่ในพื้นที่น้ำท่วมที่ตรวจพบ (ชั้น gistda_flood_1d อัปเดตทุก 6 ชม.)</span>'}</div>
+    ${renderBurn()}
+    ${renderDisasterEvents(rep)}`;
+}
+function renderDisasterEvents(rep) {
   const h = rep.hotspots_7d_10km ?? {}, q = rep.quakes_30d_300km ?? {}, s = rep.landslides_10km ?? {}, f = rep.floods_30d_20km ?? {};
   return `
     <div class="result-item"><span class="result-label">🔥 จุดความร้อน 7 วัน ใน 10 กม.</span> <b>${h.count ?? 0}</b> จุด
@@ -266,7 +303,7 @@ function renderDisaster(rep) {
       ${listItems(q.items, (x) => `<b>M ${x.magnitude ?? '—'}</b> ${esc(x.title ?? '')} · ห่าง ${x.distance_km} กม. · ${esc(core.fmtThaiDateTime(x.at))}`, 'ไม่พบ — ที่มา กรมอุตุนิยมวิทยา')}</div>
     <div class="result-item"><span class="result-label">⛰️ ประวัติดินถล่ม ใน 10 กม.</span> <b>${s.count ?? 0}</b> จุด
       ${listItems(s.items, (x) => `${esc(x.title ?? 'ดินถล่ม')} · ห่าง ${km(x.distance_m)} · ${esc(core.fmtThaiDateTime(x.at))}`, 'ไม่พบ — ที่มา กรมทรัพยากรธรณี (ต้องนำเข้าไฟล์ก่อน)')}</div>
-    <div class="result-item"><span class="result-label">🌊 น้ำท่วม 30 วัน ใน 20 กม.</span> <b>${f.count ?? 0}</b> รายการ <small class="dim">(GISTDA — ต้องมี api key เฟส 5)</small></div>`;
+    ${f.count ? `<div class="result-item"><span class="result-label">🌊 เหตุการณ์น้ำท่วม 30 วัน ใน 20 กม.</span> <b>${f.count}</b> รายการ</div>` : ''}`;
 }
 function renderWater(rep) {
   const w = rep.wells_5km ?? {}, d = rep.dams_20km ?? {};

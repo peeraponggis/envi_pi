@@ -273,6 +273,26 @@ export async function fetchForecast(lat, lng) {
   return j;
 }
 
+/** รอยไหม้จากภาพดาวเทียม GISTDA รอบจุด (±5 กม.) — ผ่าน Edge action "burnscar" (key ฝั่งเซิร์ฟเวอร์ แคช 24 ชม.) */
+export async function fetchBurnScar(lat, lng) {
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/envi-ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_PUBLISHABLE_KEY },
+    body: JSON.stringify({ action: 'burnscar', lat, lng }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+  return j;
+}
+
+/** "20260511 - 20260520" → "11–20 พ.ค. 2569" */
+export function fmtBurnPeriod(s) {
+  const m = String(s ?? '').match(/(\d{4})(\d{2})(\d{2})\s*-\s*(\d{4})(\d{2})(\d{2})/);
+  if (!m) return s ?? '—';
+  const th = (y, mo, d) => new Date(Date.UTC(+y, +mo - 1, +d)).toLocaleDateString('th-TH', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+  return `${+m[3]}–${th(m[4], m[5], m[6])}`;
+}
+
 /** ทิศลม 16 ทิศจากองศา */
 export function windDir(deg) {
   if (deg == null || Number.isNaN(Number(deg))) return '—';

@@ -62,7 +62,8 @@ declare
     {"name":"envi_tmd_quake",           "cron":"*/15 * * * *", "sql":"select public.trigger_ingest(''tmd_quake'')"},
     {"name":"envi_hotspot_modis",       "cron":"25 */6 * * *", "sql":"select public.trigger_ingest(''gistda_hotspot_modis'')"},
     {"name":"envi_hotspot_viirs",       "cron":"35 */6 * * *", "sql":"select public.trigger_ingest(''gistda_hotspot_viirs'')"},
-    {"name":"envi_royalrain",           "cron":"*/30 * * * *", "sql":"select public.trigger_ingest(''royalrain'')"},
+    {"name":"envi_royalrain",           "cron":"*/30 * * * *", "sql":"select public.trigger_ingest(''royalrain_radar'')"},
+    {"name":"envi_gistda_flood",        "cron":"40 */6 * * *", "sql":"select public.trigger_ingest(''gistda_flood'')"},
     {"name":"envi_dgr_wells",           "cron":"50 * * * *",   "sql":"select public.trigger_ingest(''dgr_wells'')"},
     {"name":"envi_tmd_today",           "cron":"50 */3 * * *", "sql":"select public.trigger_ingest(''tmd_today'')"},
     {"name":"envi_tmd_3h",              "cron":"55 */3 * * *", "sql":"select public.trigger_ingest(''tmd_3h'')"},
@@ -81,6 +82,6 @@ select 'vault envi_ingest_url'  as "รายการ", (exists(select 1 from v
 union all
 select 'vault envi_cron_token', (exists(select 1 from vault.secrets where name='envi_cron_token'))::text
 union all
-select 'cron jobs envi_*', (select count(*)::text from cron.job where jobname like 'envi_%') || ' (ต้องได้ 11)';
+select 'cron jobs envi_*', (select count(*)::text from cron.job where jobname like 'envi_%') || ' (ต้องได้ 12)';
 
 select jobname as "job", schedule as "เวลา (UTC)", active as "เปิด" from cron.job where jobname like 'envi_%' order by 1;

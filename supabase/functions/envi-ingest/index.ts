@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.1.0"; // 1.0.1: CA YR1 สำหรับ air4thai · 1.1.0: action "forecast" (TMD NWP) + CORS
+export const VERSION = "1.2.0"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -476,14 +476,77 @@ async function tmd_obs(ctx: Ctx): Promise<HandlerResult> {
   return { rows: n, note: `สถานี ${stRows.length}` };
 }
 
+/**
+ * GISTDA api-gateway (ต้องมี Secret GISTDA_API_KEY — ตรวจ 3 ก.ย. 2569)
+ *   key ส่งเป็น query `api_key=` หรือ header `API-Key` ได้ทั้งคู่
+ *   flood: STAC `resources/stac/flood/collections/flood1day_r2/items` → item เดียว `items_flood1day_r2`
+ *          assets.data = GeoJSON พื้นที่น้ำท่วมทั้งประเทศจากภาพดาวเทียม (วันไม่มีน้ำท่วม = FeatureCollection ว่าง)
+ *          flood3day/7day/30day มี collection แต่ไม่มี item (ณ วันตรวจ) · gi-service/*/flood-recurrence ตอบ 404
+ *   burn-scar: `resources/features/burn-scar?bbox=&limit=` 79,435 โพลิกอน (props: date "YYYYMMDD - YYYYMMDD", area_rai, lu_name, pv_tn, ap_tn, tb_tn)
+ */
+const GISTDA = "https://api-gateway.gistda.or.th/api/2.0";
+function gistdaKey(): string {
+  const k = Deno.env.get("GISTDA_API_KEY");
+  if (!k) throw new Error("ยังไม่ได้ตั้ง Secret GISTDA_API_KEY (สมัครที่ api-gateway.gistda.or.th)");
+  return k;
+}
+
+/** พื้นที่น้ำท่วมรายวัน → แทนที่ชั้น gistda_flood_1d ทั้งชั้น (ผ่าน RPC replace_layer_features ที่ service_role เท่านั้น) */
+async function gistda_flood(ctx: Ctx): Promise<HandlerResult> {
+  const key = gistdaKey();
+  const items = await fetchJson(`${GISTDA}/resources/stac/flood/collections/flood1day_r2/items?limit=1&api_key=${key}`) as Json;
+  const item = ((items.features as Json[]) ?? [])[0];
+  if (!item) throw new Error("STAC flood1day_r2 ไม่มี item");
+  const href = ((item.assets as Json)?.data as Json)?.href as string | undefined;
+  if (!href) throw new Error("item ไม่มี assets.data");
+  const gj = await fetchJson(href) as Json;
+  const feats = ((gj.features as Json[]) ?? []).map((f) => ({ ...f, properties: { ...(f.properties as Json ?? {}), datetime: (item.properties as Json)?.datetime ?? null } }));
+  if (ctx.dry) return { rows: feats.length, note: `datetime ${(item.properties as Json)?.datetime} · ${feats.length} โพลิกอน (dry)` };
+  const { data, error } = await ctx.sb.rpc("replace_layer_features", {
+    p_layer: "gistda_flood_1d", p_features: feats, p_name_key: "name", p_ext_key: null,
+    p_layer_row: { source_id: "gistda_flood", name_th: "พื้นที่น้ำท่วมจากดาวเทียม 1 วัน (GISTDA)", style: { fill: "#2979ff", opacity: 0.45 },
+      notes: `ภาพ ณ ${(item.properties as Json)?.datetime} · อัปเดตอัตโนมัติทุก 6 ชม.` },
+  });
+  if (error) throw new Error("replace_layer_features: " + error.message);
+  return { rows: Number((data as Json)?.inserted ?? 0), note: `datetime ${(item.properties as Json)?.datetime} · ข้าม ${(data as Json)?.skipped ?? 0}` };
+}
+
+/** รอยไหม้รอบจุด (action สาธารณะ) — bbox ±0.045° (~5 กม.) แคช 24 ชม. */
+async function burnScarAt(sb: SupabaseClient, lat: number, lng: number): Promise<Json> {
+  const cacheKey = `gistda_burnscar:${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const { data: hit } = await sb.from("api_cache").select("payload, fetched_at").eq("cache_key", cacheKey).maybeSingle();
+  if (hit && Date.now() - new Date(hit.fetched_at).getTime() < 86400e3) return { ...(hit.payload as Json), cached: true, fetched_at: hit.fetched_at };
+  const d = 0.045;
+  const bbox = `${(lng - d).toFixed(4)},${(lat - d).toFixed(4)},${(lng + d).toFixed(4)},${(lat + d).toFixed(4)}`;
+  const j = await fetchJson(`${GISTDA}/resources/features/burn-scar?bbox=${bbox}&limit=200&api_key=${gistdaKey()}`) as Json;
+  const feats = ((j.features as Json[]) ?? []);
+  const byLu: Record<string, number> = {};
+  let rai = 0, latest = "";
+  for (const f of feats) {
+    const p = (f.properties ?? {}) as Json;
+    rai += Number(p.area_rai) || 0;
+    const lu = String(p.lu_name ?? "ไม่ระบุ"); byLu[lu] = (byLu[lu] || 0) + (Number(p.area_rai) || 0);
+    if (String(p.date ?? "") > latest) latest = String(p.date ?? "");
+  }
+  const payload: Json = {
+    source: "GISTDA burn-scar (รอยไหม้จากภาพดาวเทียม)", bbox, radius_km: 5,
+    count: Number(j.numberMatched ?? feats.length), area_rai: Math.round(rai * 10) / 10, latest_period: latest || null,
+    by_landuse: Object.entries(byLu).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => ({ lu: k, rai: Math.round(v * 10) / 10 })),
+    features: feats.slice(0, 60).map((f) => ({ type: "Feature", geometry: f.geometry,
+      properties: { date: (f.properties as Json)?.date, area_rai: (f.properties as Json)?.area_rai, lu_name: (f.properties as Json)?.lu_name, tb_tn: (f.properties as Json)?.tb_tn, ap_tn: (f.properties as Json)?.ap_tn } })),
+  };
+  await sb.from("api_cache").upsert({ cache_key: cacheKey, source_id: "gistda_burnscar", payload, fetched_at: new Date().toISOString() });
+  return { ...payload, cached: false, fetched_at: new Date().toISOString() };
+}
+
 async function not_ready(_ctx: Ctx): Promise<HandlerResult> {
   throw new Error("handler นี้อยู่ในเฟสถัดไป (ต้องมี api key) — ดู docs/แหล่งข้อมูลราชการ.md");
 }
 
 const HANDLERS: Record<string, (c: Ctx) => Promise<HandlerResult>> = {
-  air4thai, gistda_pm25, gistda_hotspot, tmd_quake, dgr_wells, royalrain,
+  air4thai, gistda_pm25, gistda_hotspot, tmd_quake, dgr_wells, royalrain, gistda_flood,
   tmd_today: tmd_obs, tmd_3h: tmd_obs,
-  gistda_flood: not_ready, firms: not_ready, tmd_nwp: not_ready,
+  firms: not_ready, tmd_nwp: not_ready,
 };
 
 // ─────────────────────────────────────────────────────────── พยากรณ์ ณ จุด (TMD NWP) — เรียกจากเบราว์เซอร์
@@ -546,12 +609,14 @@ Deno.serve(async (req: Request) => {
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
-  // action สาธารณะ (ไม่ต้องมี cron token) — พยากรณ์ ณ จุด
-  if (body.action === "forecast") {
+  // action สาธารณะ (ไม่ต้องมี cron token) — พยากรณ์ / รอยไหม้ ณ จุด (key ของหน่วยงานอยู่ฝั่งนี้ แคชกัน rate limit)
+  if (body.action === "forecast" || body.action === "burnscar") {
     const lat = Number(body.lat), lng = Number(body.lng);
     if (!(lat >= 5 && lat <= 21 && lng >= 97 && lng <= 106)) return json({ ok: false, error: "พิกัดอยู่นอกประเทศไทย" }, 400);
-    try { return json({ ok: true, version: VERSION, ...(await forecastAt(sb, lat, lng)) }); }
-    catch (e) { return json({ ok: false, error: (e as Error).message }, 502); }
+    try {
+      const r = body.action === "forecast" ? await forecastAt(sb, lat, lng) : await burnScarAt(sb, lat, lng);
+      return json({ ok: true, version: VERSION, ...r });
+    } catch (e) { return json({ ok: false, error: (e as Error).message }, 502); }
   }
 
   const token = Deno.env.get("ENVI_CRON_TOKEN");
