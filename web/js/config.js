@@ -10,8 +10,8 @@
  * และ publishable (anon) key มาแทน placeholder สองบรรทัดล่าง
  */
 
-export const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_REPLACE_ME';
+export const SUPABASE_URL = 'https://mplexdeaqgrdoqqhypqb.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_37XstkQZCE8DA1odPgQNzw_-jtBiX_h';
 
 /** คีย์เก็บ session — ตั้งชื่อไม่ให้ชนกับ pi_system_auth ของ CRM-Pi ที่อาจอยู่ origin เดียวกัน */
 export const AUTH_STORAGE_KEY = 'envi_pi_auth';
