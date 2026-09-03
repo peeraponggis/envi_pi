@@ -258,6 +258,42 @@ export function summarizePvgis(json, month, hour) {
   return { source: 'PVGIS', instantGhi: Math.round(gi || gb + gd), airTemp: r1(avg('T2m')), windSpeed: r1(avg('WS10m')), samples: pick.length };
 }
 
+/**
+ * พยากรณ์อากาศ ณ จุด — ผ่าน Edge Function `envi-ingest` action "forecast"
+ * (token ของ TMD อยู่ฝั่งเซิร์ฟเวอร์ · แคช 1 ชม. ต่อพิกัด ~1 กม.) คืน {hourly:[{time,tc,rh,rain,ws10m,wd10m,cond,cond_th}], daily:[…], grid, cached}
+ */
+export async function fetchForecast(lat, lng) {
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/envi-ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_PUBLISHABLE_KEY },
+    body: JSON.stringify({ action: 'forecast', lat, lng }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+  return j;
+}
+
+/** ทิศลม 16 ทิศจากองศา */
+export function windDir(deg) {
+  if (deg == null || Number.isNaN(Number(deg))) return '—';
+  const d = ['น', 'น-ตอ', 'ตอ', 'ตอ-ต', 'ต', 'ต-ตต', 'ตต', 'ตต-น'];
+  return d[Math.round((((Number(deg) % 360) + 360) % 360) / 45) % 8];
+}
+
+/** สรุปพยากรณ์รายชั่วโมงเป็นประโยค: ฝนสะสม 24 ชม., ชั่วโมงที่ฝนตก, ช่วงอุณหภูมิ */
+export function summarizeForecast(fc) {
+  const h = fc?.hourly ?? [];
+  if (!h.length) return null;
+  const rain = h.reduce((a, x) => a + (Number(x.rain) || 0), 0);
+  const rainy = h.filter((x) => (Number(x.rain) || 0) >= 0.5 || Number(x.cond) >= 5 && Number(x.cond) <= 8);
+  const tcs = h.map((x) => Number(x.tc)).filter(Number.isFinite);
+  return {
+    rain_mm: Math.round(rain * 10) / 10, rainy_hours: rainy.length,
+    tc_min: tcs.length ? Math.min(...tcs) : null, tc_max: tcs.length ? Math.max(...tcs) : null,
+    first_rain: rainy[0]?.time ?? null,
+  };
+}
+
 export async function reverseGeocode(lat, lng) {
   const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=th`);
   if (!r.ok) throw new Error(`Nominatim HTTP ${r.status}`);

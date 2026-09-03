@@ -200,8 +200,9 @@ async function analyze() {
   drawNearbyLandslides(rep.value);
   renderReport();
 
-  // แสงอาทิตย์: เรียก API จริง (เบื้องหลัง ไม่บล็อกหมวดอื่น)
+  // แสงอาทิตย์ + พยากรณ์อากาศ: เรียก API จริงเบื้องหลัง ไม่บล็อกหมวดอื่น
   loadSolar(c.lat, c.lng).catch((e) => console.warn('solar', e));
+  loadForecast(c.lat, c.lng).catch((e) => console.warn('forecast', e));
 }
 
 const badge = (lv) => (lv ? `<span class="badge badge-${lv.style ?? lv}">${esc(lv.status ?? lv.label ?? '')}</span>` : '');
@@ -302,13 +303,43 @@ function renderLayers(rep, cat) {
                   : '<div class="dim">จุดนี้ไม่อยู่ในชั้นข้อมูลที่นำเข้าแล้ว (หรือยังไม่ได้นำเข้า — ใช้หน้า import.html)</div>'}
     ${cat === 'eia' ? '<small class="dim">EIA (สผ.) / โรงงาน (กรมโรงงานฯ) / ขยะ (คพ.) ไม่มี API — นำเข้า CSV ด้วยมือ แสดงป้าย "นำเข้าด้วยมือ"</small>' : ''}</div>`;
 }
+// ── สภาพอากาศ: พยากรณ์กริด 2 กม. ของกรมอุตุฯ ผ่าน Edge Function (token อยู่ฝั่งเซิร์ฟเวอร์) ──
+async function loadForecast(lat, lng) {
+  state.forecast = { loading: true };
+  if (state.category === 'weather') renderReport();
+  try { state.forecast = await core.fetchForecast(lat, lng); }
+  catch (e) { state.forecast = { error: e.message }; }
+  if (state.category === 'weather') renderReport();
+}
+const COND_ICON = { 1: '☀️', 2: '🌤️', 3: '⛅', 4: '☁️', 5: '🌦️', 6: '🌧️', 7: '🌧️', 8: '⛈️', 9: '🥶', 10: '🧊', 11: '🌬️', 12: '🥵' };
+const hh = (iso) => new Date(iso).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
+const dd = (iso) => new Date(iso).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', weekday: 'short', day: 'numeric', month: 'short' });
+
 function renderWeather(rep) {
+  const fc = state.forecast;
+  let out = '';
+  if (!fc || fc.loading) out += '<div class="result-item loading">🔄 กำลังขอพยากรณ์จากกรมอุตุนิยมวิทยา…</div>';
+  else if (fc.error) out += `<div class="result-item err">พยากรณ์ไม่ได้: ${esc(fc.error)}</div>`;
+  else {
+    const s = core.summarizeForecast(fc);
+    const now = fc.hourly?.[0];
+    out += `<div class="result-item"><span class="result-label">🌦️ พยากรณ์ ณ จุดนี้ (กริด 2 กม.)</span> <span class="src">กรมอุตุฯ NWP${fc.cached ? ' · แคช' : ''}</span><br>
+      ${now ? `<div class="aqi-big" style="border-color:#42a5f5"><b style="color:#42a5f5">${COND_ICON[now.cond] ?? ''} ${now.tc ?? '—'}°</b><span>${esc(now.cond_th ?? '')} · ${hh(now.time)} น.<br><small class="dim">ความชื้น ${now.rh ?? '—'} % · ลม ${now.ws10m ?? '—'} m/s ${esc(core.windDir(now.wd10m))} · ฝน ${now.rain ?? 0} มม./ชม.</small></span></div>` : ''}
+      ${s ? `<div class="sum-line">• 24 ชม. ข้างหน้า: ${s.tc_min}–${s.tc_max} °C · ฝนสะสม ${s.rain_mm} มม. · ${s.rainy_hours ? `มีฝน ${s.rainy_hours} ชม. เริ่ม ${hh(s.first_rain)} น.` : 'ไม่มีฝน'}</div>` : ''}
+      <div class="hours">${(fc.hourly ?? []).slice(0, 24).map((x) => `<div class="hr" title="${esc(x.cond_th ?? '')}"><span>${hh(x.time).slice(0, 2)}</span><i>${COND_ICON[x.cond] ?? '·'}</i><b>${Math.round(x.tc)}°</b><small>${x.rain > 0 ? x.rain + 'มม' : ''}</small></div>`).join('')}</div>
+    </div>
+    <div class="result-item"><span class="result-label">📅 7 วันข้างหน้า</span>
+      <table class="tbl"><tbody>${(fc.daily ?? []).map((x) => `<tr><td>${dd(x.time)}</td><td>${COND_ICON[x.cond] ?? ''} ${esc(x.cond_th ?? '')}</td><td>${Math.round(x.tc_min)}–${Math.round(x.tc_max)} °C</td><td>${x.rain ?? 0} มม.</td></tr>`).join('')}</tbody></table>
+      <small class="dim">ที่มา: กรมอุตุนิยมวิทยา NWP API · กริดใกล้สุด ${fc.grid ? `${fc.grid.lat}, ${fc.grid.lon}` : ''} · ${esc(core.ago(fc.fetched_at))}</small></div>`;
+  }
   const w = rep.weather;
-  if (!w) return '<div class="result-item">ยังไม่มีข้อมูลสถานีอุตุ — เฟส 4 (ต้องสมัคร TMD API key)</div>';
-  const L = w.latest ?? {};
-  return `<div class="result-item"><span class="result-label">🌦️ ${esc(w.name_th)}</span> <span class="src">ห่าง ${km(w.distance_m)}</span><br>
-    อุณหภูมิ <b>${L.tc?.value ?? '—'}</b> °C · ความชื้น ${L.rh?.value ?? '—'} % · ลม ${L.ws?.value ?? '—'} km/h · ฝน ${L.rain?.value ?? '—'} มม.<br>
-    <small class="dim">${esc(core.fmtThaiDateTime(w.observed_at))} · ที่มา กรมอุตุนิยมวิทยา</small></div>`;
+  if (w) {
+    const L = w.latest ?? {};
+    out += `<div class="result-item"><span class="result-label">🌡️ ตรวจวัดจริง: ${esc(w.name_th)}</span> <span class="src">ห่าง ${km(w.distance_m)}</span><br>
+      อุณหภูมิ <b>${L.tc?.value ?? '—'}</b> °C · ความชื้น ${L.rh?.value ?? '—'} % · ลม ${L.ws?.value ?? '—'} km/h · ฝน ${L.rain?.value ?? '—'} มม.<br>
+      <small class="dim">${esc(core.fmtThaiDateTime(w.observed_at))} · ที่มา กรมอุตุนิยมวิทยา (สถานีตรวจอากาศ)</small></div>`;
+  }
+  return out;
 }
 
 // ── แสงอาทิตย์: NASA POWER + PVGIS จริง แทน getSourceData() เดิม ──────────────

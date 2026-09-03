@@ -105,9 +105,9 @@ values
  'ต้องสมัคร uid/ukey ที่ data.tmd.go.th (ฟรี)', '{"station_list":"https://data.tmd.go.th/api/Station/v1/"}'),
 ('tmd_3h', 'weather', 'กรมอุตุนิยมวิทยา', 'ตรวจอากาศทุก 3 ชั่วโมง',
  'https://data.tmd.go.th/api/Weather3Hours/V2/', 'key_json', 'ข้อมูลเปิดภาครัฐ', 180, 'tmd_3h', '2026-09-03', null, '{}'),
-('tmd_nwp', 'weather', 'กรมอุตุนิยมวิทยา', 'พยากรณ์กริด 3 กม. รายชั่วโมง 72 ชม.',
- 'https://data.tmd.go.th/nwpapi/v1/forecast/location/hourly/at', 'key_json', 'ข้อมูลเปิดภาครัฐ', null, 'tmd_nwp', '2026-09-03',
- 'สมัคร JWT ที่ data.tmd.go.th/nwpapi/register · เรียก ณ จุดตอนผู้ใช้กด', '{}'),
+('tmd_nwp', 'weather', 'กรมอุตุนิยมวิทยา', 'พยากรณ์กริด 2 กม. รายชั่วโมง 48 ชม. + รายวัน 7 วัน (NWP API)',
+ 'https://data.tmd.go.th/nwpapi/v1/forecast/location/hourly/at', 'key_json', 'ข้อมูลเปิดภาครัฐ', null, 'forecast', '2026-09-03',
+ 'ใช้งานแล้ว 3 ก.ย. 69: Secret TMD_NWP_TOKEN (JWT หมดอายุ ก.ย. 2570) · เบราว์เซอร์เรียก Edge action "forecast" แคช 1 ชม./จุด · TMD นับ datapoint และมี 429 · เอกสาร data.tmd.go.th/nwpapi/doc/apidoc/forecast_location.html', '{"fields_hourly":"tc,rh,slp,rain,ws10m,wd10m,cloudlow,cloudmed,cloudhigh,cond","fields_daily":"tc_max,tc_min,rh,rain,cond","cond":"1 แจ่มใส 2 เมฆบางส่วน 3 เมฆเป็นส่วนมาก 4 เมฆมาก 5 ฝนเล็กน้อย 6 ฝนปานกลาง 7 ฝนหนัก 8 ฝนฟ้าคะนอง 9 หนาวจัด 10 หนาว 11 เย็น 12 ร้อนจัด"}'),
 
 -- ── แสงอาทิตย์ (เฟส 4) ───────────────────────────────────────────────────────
 ('nasa_power', 'solar', 'NASA POWER', 'รังสีอาทิตย์/อุณหภูมิ/ลม รายวัน 0.5°',

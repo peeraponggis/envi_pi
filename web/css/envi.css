@@ -90,6 +90,12 @@ html, body { height: 100%; overflow: hidden; }
 .badge-warning { background: var(--warn-bg); color: var(--warn); }
 .badge-danger { background: var(--crit-bg); color: var(--crit); }
 .loading { text-align: center; padding: 20px; color: var(--ink-3); }
+/* แถบพยากรณ์รายชั่วโมง 24 ช่อง */
+.hours { display: flex; gap: 2px; overflow-x: auto; margin: 8px 0 4px; padding-bottom: 4px; }
+.hours .hr { flex: 0 0 34px; display: flex; flex-direction: column; align-items: center; background: var(--surface-2); border-radius: 6px; padding: 4px 0; font-size: 10px; color: var(--ink-3); }
+.hours .hr i { font-style: normal; font-size: 14px; line-height: 1.2; }
+.hours .hr b { color: var(--ink); font-size: 11px; }
+.hours .hr small { font-size: 9px; color: var(--info); min-height: 11px; }
 .err { color: var(--crit); font-size: 12px; }
 
 .version-tag {

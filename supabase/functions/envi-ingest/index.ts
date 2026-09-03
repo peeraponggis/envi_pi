@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.0.1"; // 1.0.1: เพิ่ม CA Let's Encrypt YR1 สำหรับ air4thai
+export const VERSION = "1.1.0"; // 1.0.1: CA YR1 สำหรับ air4thai · 1.1.0: action "forecast" (TMD NWP) + CORS
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -486,22 +486,80 @@ const HANDLERS: Record<string, (c: Ctx) => Promise<HandlerResult>> = {
   gistda_flood: not_ready, firms: not_ready, tmd_nwp: not_ready,
 };
 
+// ─────────────────────────────────────────────────────────── พยากรณ์ ณ จุด (TMD NWP) — เรียกจากเบราว์เซอร์
+
+/**
+ * action "forecast": พยากรณ์อากาศ ณ พิกัดจาก TMD NWP API (กริด 2 กม. รายชั่วโมง 48 ชม. + รายวัน 7 วัน)
+ *   - เปิดให้เบราว์เซอร์เรียกโดยไม่ต้องมี cron token (token ของ TMD อยู่ใน Secrets เท่านั้น)
+ *   - แคช 1 ชั่วโมงต่อพิกัดปัด 2 ตำแหน่ง (~1 กม.) ใน api_cache — TMD นับ datapoint และมี rate limit (429)
+ *   - โครง JSON ที่ TMD คืน (ตรวจ 3 ก.ย. 2569): {WeatherForecasts:[{location:{lat,lon}, forecasts:[{time, data:{tc,rh,rain,ws10m,wd10m,cond}}]}]}
+ */
+const TMD_COND: Record<number, string> = {
+  1: "ท้องฟ้าแจ่มใส", 2: "มีเมฆบางส่วน", 3: "เมฆเป็นส่วนมาก", 4: "มีเมฆมาก", 5: "ฝนตกเล็กน้อย", 6: "ฝนปานกลาง",
+  7: "ฝนตกหนัก", 8: "ฝนฟ้าคะนอง", 9: "อากาศหนาวจัด", 10: "อากาศหนาว", 11: "อากาศเย็น", 12: "อากาศร้อนจัด",
+};
+
+async function forecastAt(sb: SupabaseClient, lat: number, lng: number): Promise<Json> {
+  const key = `tmd_nwp:${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const { data: hit } = await sb.from("api_cache").select("payload, fetched_at").eq("cache_key", key).maybeSingle();
+  if (hit && Date.now() - new Date(hit.fetched_at).getTime() < 3600e3) return { ...(hit.payload as Json), cached: true, fetched_at: hit.fetched_at };
+
+  const tok = Deno.env.get("TMD_NWP_TOKEN");
+  if (!tok) throw new Error("ยังไม่ได้ตั้ง Secret TMD_NWP_TOKEN");
+  const bkk = new Date(Date.now() + 7 * 3600e3);                      // เวลาไทย
+  const date = bkk.toISOString().slice(0, 10), hour = bkk.getUTCHours();
+  const H = { "accept": "application/json", "authorization": "Bearer " + tok };
+  const base = "https://data.tmd.go.th/nwpapi/v1/forecast/location";
+  const [h, d] = await Promise.all([
+    fetch(`${base}/hourly/at?lat=${lat}&lon=${lng}&fields=tc,rh,rain,ws10m,wd10m,cond,slp&date=${date}&hour=${hour}&duration=24`, { headers: H }),
+    fetch(`${base}/daily/at?lat=${lat}&lon=${lng}&fields=tc_max,tc_min,rh,rain,cond&date=${date}&duration=7`, { headers: H }),
+  ]);
+  if (!h.ok || !d.ok) throw new Error(`TMD NWP HTTP hourly=${h.status} daily=${d.status}${h.status === 429 || d.status === 429 ? " (เกิน rate limit)" : ""}`);
+  const hj = await h.json() as Json, dj = await d.json() as Json;
+  const wf = (j: Json) => ((j.WeatherForecasts as Json[]) ?? [])[0] ?? {};
+  const label = (rows: Json[]) => rows.map((r) => ({ time: r.time, ...(r.data as Json), cond_th: TMD_COND[Number((r.data as Json)?.cond)] ?? null }));
+  const payload: Json = {
+    source: "กรมอุตุนิยมวิทยา NWP API (กริด 2 กม.)",
+    grid: (wf(hj).location as Json) ?? null,
+    hourly: label((wf(hj).forecasts as Json[]) ?? []),
+    daily: label((wf(dj).forecasts as Json[]) ?? []),
+  };
+  await sb.from("api_cache").upsert({ cache_key: key, source_id: "tmd_nwp", payload, fetched_at: new Date().toISOString() });
+  return { ...payload, cached: false, fetched_at: new Date().toISOString() };
+}
+
 // ─────────────────────────────────────────────────────────── ตัวหลัก
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req: Request) => {
-  const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "Content-Type": "application/json" } });
+  const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "Content-Type": "application/json", ...CORS } });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "POST เท่านั้น", version: VERSION }, 405);
+
+  let body: Json = {};
+  try { body = await req.json(); } catch { /* ว่างได้ */ }
+
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+
+  // action สาธารณะ (ไม่ต้องมี cron token) — พยากรณ์ ณ จุด
+  if (body.action === "forecast") {
+    const lat = Number(body.lat), lng = Number(body.lng);
+    if (!(lat >= 5 && lat <= 21 && lng >= 97 && lng <= 106)) return json({ ok: false, error: "พิกัดอยู่นอกประเทศไทย" }, 400);
+    try { return json({ ok: true, version: VERSION, ...(await forecastAt(sb, lat, lng)) }); }
+    catch (e) { return json({ ok: false, error: (e as Error).message }, 502); }
+  }
 
   const token = Deno.env.get("ENVI_CRON_TOKEN");
   const auth = req.headers.get("authorization") ?? "";
   if (!token || auth !== `Bearer ${token}`) return json({ ok: false, error: "token ไม่ถูกต้อง" }, 401);
 
-  let body: Json = {};
-  try { body = await req.json(); } catch { /* ว่างได้ */ }
   const sourceId = String(body.source ?? "");
   const dry = body.dry === true;
-
-  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
   const { data: source, error: srcErr } = await sb.from("sources").select("*").eq("id", sourceId).maybeSingle();
   if (srcErr || !source) return json({ ok: false, error: `ไม่มีแหล่ง '${sourceId}' ใน sources` }, 404);

@@ -112,6 +112,20 @@ test('summarizeReport(): สรุปทุกหมวดเป็นประ�
   assert.deepEqual(core.summarizeReport(null), []);
 });
 
+test('windDir()/summarizeForecast(): ทิศลม 8 ทิศ และสรุปฝน/อุณหภูมิ 24 ชม. จากโครง TMD NWP', () => {
+  assert.equal(core.windDir(0), 'น'); assert.equal(core.windDir(90), 'ตอ'); assert.equal(core.windDir(265), 'ต'); assert.equal(core.windDir(null), '—');
+  const fc = { hourly: [
+    { time: '2026-09-03T14:00:00+07:00', tc: 35.1, rain: 0, cond: 3 },
+    { time: '2026-09-03T15:00:00+07:00', tc: 36.3, rain: 0, cond: 3 },
+    { time: '2026-09-03T16:00:00+07:00', tc: 31.0, rain: 2.4, cond: 6 },
+    { time: '2026-09-03T17:00:00+07:00', tc: 29.5, rain: 0.2, cond: 8 },
+  ] };
+  const s = core.summarizeForecast(fc);
+  assert.equal(s.rain_mm, 2.6); assert.equal(s.rainy_hours, 2); assert.equal(s.tc_min, 29.5); assert.equal(s.tc_max, 36.3);
+  assert.equal(s.first_rain, '2026-09-03T16:00:00+07:00');
+  assert.equal(core.summarizeForecast({ hourly: [] }), null);
+});
+
 test('parseCsv(): BOM, เครื่องหมายคำพูด, คอมมาในค่า, บรรทัดว่าง', () => {
   const rows = parseCsv('﻿lat,long,ชื่อ,date\n18.1,98.9,"บ้านแม่, สาย",3/9/2562\n\n19.0,99.0,ดอย,2019-09-04\n');
   assert.equal(rows.length, 2);
