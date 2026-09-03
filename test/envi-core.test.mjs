@@ -113,7 +113,8 @@ test('summarizeReport(): สรุปทุกหมวดเป็นประ�
 });
 
 test('windDir()/summarizeForecast(): ทิศลม 8 ทิศ และสรุปฝน/อุณหภูมิ 24 ชม. จากโครง TMD NWP', () => {
-  assert.equal(core.windDir(0), 'น'); assert.equal(core.windDir(90), 'ตอ'); assert.equal(core.windDir(265), 'ต'); assert.equal(core.windDir(null), '—');
+  assert.equal(core.windDir(0), 'น'); assert.equal(core.windDir(90), 'ตอ'); assert.equal(core.windDir(180), 'ต');
+  assert.equal(core.windDir(265), 'ตต'); assert.equal(core.windDir(359), 'น'); assert.equal(core.windDir(null), '—');
   const fc = { hourly: [
     { time: '2026-09-03T14:00:00+07:00', tc: 35.1, rain: 0, cond: 3 },
     { time: '2026-09-03T15:00:00+07:00', tc: 36.3, rain: 0, cond: 3 },
