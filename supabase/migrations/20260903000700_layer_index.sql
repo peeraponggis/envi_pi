@@ -25,6 +25,7 @@ create table if not exists public.layer_features_idx (
 );
 create index if not exists idx_lfi_geom    on public.layer_features_idx using gist (geom);
 create index if not exists idx_lfi_feature on public.layer_features_idx (feature_id);
+create index if not exists idx_lfi_layer   on public.layer_features_idx (layer_id);  -- นับ/กรองตามชั้น (ไม่มีแล้ว count เกิน 3 วิ)
 
 alter table public.layer_features_idx enable row level security;
 drop policy if exists p_lfi_anon_read on public.layer_features_idx;
