@@ -99,7 +99,10 @@ npx mapshaper -i reserve_forest.shp encoding=utf8 -proj wgs84 -o reserve_forest.
 ข้อ 5 นำเข้าแล้ว: ป่าสงวนแห่งชาติ 1,221 แปลง · ดินถล่ม 56,177 จุด · ศูนย์กลางตำบล 7,364 — ทำผ่าน session admin ในเบราว์เซอร์ (fetch GeoJSON/JSON จาก dev server แล้วเรียก RPC import_* ทีละชุด) ไม่ได้ใช้ปุ่มเลือกไฟล์ใน import.html
 ชั้น DWR (ลุ่มน้ำหลัก/สาขา จังหวัด/อำเภอ แรมซาร์ เขื่อน สถานีอุทกฯ) นำเข้าแล้วจาก `gis.dwr.go.th/arcgis/rest/services` ด้วย `node scripts/fetch_arcgis.mjs <layer-url> <out.geojson>` → `npx mapshaper -simplify interval=15 keep-shapes` → RPC `import_features` (ไม่ต้องใช้หน้า downloads)
 เฟส 4 สภาพอากาศ: Secret `TMD_NWP_TOKEN` ตั้งแล้ว (JWT จาก data.tmd.go.th/nwpapi หมดอายุ ก.ย. 2570 — ต่ออายุแล้วอัปเดต Secret) · Edge v1.1.0 action `forecast`
-**ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด · CSV EIA/โรงงาน · DEDE 38 สถานี (XLSX) · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · เฟส 5 key GISTDA gateway / FIRMS
+เฟส 5 GISTDA: Secret `GISTDA_API_KEY` ตั้งแล้ว · migration 800 (`replace_layer_features`) รันแล้ว · cron `envi_gistda_flood` ทุก 6 ชม. (เปิดแล้ว) · Edge v1.2.0 action `burnscar`
+**ยังค้าง**: การใช้ที่ดิน LDD รายจังหวัด · CSV EIA/โรงงาน · DEDE 38 สถานี (XLSX) · TMD API ชุดเก่า uid/ukey (สถานีตรวจวัดจริง) ถ้าต้องการ · NASA FIRMS MAP_KEY (สำรอง)
+
+⚠️ บทเรียน deploy Edge Function ผ่าน Dashboard: ถ้า deploy ล้มด้วย "Failed to bundle … could not be parsed" ให้หาคอมเมนต์ที่มีลำดับ slash-star-slash (เช่นเขียน path ที่มี `*` คั่นด้วย `/`) — bundler อ่านเป็นปิดคอมเมนต์ ทั้งที่ `node --check` ผ่าน
 
 สิ่งที่เจอตอนทำจริงและแก้ไปแล้ว (ถ้าทำซ้ำในโปรเจกต์ใหม่จะเจออีก):
 - ไฟล์ 3 รุ่นแรก anon ยังเรียก `purge_old_observations()` ได้ → แก้ให้ revoke จาก anon/authenticated ด้วย (ไฟล์ปัจจุบันถูกแล้ว)

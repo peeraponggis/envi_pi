@@ -49,8 +49,13 @@
 - ✅ **เฟส 4 สภาพอากาศ (3 ก.ย. 69 เย็น)**: TMD **NWP API** (JWT ผู้ใช้สมัครเอง หมดอายุ ก.ย. 2570) เก็บเป็น Secret `TMD_NWP_TOKEN` · Edge `envi-ingest` v1.1.0 มี action สาธารณะ `{"action":"forecast","lat","lng"}` (ไม่ต้องมี cron token, CORS เปิด) แคช 1 ชม./พิกัดปัด 2 ตำแหน่งใน `api_cache` · แท็บสภาพอากาศแสดง 24 ชม. + 7 วัน
   ⚠️ ผู้ใช้ **ไม่ได้สมัคร TMD API ชุดเก่า (uid/ukey)** — handler `tmd_today`/`tmd_3h` (สถานีตรวจวัดจริง 122 สถานี) ยังรันไม่ได้ ถ้าต้องการต้องสมัครแยกที่ data.tmd.go.th/api
   ⚠️ token JWT ของ TMD ถูกวางในแชตตอนส่งให้ — ถ้ากังวลให้ revoke แล้วออกใหม่ที่ data.tmd.go.th/nwpapi แล้วอัปเดต Secret
-- ⬜ ยังไม่ได้นำเข้า: การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV · ชั้นคุณภาพลุ่มน้ำ (ไม่มีบน ArcGIS ของ DWR) · DEDE รังสีอาทิตย์ 38 สถานี (XLSX)
-- ⬜ เฟส 5: GISTDA gateway key (น้ำท่วม/รอยไหม้) · NASA FIRMS key
+- ✅ **เฟส 5 GISTDA api-gateway (3 ก.ย. 69 ค่ำ)**: Secret `GISTDA_API_KEY` (key ส่งเป็น `?api_key=` หรือ header `API-Key`) · Edge v1.2.0
+  - handler `gistda_flood` (cron ทุก 6 ชม. เปิดแล้ว): STAC `flood/collections/flood1day_r2/items` → assets.data GeoJSON → RPC `replace_layer_features('gistda_flood_1d')` (migration 800, service_role เท่านั้น) · วันไม่มีน้ำท่วม = 0 โพลิกอน · flood3/7/30day ไม่มี item · gi-service flood-recurrence 404 ทุกเวอร์ชัน
+  - action สาธารณะ `burnscar` {lat,lng}: `resources/features/burn-scar?bbox=±0.045°` (79,435 โพลิกอนทั้งประเทศ ไม่ควรนำเข้า) แคช 24 ชม. → แท็บภัยพิบัติแสดงจำนวน/ไร่/ชนิดที่ดิน + วาดโพลิกอนสีส้มด้วย GeoJsonDataSource
+  - WMS flood-freq มี (Vallaris) แต่ต้องแนบ key ใน URL → ไม่ซ้อนในเบราว์เซอร์ (key จะหลุด) ถ้าจะใช้ต้อง proxy tile ผ่าน Edge
+  - 🐛 แก้ไปด้วย: cron job เรดาร์เรียก `'royalrain'` แต่ id จริง `'royalrain_radar'` (ไม่เคยยิง) · คอมเมนต์ที่มี slash-star-slash ทำ bundler ของ Supabase พังตอน deploy
+- ⬜ ยังไม่ได้นำเข้า: การใช้ที่ดิน LDD รายจังหวัด · EIA/โรงงาน CSV · ชั้นคุณภาพลุ่มน้ำ (ไม่มีบน ArcGIS ของ DWR) · DEDE รังสีอาทิตย์ 38 สถานี (XLSX) · Tambon โพลิกอน 7,640 (DWR)
+- ⬜ ยังไม่มี key: NASA FIRMS (สำรองจุดความร้อน) · TMD uid/ukey ชุดเก่า (สถานีตรวจวัดจริง)
 - ⚠️ `upsertStations()` อ่าน id กลับด้วย select ที่ PostgREST จำกัด 1,000 แถว — พอสำหรับ Air4Thai/TMD แต่ถ้าแหล่งไหน >1,000 สถานีและต้องเก็บ observations ต้องแบ่ง `.range()`
 
 ## บทเรียนจากการติดตั้งจริง (3 ก.ย. 2569 — อย่าทำซ้ำ)
