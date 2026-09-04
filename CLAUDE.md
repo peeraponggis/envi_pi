@@ -38,7 +38,8 @@
 ## สถานะ (3 ก.ย. 2569 — ติดตั้งจริงแล้ว)
 - ✅ โปรเจกต์ Supabase `envi-pi` ref `mplexdeaqgrdoqqhypqb` (Org ใหม่ `envi-pi` แผน Free, บัญชี Gmail แยกของผู้ใช้) — SQL ทั้ง 7 ไฟล์รันผ่าน · Vault มี `envi_ingest_url` + `envi_cron_token`
 - ✅ Edge Function `envi-ingest` v1.0.1 deploy แล้ว (Verify JWT ปิด · Secret `ENVI_CRON_TOKEN` ตั้งแล้ว) · cron 11 job · `cron_enabled=true` 7 แหล่ง: air4thai, tmd_quake, gistda_hotspot_modis/viirs, gistda_pm25, royalrain_radar, dgr_wells
-- ✅ ข้อมูลจริงเข้าแล้ว: สถานี Air4Thai 173 · hotspot 1,533 · แผ่นดินไหว 10 · PM2.5 ดาวเทียม 77 จังหวัด · เรดาร์ 9 · บ่อบาดาลกำลังทยอย (cursor)
+- ✅ ข้อมูลจริงเข้าแล้ว: สถานี Air4Thai 173 · hotspot 1,533 · แผ่นดินไหว 10 · PM2.5 ดาวเทียม 77 จังหวัด · เรดาร์ 9 · **บ่อบาดาล DGR ครบรอบแล้ว 107,973 บ่อ** (4 ก.ย. 69 07:50 จาก api_total 117,634 — ที่เหลือไม่มีพิกัด/พิกัดนอกประเทศ) แล้ววนรอบใหม่ทุกชั่วโมง
+- ✅ Edge **v1.2.1** (3 ก.ย. 69 ค่ำ): `upsert()` ตัดแถวที่คีย์ onConflict ซ้ำในชุดเดียว (แถวหลังชนะ) — DGR หน้า 8 มี `no` ซ้ำ ทำ cron dgr_wells ล้ม "ON CONFLICT DO UPDATE command cannot affect row a second time" ทุกชั่วโมงตั้งแต่ 14:50 · ตรวจ cron หลังลดขนาด DB: ทุก job succeeded, ทุกแหล่ง ok
 - ✅ ผู้ใช้ admin: `wisemenow9@gmail.com` (สร้าง 3 ก.ย. 69)
 - ✅ เฟส 2-3 นำเข้าแล้ว (3 ก.ย. 69, ผ่าน RPC import_* ด้วย session admin ในเบราว์เซอร์): ป่าสงวนแห่งชาติ 1,221 แปลง (layer `rfd_reserve_forest`, simplify 15 m) · ดินถล่ม DMR 56,177 จุด (events, `YEAR_DATA` ว่างทั้งหมด → occurred_at = 1970-01-01) · ศูนย์กลางตำบล 7,364 (stations `dopa_tambon`)
   ไฟล์ดิบ+GeoJSON อยู่ `data/raw/` (gitignore) · SHP ทั้งสองเป็น UTM zone 47 WGS84 มาใน .rar (แตกด้วย WinRAR ที่ `C:\Program Files\WinRAR\UnRAR.exe`)
