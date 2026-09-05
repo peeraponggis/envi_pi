@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="leaf">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>envi_pi — แดชบอร์ดคุณภาพน้ำเรียลไทม์</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/pi.css">
+  <style>
+    /* แดชบอร์ดคุณภาพน้ำ (IWIS แม่น้ำ + POMS น้ำทิ้งโรงงาน) — สีระดับคุณภาพน้ำ 4 ขั้นตามเกณฑ์ คพ. ประกาศเป็นตัวแปรของหน้านี้ */
+    :root { --lv-good: var(--good); --lv-fair: #e0b400; --lv-poor: #ef7d1a; --lv-bad: var(--crit); --lv-none: var(--ink-3); }
+    body { min-height: 100dvh; }
+    header.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px; background: var(--sidebar); color: var(--sidebar-ink); position: sticky; top: 0; z-index: 5; }
+    header.bar h1 { font-size: 17px; color: #fff; }
+    header.bar .sub { font-size: 12px; opacity: .85; }
+    header.bar .spacer { flex: 1; }
+    header.bar a { color: #fff; font-size: 13px; opacity: .9; }
+    .badge { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--sidebar-hover); color: #fff; white-space: nowrap; }
+    main { padding: 12px 16px 28px; display: grid; gap: 12px; max-width: 1400px; margin: 0 auto; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+    .card h3 { font-size: 15px; }
+    .card .sub { font-size: 12px; color: var(--ink-3); margin-bottom: 8px; }
+    .donut { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; }
+    .donut svg { width: 150px; height: 150px; }
+    .donut .center { font-size: 12px; fill: var(--ink-2); }
+    .donut .total { font-size: 22px; font-weight: 600; fill: var(--ink); }
+    .lg { display: grid; gap: 6px; font-size: 13px; }
+    .lg div { display: flex; align-items: center; gap: 8px; }
+    .lg i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .lg b { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .lvl { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: start; padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; background: var(--surface-2); font-size: 13px; }
+    .lvl .pill { color: #fff; text-align: center; border-radius: 6px; padding: 2px 0; font-weight: 600; }
+    .lvl small { display: block; color: var(--ink-2); font-size: 12px; }
+    .alerts { display: grid; gap: 6px; max-height: 340px; overflow: auto; }
+    .al { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 12.5px; align-items: center; }
+    .al .ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 15px; }
+    .al .d { color: var(--ink-3); font-size: 11.5px; }
+    .al b { display: block; font-size: 13px; }
+    .al .t { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; font-size: 12px; }
+    .chips span { padding: 2px 8px; border-radius: 6px; color: #fff; }
+    table.tb { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.tb th, table.tb td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+    table.tb th:first-child, table.tb td:first-child { text-align: left; }
+    table.tb th { color: var(--ink-2); font-weight: 500; font-size: 12px; }
+    table.tb tfoot td { font-weight: 600; }
+    .bars svg { width: 100%; height: 220px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 8px; }
+    .controls label { font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; }
+    .controls select, .controls button { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 70vw; }
+    .controls button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+    .chart { position: relative; height: 300px; }
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+    .kpi { border-radius: 10px; color: #fff; text-align: center; padding: 10px 6px; }
+    .kpi .v { font-size: 22px; font-weight: 700; line-height: 1.1; }
+    .kpi .l { font-size: 12px; opacity: .95; }
+    .empty { color: var(--ink-3); font-size: 13px; padding: 20px; text-align: center; }
+    .credit { font-size: 11.5px; color: var(--ink-3); text-align: right; }
+    @media (max-width: 640px) { main { padding: 10px; } .kpis { grid-template-columns: repeat(3, 1fr); } .donut { grid-template-columns: 120px 1fr; } .donut svg { width: 120px; height: 120px; } .chart { height: 240px; } header.bar .sub { display: none; } }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div><h1>💧 คุณภาพน้ำเรียลไทม์</h1><div class="sub">สถานีอัตโนมัติ คพ. (IWIS) · เซนเซอร์น้ำทิ้งโรงงาน กรมโรงงานฯ (POMS) · จาก Supabase</div></div>
+    <div class="spacer"></div>
+    <a href="wastewater.html">แผนที่ระบบบำบัดน้ำเสีย →</a>
+    <span class="badge" id="badge">กำลังโหลด…</span>
+  </header>
+  <main>
+    <div class="grid">
+      <div class="card"><h3>สัดส่วนแหล่งน้ำ ตามค่า DO</h3><div class="sub">จำแนกตามระดับคุณภาพออกซิเจนละลายในน้ำ (DO) ของสถานีที่แย่ที่สุดในแต่ละแหล่งน้ำ</div><div class="donut"><svg id="donut" viewBox="0 0 120 120"></svg><div class="lg" id="donutLg"></div></div></div>
+      <div class="card"><h3>คุณภาพของแหล่งน้ำ</h3><div class="sub">แหล่งน้ำในแต่ละระดับ (ค่าล่าสุด)</div><div id="levels"></div></div>
+      <div class="card"><h3>แจ้งเตือนคุณภาพน้ำ</h3><div class="sub" id="alertSub">สถานีที่ DO ต่ำกว่า 4 mg/L หรือ pH นอกช่วง 5.5–9.0 · สถานีน้ำทิ้งโรงงานที่ค่าเกินเกณฑ์</div><div class="alerts" id="alerts"></div></div>
+    </div>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(340px, 1fr))">
+      <div class="card bars"><h3>สถานะคุณภาพน้ำตามภูมิภาค</h3><div class="sub" id="barSub"></div><div class="chips" id="barChips"></div><svg id="bars" viewBox="0 0 640 220" preserveAspectRatio="none"></svg></div>
+      <div class="card"><h3>สถานะคุณภาพน้ำตามภูมิภาค (ตาราง)</h3><div class="sub" id="tbSub"></div><div style="overflow-x:auto"><table class="tb" id="tb"></table></div></div>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>น้ำทิ้งโรงงาน (POMS) ตามค่า COD</h3><div class="sub">โรงงานที่มีเซนเซอร์น้ำทิ้งและส่งค่าล่าสุด · เกณฑ์น้ำทิ้งอุตสาหกรรม COD ≤ 120 mg/L (พอใช้ ≤ 200 · เสื่อมโทรม ≤ 400 · เกินมาก &gt; 400)</div><div class="donut"><svg id="donutPoms" viewBox="0 0 120 120"></svg><div class="lg" id="donutPomsLg"></div></div></div>
+      <div class="card"><h3>โรงงาน POMS ตามจังหวัด</h3><div class="sub" id="pomsTbSub"></div><div style="overflow-x:auto;max-height:300px"><table class="tb" id="pomsTb"></table></div></div>
+      <div class="card"><h3>โรงงานที่ค่าน้ำทิ้งสูงสุด</h3><div class="sub">เรียงตาม COD ล่าสุด · คลิกเพื่อดูกราฟย้อนหลัง</div><div class="alerts" id="pomsTop"></div></div>
+    </div>
+    <div class="card">
+      <h3>ค่าวัดคุณภาพน้ำย้อนหลัง รายสถานี</h3>
+      <div class="sub" id="histSub">เลือกสถานีและพารามิเตอร์ · จุดสีตามระดับ DO (ดี ≥ 6 · พอใช้ 4–5.9 · เสื่อมโทรม 2–3.9 · เสื่อมโทรมมาก &lt; 2 mg/L) · น้ำทิ้งโรงงาน: BOD ≤ 20, COD ≤ 120 mg/L</div>
+      <div class="controls">
+        <label>สถานี <select id="selStation"></select></label>
+        <label>พารามิเตอร์ <select id="selParam"></select></label>
+        <button id="btnHourly" class="on" type="button">รายชั่วโมง (7 วัน)</button><button id="btnDaily" type="button">รายวัน (ทั้งหมด)</button>
+      </div>
+      <div class="chart"><canvas id="hist"></canvas></div>
+      <div class="kpis" id="histKpis"></div>
+    </div>
+    <div class="credit" id="credit"></div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script type="module">
+    import { getClient, fetchStationsLatest, ago } from './js/envi-core.js';
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fmt = (n, d = 2) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
+    const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const LV = [
+      { key: 'good', name: 'ดี', color: cssVar('--lv-good'), desc: 'DO ≥ 6.0 mg/L' },
+      { key: 'fair', name: 'พอใช้', color: cssVar('--lv-fair'), desc: 'DO 4.0 – 5.9 mg/L' },
+      { key: 'poor', name: 'เสื่อมโทรม', color: cssVar('--lv-poor'), desc: 'DO 2.0 – 3.9 mg/L' },
+      { key: 'bad', name: 'เสื่อมโทรมมาก', color: cssVar('--lv-bad'), desc: 'DO 0 – 1.9 mg/L' },
+      { key: 'none', name: 'ไม่ระบุ', color: cssVar('--lv-none'), desc: 'ไม่มีค่า' },
+    ];
+    const lvOf = (k) => LV.find((l) => l.key === k);
+    const doLevel = (v) => v == null || isNaN(v) ? 'none' : v >= 6 ? 'good' : v >= 4 ? 'fair' : v >= 2 ? 'poor' : 'bad';
+    const pcdLevel = (txt) => ({ 'ดีมาก': 'good', 'ดี': 'good', 'พอใช้': 'fair', 'เสื่อมโทรม': 'poor', 'เสื่อมโทรมมาก': 'bad' }[txt] ?? null);
+    /** ระดับของค่าใด ๆ ตามพารามิเตอร์ (ใช้ระบายสีจุดกราฟ) */
+    const levelFor = (param, v) => {
+      if (v == null) return 'none';
+      const p = param.split(':').pop();
+      if (p === 'DO') return doLevel(v);
+      if (p === 'PH') return v >= 5.5 && v <= 9 ? 'good' : v >= 5 && v <= 9.5 ? 'fair' : 'bad';
+      if (p === 'BOD') return v <= 20 ? 'good' : v <= 40 ? 'fair' : v <= 60 ? 'poor' : 'bad';
+      if (p === 'COD') return v <= 120 ? 'good' : v <= 200 ? 'fair' : v <= 400 ? 'poor' : 'bad';
+      return 'none';
+    };
+    const thTime = (iso, withDate = true) => new Date(iso).toLocaleString('th-TH', withDate ? { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
+
+    // ── โหลดสถานี + ค่าล่าสุด ──
+    const [iwis, poms] = await Promise.all([fetchStationsLatest('pcd_iwis'), fetchStationsLatest('diw_poms')]);
+    const iw = iwis.map((s) => {
+      const doV = s.latest?.DO?.value ?? null;
+      return { ...s, doV, lv: pcdLevel(s.latest?.DO?.level) ?? doLevel(doV), region: (s.meta?.region ?? 'ไม่ระบุ'), source: s.meta?.water_source || 'ไม่ระบุแหล่งน้ำ' };
+    });
+    const pw = poms.filter((s) => s.latest && Object.values(s.latest).some((v) => v.type && v.type !== 'CEMS'));
+    const newest = [...iw, ...pw].map((s) => s.observed_at).filter(Boolean).sort().pop();
+    $('#badge').textContent = `IWIS ${iw.length} สถานี · POMS ${pw.length} โรงงานมีค่าน้ำ · ล่าสุด ${newest ? ago(newest) : '–'}`;
+
+    // ── 1. โดนัท: แหล่งน้ำ × ระดับ DO (เอาสถานีแย่สุดของแหล่งน้ำนั้น) ──
+    const order = { bad: 0, poor: 1, fair: 2, good: 3, none: 4 };
+    const bySource = new Map();
+    for (const s of iw) { const cur = bySource.get(s.source); if (!cur || order[s.lv] < order[cur]) bySource.set(s.source, s.lv); }
+    const srcCount = Object.fromEntries(LV.map((l) => [l.key, [...bySource.values()].filter((v) => v === l.key).length]));
+    (function donut() {
+      const total = bySource.size, r = 46, c = 2 * Math.PI * r; let acc = 0, paths = '';
+      for (const l of LV) { const n = srcCount[l.key]; if (!n) continue; const len = c * n / total; paths += `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${l.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 60 60)"/>`; acc += len; }
+      $('#donut').innerHTML = paths + `<text x="60" y="56" text-anchor="middle" class="center">รวมทั้งหมด</text><text x="60" y="76" text-anchor="middle" class="total">${total}</text>`;
+      $('#donutLg').innerHTML = LV.map((l) => `<div><i style="background:${l.color}"></i>${l.name} <small style="color:var(--ink-3)">(${l.desc})</small><b>${srcCount[l.key]}</b></div>`).join('');
+    })();
+
+    // ── 2. รายชื่อแหล่งน้ำต่อระดับ ──
+    $('#levels').innerHTML = LV.filter((l) => srcCount[l.key]).map((l) => {
+      const names = [...bySource.entries()].filter(([, v]) => v === l.key).map(([k]) => k);
+      return `<div class="lvl"><div><div class="pill" style="background:${l.color}">${srcCount[l.key]}</div><small style="text-align:center">${l.name}</small></div><div>${esc(names.join(', '))}</div></div>`;
+    }).join('');
+
+    // ── 3. แจ้งเตือน ──
+    const alerts = [];
+    for (const s of iw) {
+      if (s.lv === 'poor' || s.lv === 'bad') alerts.push({ at: s.latest.DO.at, lv: s.lv, title: `แจ้งเตือนคุณภาพน้ำ DO - ${lvOf(s.lv).name}`, text: `${s.name_th} · ระดับออกซิเจนละลายน้ำ (DO) อยู่ในระดับ${lvOf(s.lv).name} ค่า ${fmt(s.doV, 3)} mg/L · ${s.source} จ.${s.province ?? '–'}`, sid: s.id, param: 'DO' });
+      const ph = s.latest?.PH?.value; if (ph != null && (ph < 5.5 || ph > 9)) alerts.push({ at: s.latest.PH.at, lv: 'bad', title: 'แจ้งเตือนคุณภาพน้ำวิกฤต - PH', text: `${s.name_th} · ค่า PH อยู่นอกช่วงเกณฑ์ (${fmt(ph, 3)}) · ${s.source}`, sid: s.id, param: 'PH' });
+    }
+    for (const s of pw) for (const [k, v] of Object.entries(s.latest)) {
+      if (v.type && v.type !== 'CEMS' && (v.severity ?? 1) >= 2) alerts.push({ at: v.at, lv: 'bad', title: `น้ำทิ้งโรงงานเกินเกณฑ์ - ${k.split(':').pop()}`, text: `${s.name_th} · ${k} = ${fmt(v.value)} ${v.unit} (${v.name ?? v.type}) · ${s.province ?? ''}`, sid: s.id, param: k });
+    }
+    alerts.sort((a, b) => order[a.lv] - order[b.lv] || String(b.at).localeCompare(String(a.at)));
+    $('#alertSub').textContent = `${alerts.length} รายการ · สถานี IWIS ที่ DO < 4 mg/L หรือ pH นอกช่วง 5.5–9.0 · โรงงาน POMS ที่ระบบให้ระดับเกินเกณฑ์`;
+    $('#alerts').innerHTML = alerts.length ? alerts.map((a) => `<div class="al" data-sid="${a.sid}" data-param="${esc(a.param)}" style="cursor:pointer"><div class="ic" style="background:${lvOf(a.lv).color}">💧</div><div><div class="d">${new Date(a.at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}</div><b>${esc(a.title)}</b>${esc(a.text)}</div><div class="t">${thTime(a.at, false)}</div></div>`).join('') : '<div class="empty">ไม่มีการแจ้งเตือน</div>';
+
+    // ── 4. ภูมิภาค: แท่งซ้อน + ตาราง (สถานี IWIS) ──
+    const REGIONS = ['ภาคเหนือ', 'ภาคกลาง', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคตะวันออก', 'ภาคตะวันตก', 'ภาคใต้'];
+    const regs = [...new Set([...REGIONS.filter((r) => iw.some((s) => s.region === r)), ...iw.map((s) => s.region)])];
+    const cnt = (r, k) => iw.filter((s) => (r === null || s.region === r) && s.lv === k).length;
+    const shown = ['good', 'fair', 'poor', 'bad'];
+    $('#barSub').textContent = `แยกตามสถานี · รวมทั้งหมด ${iw.length} จุด · ไม่ทราบ ${cnt(null, 'none')}`;
+    $('#barChips').innerHTML = shown.map((k) => `<span style="background:${lvOf(k).color}">${lvOf(k).name}: ${cnt(null, k)}</span>`).join('') + `<span style="background:var(--ink-2)">สรุป: ${iw.length}</span>`;
+    (function bars() {
+      const cols = [...regs.map((r) => ({ label: r.replace(/^ภาค/, ''), r })), { label: 'สรุป', r: null }];
+      const max = Math.max(...cols.map((c) => shown.reduce((s, k) => s + cnt(c.r, k), 0)), 1);
+      const W = 640, H = 220, padL = 30, padB = 34, bw = (W - padL - 10) / cols.length;
+      let g = ''; const ticks = 5;
+      for (let i = 0; i <= ticks; i++) { const y = H - padB - (H - padB - 10) * i / ticks; g += `<line x1="${padL}" x2="${W}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${padL - 4}" y="${y + 4}" font-size="10" text-anchor="end" fill="var(--ink-3)">${Math.round(max * i / ticks)}</text>`; }
+      cols.forEach((c, i) => {
+        let y = H - padB; const x = padL + i * bw + bw * .2, w = bw * .6;
+        for (const k of shown) { const n = cnt(c.r, k); if (!n) continue; const h = (H - padB - 10) * n / max; y -= h; g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${lvOf(k).color}"><title>${c.label} · ${lvOf(k).name} ${n}</title></rect>`; }
+        g += `<text x="${x + w / 2}" y="${H - padB + 14}" font-size="10" text-anchor="middle" fill="var(--ink-2)">${esc(c.label.length > 12 ? c.label.slice(0, 11) + '…' : c.label)}</text>`;
+      });
+      $('#bars').innerHTML = g;
+    })();
+    $('#tbSub').textContent = `รวมทั้งหมด ${iw.length} จุดตรวจ (สถานีอัตโนมัติ)`;
+    $('#tb').innerHTML = `<thead><tr><th>ภาค</th>${shown.map((k) => `<th>${lvOf(k).name}</th>`).join('')}<th>ไม่ระบุ</th><th>ทั้งหมด</th></tr></thead><tbody>` +
+      regs.map((r) => `<tr><td>${esc(r)}</td>${shown.map((k) => `<td>${cnt(r, k)}</td>`).join('')}<td>${cnt(r, 'none')}</td><td style="color:var(--good);font-weight:600">${iw.filter((s) => s.region === r).length}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><td>สรุป</td>${shown.map((k) => `<td>${cnt(null, k)}</td>`).join('')}<td>${cnt(null, 'none')}</td><td>${iw.length}</td></tr></tfoot>`;
+
+    // ── 4b. ภาพรวม POMS: COD ล่าสุดต่อโรงงาน (ถ้ามีหลายจุดวัดใช้ค่าสูงสุด) ──
+    const pomsRows = pw.map((s) => {
+      const water = Object.entries(s.latest).filter(([, v]) => v.type && v.type !== 'CEMS');
+      const cod = Math.max(-1, ...water.filter(([k]) => k.endsWith(':COD')).map(([, v]) => v.value ?? -1)), bod = Math.max(-1, ...water.filter(([k]) => k.endsWith(':BOD')).map(([, v]) => v.value ?? -1));
+      const codV = cod < 0 ? null : cod, bodV = bod < 0 ? null : bod;
+      const lv = codV != null ? levelFor('COD', codV) : bodV != null ? levelFor('BOD', bodV) : 'none';
+      const exceed = water.some(([, v]) => (v.severity ?? 1) >= 2);
+      return { ...s, codV, bodV, lv: exceed && lv === 'good' ? 'poor' : lv, exceed, province: s.province ?? 'ไม่ระบุ', codKey: water.find(([k]) => k.endsWith(':COD'))?.[0] ?? water[0]?.[0] };
+    });
+    const pCount = Object.fromEntries(LV.map((l) => [l.key, pomsRows.filter((r) => r.lv === l.key).length]));
+    (function donutPoms() {
+      const total = pomsRows.length || 1, r = 46, c = 2 * Math.PI * r; let acc = 0, paths = '';
+      for (const l of LV) { const n = pCount[l.key]; if (!n) continue; const len = c * n / total; paths += `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${l.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 60 60)"/>`; acc += len; }
+      $('#donutPoms').innerHTML = paths + `<text x="60" y="56" text-anchor="middle" class="center">โรงงาน</text><text x="60" y="76" text-anchor="middle" class="total">${pomsRows.length}</text>`;
+      const names = { good: 'ตามเกณฑ์ (COD ≤ 120)', fair: 'พอใช้ (121–200)', poor: 'เสื่อมโทรม (201–400)', bad: 'เกินมาก (> 400)', none: 'ไม่มีค่า COD/BOD' };
+      $('#donutPomsLg').innerHTML = LV.map((l) => `<div><i style="background:${l.color}"></i>${names[l.key]}<b>${pCount[l.key]}</b></div>`).join('');
+    })();
+    const provs = [...new Set(pomsRows.map((r) => r.province))].map((p) => ({ p, rows: pomsRows.filter((r) => r.province === p) })).sort((a, b) => b.rows.length - a.rows.length);
+    $('#pomsTbSub').textContent = `${pomsRows.length} โรงงานที่ส่งค่าน้ำทิ้ง · ${provs.length} จังหวัด (โรงงานที่ยังไม่ถึงรอบดึงจะทยอยเข้าทุก 15 นาที)`;
+    $('#pomsTb').innerHTML = `<thead><tr><th>จังหวัด</th>${shown.map((k) => `<th>${lvOf(k).name}</th>`).join('')}<th>ทั้งหมด</th></tr></thead><tbody>` +
+      provs.map(({ p, rows }) => `<tr><td>${esc(p)}</td>${shown.map((k) => `<td>${rows.filter((r) => r.lv === k).length || ''}</td>`).join('')}<td style="font-weight:600">${rows.length}</td></tr>`).join('') + '</tbody>';
+    const top = [...pomsRows].filter((r) => r.codV != null || r.bodV != null).sort((a, b) => (b.codV ?? 0) - (a.codV ?? 0)).slice(0, 12);
+    $('#pomsTop').innerHTML = top.length ? top.map((r) => `<div class="al" data-sid="${r.id}" data-param="${esc(r.codKey)}" style="cursor:pointer"><div class="ic" style="background:${lvOf(r.lv).color}">🏭</div><div><div class="d">${esc(r.province)} · ${r.observed_at ? ago(r.observed_at) : ''}</div><b>${esc(r.name_th)}</b>COD ${fmt(r.codV, 1)} mg/L${r.bodV != null ? ` · BOD ${fmt(r.bodV, 1)} mg/L` : ''}${r.exceed ? ' · <span style="color:var(--crit)">ระบบ POMS แจ้งเกินเกณฑ์</span>' : ''}</div><div class="t">${lvOf(r.lv).name}</div></div>`).join('') : '<div class="empty">ยังไม่มีค่าน้ำทิ้ง</div>';
+
+    // ── 5. กราฟย้อนหลังรายสถานี ──
+    const sb = await getClient();
+    const stations = [...iw.sort((a, b) => order[a.lv] - order[b.lv] || a.name_th.localeCompare(b.name_th, 'th')).map((s) => ({ ...s, grp: 'IWIS สถานีแม่น้ำ' })), ...pw.sort((a, b) => a.name_th.localeCompare(b.name_th, 'th')).map((s) => ({ ...s, grp: 'POMS น้ำทิ้งโรงงาน' }))];
+    const byId = new Map(stations.map((s) => [String(s.id), s]));
+    $('#selStation').innerHTML = ['IWIS สถานีแม่น้ำ', 'POMS น้ำทิ้งโรงงาน'].map((g) => `<optgroup label="${g}">${stations.filter((s) => s.grp === g).map((s) => `<option value="${s.id}">${esc(s.name_th)}${s.grp.startsWith('IWIS') ? ' · ' + lvOf(s.lv).name : ''}</option>`).join('')}</optgroup>`).join('');
+    const PARAM_ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N'];
+    function fillParams(s) {
+      const keys = Object.entries(s.latest ?? {}).filter(([, v]) => !v.type || v.type !== 'CEMS').map(([k]) => k)
+        .sort((a, b) => (PARAM_ORDER.indexOf(a.split(':').pop()) + 99) % 99 - (PARAM_ORDER.indexOf(b.split(':').pop()) + 99) % 99 || a.localeCompare(b));
+      $('#selParam').innerHTML = keys.map((k) => `<option value="${esc(k)}">${esc(k)}${s.latest[k].unit ? ' (' + esc(s.latest[k].unit) + ')' : ''}</option>`).join('');
+      const pref = keys.find((k) => /(^|:)(DO|COD)$/.test(k)); if (pref) $('#selParam').value = pref;
+    }
+    let mode = 'hourly', chart;
+    async function loadHistory() {
+      const s = byId.get($('#selStation').value); const param = $('#selParam').value; if (!s || !param) return;
+      let pts;
+      if (mode === 'hourly') {
+        const { data, error } = await sb.from('observations').select('observed_at, value').eq('station_id', s.id).eq('parameter', param).not('value', 'is', null).order('observed_at').limit(1000);
+        if (error) throw error; pts = (data ?? []).map((r) => ({ t: r.observed_at, v: r.value }));
+      } else {
+        const { data, error } = await sb.from('observations_daily').select('day, value_avg, value_min, value_max').eq('station_id', s.id).eq('parameter', param).order('day').limit(400);
+        if (error) throw error; pts = (data ?? []).map((r) => ({ t: r.day + 'T12:00:00+07:00', v: r.value_avg, min: r.value_min, max: r.value_max }));
+      }
+      const unit = s.latest?.[param]?.unit ?? '';
+      const range = pts.length ? `จาก ${new Date(pts[0].t).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })} – ${new Date(pts.at(-1).t).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}` : 'ยังไม่มีข้อมูลย้อนหลัง (เก็บสะสมตั้งแต่ 5 ก.ย. 69)';
+      $('#histSub').innerHTML = `<b>${esc(s.name_th)}</b> · ${esc(param)} ${esc(unit)} · ${mode === 'hourly' ? 'รายชั่วโมง (เก็บ 7 วัน)' : 'ค่าเฉลี่ยรายวัน (สรุปทุกคืน เก็บระยะยาว)'} · ${range} · ${pts.length} จุด`;
+      const colors = pts.map((p) => lvOf(levelFor(param, p.v)).color);
+      chart?.destroy();
+      chart = new Chart($('#hist'), {
+        type: 'line',
+        data: { labels: pts.map((p) => mode === 'hourly' ? thTime(p.t) : new Date(p.t).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })),
+          datasets: [{ data: pts.map((p) => p.v), borderColor: cssVar('--ink-3'), borderWidth: 1.2, tension: .25, spanGaps: false, pointBackgroundColor: colors, pointBorderColor: colors, pointRadius: mode === 'hourly' ? 3.5 : 4, pointHoverRadius: 6, segment: { borderColor: (ctx) => colors[ctx.p1DataIndex] } },
+            ...(mode === 'daily' && pts.some((p) => p.min != null) ? [{ data: pts.map((p) => p.max), borderColor: 'transparent', backgroundColor: 'rgba(120,120,120,.12)', fill: '+1', pointRadius: 0 }, { data: pts.map((p) => p.min), borderColor: 'transparent', pointRadius: 0 }] : [])] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.datasetIndex ? '' : `${fmt(c.raw, 3)} ${unit} · ${lvOf(levelFor(param, c.raw)).name}` } } },
+          scales: { x: { ticks: { maxTicksLimit: 8, color: cssVar('--ink-3'), font: { family: 'Sarabun' } }, grid: { color: cssVar('--line') } }, y: { ticks: { color: cssVar('--ink-3') }, grid: { color: cssVar('--line') }, title: { display: !!unit, text: unit } } } },
+      });
+      const n = Object.fromEntries(LV.map((l) => [l.key, pts.filter((p) => levelFor(param, p.v) === l.key).length]));
+      $('#histKpis').innerHTML = LV.map((l) => `<div class="kpi" style="background:${l.color}"><div class="v">${n[l.key]}</div><div class="l">${l.name}</div></div>`).join('');
+    }
+    const first = alerts.find((a) => byId.has(String(a.sid))) ?? null;
+    $('#selStation').value = first ? String(first.sid) : String(stations[0]?.id ?? '');
+    fillParams(byId.get($('#selStation').value)); if (first) $('#selParam').value = first.param;
+    $('#selStation').addEventListener('change', () => { fillParams(byId.get($('#selStation').value)); loadHistory(); });
+    $('#selParam').addEventListener('change', loadHistory);
+    $('#btnHourly').addEventListener('click', () => { mode = 'hourly'; $('#btnHourly').classList.add('on'); $('#btnDaily').classList.remove('on'); loadHistory(); });
+    $('#btnDaily').addEventListener('click', () => { mode = 'daily'; $('#btnDaily').classList.add('on'); $('#btnHourly').classList.remove('on'); loadHistory(); });
+    for (const sel of ['#alerts', '#pomsTop']) $(sel).addEventListener('click', (e) => { const el = e.target.closest('.al'); if (!el || !byId.has(el.dataset.sid)) return; $('#selStation').value = el.dataset.sid; fillParams(byId.get(el.dataset.sid)); if (el.dataset.param) $('#selParam').value = el.dataset.param; loadHistory(); $('#hist').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    await loadHistory();
+    $('#credit').textContent = 'ที่มา: กรมควบคุมมลพิษ IWIS (api-iwis.pcd.go.th) · กรมโรงงานอุตสาหกรรม POMS (poms.diw.go.th) · เกณฑ์ระดับ DO ตามการจำแนกของ คพ. · ข้อมูลรายชั่วโมงเก็บ 7 วัน ค่าเฉลี่ยรายวันเก็บระยะยาว';
+  </script>
+</body>
+</html>
