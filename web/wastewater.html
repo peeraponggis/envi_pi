@@ -230,8 +230,8 @@
     $('#credit').textContent = `ที่มา: กรมควบคุมมลพิษ (DSPOT) · กรุงเทพมหานคร · สผ. · พื้นแผนที่ Esri / Google`;
     $('#plan').innerHTML = [
       `<b>คพ. DSPOT</b> ${fmt(dspot.length)} ระบบ — ${srcLabel.startsWith('Supabase') ? 'อ่านจาก Supabase ตาราง <code>stations</code> (source <code>pcd_dspot</code>) ที่ Edge handler <code>pcd_dspot</code> ดึงจากหน้า dspot.pcd.go.th ทุกสัปดาห์ (cron อังคาร 03:20 น.) พร้อม observations BOD/TSS/pH ณ วันตรวจ' : 'สแนปช็อตในเครื่อง (ยังเชื่อม Supabase ไม่ได้)'} · หน้าต้นทางไม่มี CORS จึงดึงตรงจากเบราว์เซอร์ไม่ได้`,
-      `<b>กทม.</b> ${s.bma_wwtp.count} โรงควบคุมคุณภาพน้ำ (CKAN data.bangkok.go.th, UTM 47N) — สแนปช็อต · ต่อไป: ชุด <code>report-plant-qwater</code> ปริมาณบำบัดจริงรายเดือน → observations`,
-      `<b>สผ.</b> ${s.onep_pap.count} ระบบที่ได้เงินอุดหนุน (ตำบล ${s.onep_pap.geocode.tambon} · อำเภอ ${s.onep_pap.geocode.amphoe} · หาไม่ได้ ${s.onep_pap.geocode.none}) — สแนปช็อต ใช้เติมปีงบประมาณ`,
+      `<b>กทม.</b> ${bkk.length} โรงควบคุมคุณภาพน้ำ (CKAN data.bangkok.go.th, UTM 47N → WGS84) — stations source <code>bma_wwtp</code> นำเข้าด้วย <code>supabase/seed/wastewater_stations.sql</code> · ต่อไป: ชุด <code>report-plant-qwater</code> ปริมาณบำบัดจริงรายเดือน → observations`,
+      `<b>สผ.</b> ${onep.length} ระบบที่ได้เงินอุดหนุน — stations source <code>onep_pap</code> พิกัดศูนย์กลางตำบล ${s.onep_pap.geocode.tambon} / อำเภอ ${s.onep_pap.geocode.amphoe} (อีก ${s.onep_pap.geocode.none} ระบบไม่มีที่ตั้งพอระบุพิกัด จึงไม่อยู่ในฐาน) · ส่วนใหญ่ซ้ำกับ DSPOT ใช้เติมปีงบประมาณ/แหล่งงบ`,
       `<b>ใช้ในรายงานจุด</b>: <code>site_report(lat,lng).wwtp_10km</code> = ระบบบำบัดใน 10 กม. ใกล้สุด 5 แห่ง · <b>ยังไม่มี API</b>: อจน. (เดินระบบ 59 แห่ง) ใช้ข้อมูลจาก DSPOT แทน`,
     ].map((t) => `<li>${t}</li>`).join('');
   </script>
