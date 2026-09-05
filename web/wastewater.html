@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="leaf">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>envi_pi — ระบบบำบัดน้ำเสีย ประเทศไทย (ต้นแบบแดชบอร์ด)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="css/pi.css">
+  <style>
+    /* ต้นแบบหน้าเดียว — ใช้ตัวแปรสีจาก pi.css เท่านั้น ไม่นิยามสีใหม่ */
+    html, body { height: 100%; }
+    body { display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+    header.bar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; background: var(--sidebar); color: var(--sidebar-ink); }
+    header.bar h1 { font-size: 17px; color: #fff; }
+    header.bar .sub { font-size: 12.5px; opacity: .85; }
+    header.bar .spacer { flex: 1; }
+    header.bar select, header.bar input { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--sidebar-line); background: var(--surface); color: var(--ink); }
+    header.bar .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--sidebar-hover); color: #fff; }
+    main { display: grid; grid-template-columns: 380px 1fr; min-height: 0; }
+    aside { overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); border-right: 1px solid var(--line); }
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
+    .kpi .v { font-size: 20px; font-weight: 600; color: var(--brand-dark); line-height: 1.2; }
+    .kpi .l { font-size: 12px; color: var(--ink-2); }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+    .card h3 { font-size: 14px; margin-bottom: 6px; color: var(--ink-2); }
+    .bars { display: grid; gap: 4px; }
+    .bar { display: grid; grid-template-columns: 110px 1fr 44px; gap: 8px; align-items: center; font-size: 12.5px; }
+    .bar .track { height: 10px; background: var(--brand-soft); border-radius: 5px; overflow: hidden; }
+    .bar .fill { height: 100%; background: var(--brand); }
+    .bar .n { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; }
+    .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+    .dot-run { background: var(--good); } .dot-stop { background: var(--crit); } .dot-build { background: var(--warn); } .dot-cancel { background: var(--ink-3); } .dot-bkk { background: var(--info); } .dot-onep { background: var(--brand-line); }
+    .list { display: grid; gap: 4px; max-height: 38vh; overflow: auto; }
+    .row { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .row:hover { background: var(--brand-soft); }
+    .row i { width: 10px; height: 10px; border-radius: 50%; }
+    .row .p { color: var(--ink-3); font-size: 12px; }
+    .row .c { color: var(--ink-2); font-variant-numeric: tabular-nums; font-size: 12px; }
+    #map { height: 100%; }
+    .leaflet-container { font-family: inherit; background: var(--surface-2); }
+    .leaflet-popup-content { font-size: 13px; line-height: 1.5; min-width: 260px; }
+    .leaflet-popup-content b.t { font-size: 14px; color: var(--brand-dark); }
+    .leaflet-popup-content table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .leaflet-popup-content td { padding: 1px 4px; border-bottom: 1px dashed var(--line); vertical-align: top; }
+    .leaflet-popup-content td:first-child { color: var(--ink-2); white-space: nowrap; width: 38%; }
+    .wq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 6px; }
+    .wq div { background: var(--surface-2); border-radius: 6px; padding: 3px 6px; font-size: 12px; text-align: center; }
+    .wq b { display: block; font-size: 13px; }
+    .plan { font-size: 12.5px; color: var(--ink-2); }
+    .plan li { margin: 3px 0; }
+    .credit { position: absolute; right: 8px; bottom: 8px; z-index: 500; font-size: 11px; background: var(--surface); color: var(--ink-2); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; } aside { order: 2; } }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div><h1>🚰 ระบบบำบัดน้ำเสีย ประเทศไทย</h1><div class="sub">ต้นแบบแดชบอร์ด · ข้อมูลจาก คพ. DSPOT · กทม. · สผ.</div></div>
+    <div class="spacer"></div>
+    <label>ชั้น <select id="fLayer"><option value="all">ทุกแหล่ง</option><option value="dspot">คพ. DSPOT (216)</option><option value="bkk">โรงควบคุมคุณภาพน้ำ กทม.</option><option value="onep">สผ. ระบบที่ได้เงินอุดหนุน</option></select></label>
+    <label>ภาค <select id="fZone"><option value="">ทั้งหมด</option></select></label>
+    <label>สถานะ <select id="fStatus"><option value="">ทั้งหมด</option></select></label>
+    <label>ประเภท <select id="fType"><option value="">ทั้งหมด</option></select></label>
+    <input id="fQ" type="search" placeholder="ค้นชื่อ/จังหวัด…" size="18">
+    <span class="badge" id="srcBadge">กำลังโหลด…</span>
+  </header>
+  <main>
+    <aside>
+      <div class="kpis" id="kpis"></div>
+      <div class="card"><h3>สถานะการเดินระบบ (คพ.)</h3><div class="bars" id="chartStatus"></div></div>
+      <div class="card"><h3>ประเภทระบบบำบัด (คพ.)</h3><div class="bars" id="chartType"></div></div>
+      <div class="card"><h3>ความสามารถรองรับ ลบ.ม./วัน แยกภาค (คพ.)</h3><div class="bars" id="chartZone"></div></div>
+      <div class="card"><h3>รายการ <span id="listCount" class="tag"></span></h3><div class="legend">
+        <span><i class="dot-run"></i>เดินระบบ</span><span><i class="dot-stop"></i>ไม่เดินระบบ</span><span><i class="dot-build"></i>ก่อสร้าง</span><span><i class="dot-cancel"></i>ยกเลิก</span><span><i class="dot-bkk"></i>กทม.</span><span><i class="dot-onep"></i>สผ. (ระดับตำบล)</span></div>
+        <div class="list" id="list"></div></div>
+      <div class="card"><h3>แผนดึงข้อมูลเข้าระบบ envi_pi</h3><ol class="plan" id="plan"></ol></div>
+    </aside>
+    <div style="position:relative;min-height:0"><div id="map"></div><div class="credit" id="credit"></div></div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script type="module">
+    const $ = (s) => document.querySelector(s);
+    const fmt = (n, d = 0) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const STATUS_CLASS = { 'เดินระบบ': 'run', 'เปิดเดินระบบ': 'run', 'ไม่เดินระบบ': 'stop', 'ไม่เปิดเดินระบบ': 'stop', 'อยู่ระหว่างก่อสร้าง': 'build', 'ก่อสร้างไม่แล้วเสร็จ': 'build', 'ยกเลิกโครงการ': 'cancel' };
+    const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const colorOf = (rec) => rec.layer === 'bkk' ? cssVar('--info') : rec.layer === 'onep' ? cssVar('--brand-line')
+      : ({ run: cssVar('--good'), stop: cssVar('--crit'), build: cssVar('--warn'), cancel: cssVar('--ink-3') }[STATUS_CLASS[rec.status] ?? 'cancel']);
+
+    const map = L.map('map', { zoomControl: true }).setView([13.4, 101.0], 6);
+    // CARTO basemaps ต้องมี key แล้ว (ขึ้น "API KEY REQUIRED") → ใช้ OSM ตรงสำหรับต้นแบบ · ถ้าขึ้นจริงให้ใช้ ESRI World Street/Imagery เหมือน index.html
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
+    const group = L.layerGroup().addTo(map);
+
+    // ── โหลดข้อมูล: ลองดึงสดจาก DSPOT ก่อน (จะติด CORS ในเบราว์เซอร์ → เป็นเหตุผลที่ต้องผ่าน Edge) แล้วค่อยใช้สแนปช็อต
+    const snap = await fetch('data/wastewater.json').then((r) => r.json());
+    let live = false;
+    try {
+      const r = await fetch(snap.sources.pcd_dspot.json, { signal: AbortSignal.timeout(6000) });
+      if (r.ok) { const j = await r.json(); if (j?.pageProps?.reports?.length) live = true; }
+    } catch { /* คาดไว้แล้ว: ไม่มี Access-Control-Allow-Origin */ }
+    $('#srcBadge').textContent = live ? 'DSPOT สด' : `สแนปช็อต ${new Date(snap.built_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} · DSPOT ไม่มี CORS`;
+
+    const all = [
+      ...snap.dspot.map((r) => ({ ...r, layer: 'dspot' })),
+      ...snap.bkk.map((r) => ({ ...r, layer: 'bkk', zone: 'กลาง', province: 'กรุงเทพมหานคร', status: 'เดินระบบ', type: 'AS' })),
+      ...snap.onep.filter((r) => r.lat).map((r) => ({ ...r, layer: 'onep', name: r.agency, zone: r.region })),
+    ];
+    const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+    const fill = (sel, vals) => vals.forEach((v) => sel.append(new Option(v, v)));
+    fill($('#fZone'), uniq(all.map((r) => r.zone))); fill($('#fStatus'), uniq(all.map((r) => r.status))); fill($('#fType'), uniq(all.map((r) => r.type)));
+
+    const bars = (el, entries, fmtN = (n) => fmt(n)) => {
+      const max = Math.max(...entries.map((e) => e[1]), 1);
+      el.innerHTML = entries.map(([k, v]) => `<div class="bar"><span title="${esc(k)}">${esc(k)}</span><div class="track"><div class="fill" style="width:${(v / max * 100).toFixed(1)}%"></div></div><span class="n">${fmtN(v)}</span></div>`).join('');
+    };
+    const tally = (rows, key, val = () => 1) => Object.entries(rows.reduce((m, r) => { const k = r[key] ?? 'ไม่ระบุ'; m[k] = (m[k] ?? 0) + val(r); return m; }, {})).sort((a, b) => b[1] - a[1]);
+
+    function popup(r) {
+      const row = (k, v) => v == null || v === '' ? '' : `<tr><td>${k}</td><td>${v}</td></tr>`;
+      if (r.layer === 'bkk') return `<b class="t">${esc(r.name)}</b><br><span class="tag">กทม. สำนักการระบายน้ำ</span><table>${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('พื้นที่บริการ', esc(r.service))}${row('ที่ตั้ง', esc(r.location))}${row('ท่อรวบรวม', esc(r.pipe_km) + ' กม.')}${row('ปล่อยลง', esc(r.discharge))}</table>`;
+      if (r.layer === 'onep') return `<b class="t">${esc(r.agency)}</b><br><span class="tag">สผ. เงินอุดหนุนแผนฯ จังหวัด</span> <span class="tag">พิกัดระดับ${r.geocode === 'tambon' ? 'ตำบล' : 'อำเภอ'}</span><table>${row('ระบบ', esc(r.type) + ' (' + esc(r.type_code) + ')')}${row('สถานภาพ', esc(r.status))}${row('รองรับ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('งบประมาณปี', r.year_budget)}${row('เปิดใช้ปี', r.year_op)}${row('ที่ตั้ง', esc(r.location))}${row('แหล่งงบ', esc(r.fund))}</table>`;
+      const w = r.wq ?? {}, rem = (i, o) => i && o ? ((1 - o / i) * 100).toFixed(0) + '%' : '–';
+      return `<b class="t">${esc(r.name)}</b><br><span class="tag">คพ. DSPOT รายงานปี ${r.report_year}</span> <span class="tag">${esc(r.status)}</span>
+        <table>${row('ประเภท', esc(r.manage) + (r.type ? ' · ' + esc(r.type) : ''))}${row('ผู้เดินระบบ', esc(r.operator))}${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('น้ำเสียเข้าจริง', r.avg_inflow ? fmt(r.avg_inflow) + ' ลบ.ม./วัน (' + fmt(r.inflow_pct, 1) + '%)' : null)}
+        ${row('ประชากร/ครอบคลุม', r.pop ? fmt(r.pop) + ' คน · ' + fmt(r.service_pct, 1) + '%' : null)}${row('ลุ่มน้ำ/ปล่อยลง', [r.basin, r.discharge].filter(Boolean).map(esc).join(' → '))}${row('เปิดใช้ปี', r.year_op)}${row('ค่าก่อสร้าง', r.cost_mb ? fmt(r.cost_mb, 1) + ' ล้านบาท (' + esc(r.fund) + ')' : null)}${row('ค่าบริการ', esc(r.fee))}</table>
+        ${w.bod_in ? `<div class="wq"><div>BOD เข้า→ออก<b>${fmt(w.bod_in, 1)} → ${fmt(w.bod_out, 1)}</b>กำจัด ${rem(w.bod_in, w.bod_out)}</div><div>TSS<b>${fmt(w.tss_in, 1)} → ${fmt(w.tss_out, 1)}</b>${rem(w.tss_in, w.tss_out)}</div><div>pH<b>${fmt(w.ph_in, 2)} → ${fmt(w.ph_out, 2)}</b>ตรวจ ${esc(w.date)}</div></div>` : ''}
+        ${r.remark ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">${esc(r.remark).slice(0, 220)}</div>` : ''}`;
+    }
+
+    let markers = new Map();
+    function render() {
+      const layer = $('#fLayer').value, zone = $('#fZone').value, status = $('#fStatus').value, type = $('#fType').value, q = $('#fQ').value.trim().toLowerCase();
+      const rows = all.filter((r) => (layer === 'all' || r.layer === layer) && (!zone || r.zone === zone) && (!status || r.status === status) && (!type || r.type === type)
+        && (!q || `${r.name ?? ''} ${r.province ?? ''} ${r.local ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q)));
+      group.clearLayers(); markers = new Map();
+      for (const r of rows) {
+        const big = r.layer !== 'onep' && (r.capacity ?? 0) > 0 ? Math.min(14, 4 + Math.sqrt(r.capacity) / 40) : 5;
+        const m = L.circleMarker([r.lat, r.lng], { radius: big, color: 'rgba(255,255,255,.9)', weight: 1.2, fillColor: colorOf(r), fillOpacity: r.layer === 'onep' ? .55 : .85 }).bindPopup(popup(r), { maxWidth: 360 });
+        m.addTo(group); markers.set(r.id, m);
+      }
+      const d = rows.filter((r) => r.layer === 'dspot'), cap = (a) => a.reduce((s, r) => s + (r.capacity ?? 0), 0);
+      const withWq = d.filter((r) => r.wq?.bod_in && r.wq?.bod_out), bodRem = withWq.length ? withWq.reduce((s, r) => s + (1 - r.wq.bod_out / r.wq.bod_in), 0) / withWq.length * 100 : null;
+      const inflow = d.filter((r) => r.inflow_pct != null);
+      $('#kpis').innerHTML = [
+        [fmt(rows.length), 'ระบบที่แสดง'], [fmt(cap(rows) / 1e6, 2) + ' ล้าน', 'ลบ.ม./วัน ความสามารถรวม'],
+        [fmt(d.filter((r) => r.status === 'เดินระบบ').length) + '/' + fmt(d.length), 'คพ. เดินระบบอยู่'], [inflow.length ? fmt(inflow.reduce((s, r) => s + r.inflow_pct, 0) / inflow.length, 1) + '%' : '–', 'น้ำเสียเข้าเทียบความสามารถ (เฉลี่ย)'],
+        [bodRem == null ? '–' : fmt(bodRem, 0) + '%', `กำจัด BOD เฉลี่ย (${withWq.length} ระบบมีผลตรวจ)`], [fmt(d.reduce((s, r) => s + (r.pop ?? 0), 0) / 1e6, 2) + ' ล้าน', 'ประชากรในพื้นที่ (คพ.)'],
+      ].map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+      bars($('#chartStatus'), tally(d, 'status')); bars($('#chartType'), tally(d, 'type').slice(0, 8)); bars($('#chartZone'), tally(d, 'zone', (r) => r.capacity ?? 0), (n) => fmt(n / 1000) + 'k');
+      $('#listCount').textContent = rows.length;
+      $('#list').innerHTML = rows.sort((a, b) => (b.capacity ?? 0) - (a.capacity ?? 0)).slice(0, 400).map((r) =>
+        `<div class="row" data-id="${esc(r.id)}"><i style="background:${colorOf(r)}"></i><span>${esc(r.name)} <span class="p">${esc(r.province)}</span></span><span class="c">${r.capacity ? fmt(r.capacity) : ''}</span></div>`).join('');
+    }
+    $('#list').addEventListener('click', (e) => { const id = e.target.closest('.row')?.dataset.id; const m = markers.get(id); if (m) { map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 12)); m.openPopup(); } });
+    for (const id of ['fLayer', 'fZone', 'fStatus', 'fType']) $('#' + id).addEventListener('change', render);
+    $('#fQ').addEventListener('input', render);
+    render();
+
+    const s = snap.sources;
+    $('#credit').textContent = `ที่มา: ${s.pcd_dspot.agency} · ${s.bma_wwtp.agency} · สผ. · แผนที่ OpenStreetMap`;
+    $('#plan').innerHTML = [
+      `<b>คพ. DSPOT</b> ${s.pcd_dspot.count} ระบบ (รายงานปี ${s.pcd_dspot.report_year}) — หน้า Next.js ฝัง JSON ครบทุกฟิลด์ (ความสามารถ, น้ำเข้าจริง, BOD/TSS/pH เข้า-ออก, ผู้เดินระบบ, ค่าบริการ, รูป/แผนผัง) <b>ไม่มี CORS</b> → Edge handler <code>pcd_dspot</code> ดึง HTML แล้ว parse <code>__NEXT_DATA__</code> (อย่าผูก buildId <code>${esc(s.pcd_dspot.build_id)}</code> เพราะเปลี่ยนทุก deploy) → stations <code>wwtp</code> + observations ปีละครั้ง · cron รายสัปดาห์`,
+      `<b>กทม.</b> ${s.bma_wwtp.count} โรงควบคุมคุณภาพน้ำ (CKAN data.bangkok.go.th, UTM 47N) + ชุด <code>report-plant-qwater</code> ปริมาณบำบัดจริงรายเดือน → observations รายเดือน`,
+      `<b>สผ.</b> ${s.onep_pap.count} ระบบที่ได้เงินอุดหนุน (CSV บน onep.go.th ไม่มีพิกัด: ตำบล ${s.onep_pap.geocode.tambon} · อำเภอ ${s.onep_pap.geocode.amphoe} · หาไม่ได้ ${s.onep_pap.geocode.none}) — ส่วนใหญ่ซ้ำกับ DSPOT ใช้เติมประวัติงบประมาณ/ปีเปิดใช้ จับคู่ด้วยชื่อ อปท.+จังหวัด`,
+      `<b>ยังไม่มี API</b>: องค์การจัดการน้ำเสีย (อจน. เดินระบบ 59 แห่งใน DSPOT) มี SCADA ภายใน ไม่เปิดสาธารณะ · ข้อมูลรายจังหวัดบน gdcatalog เป็นสถิติรวม ไม่มีรายแห่ง`,
+      `<b>แดชบอร์ดที่ควรมี</b>: KPI ความสามารถรวม vs น้ำเข้าจริง (ใช้งานเฉลี่ยราว 46%) · ระบบไม่เดิน/ยกเลิกรายจังหวัด · ประสิทธิภาพกำจัด BOD · ผูกกับ <code>site_report</code> เป็น <code>wwtp_10km</code> และชั้นลุ่มน้ำ DWR (ฟิลด์ basin/discharge)`,
+    ].map((t) => `<li>${t}</li>`).join('');
+  </script>
+</body>
+</html>
