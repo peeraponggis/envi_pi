@@ -69,7 +69,7 @@
 </head>
 <body>
   <header class="bar">
-    <div><h1>💧 คุณภาพน้ำเรียลไทม์</h1><div class="sub">สถานีอัตโนมัติ คพ. (IWIS) · เซนเซอร์น้ำทิ้งโรงงาน กรมโรงงานฯ (POMS) · จาก Supabase</div></div>
+    <div><h1>💧 คุณภาพน้ำ/อากาศเรียลไทม์</h1><div class="sub">แม่น้ำ (คพ. IWIS) · น้ำทิ้งโรงงาน (กรมโรงงานฯ POMS) · อากาศ (คพ. Air4Thai) · ระบบบำบัดชุมชน (DSPOT) · จาก Supabase</div></div>
     <div class="spacer"></div>
     <a href="wastewater.html">แผนที่ระบบบำบัดน้ำเสีย →</a>
     <span class="badge" id="badge">กำลังโหลด…</span>
@@ -88,6 +88,11 @@
       <div class="card"><h3>น้ำทิ้งโรงงาน (POMS) ตามค่า COD</h3><div class="sub">โรงงานที่มีเซนเซอร์น้ำทิ้งและส่งค่าล่าสุด · เกณฑ์น้ำทิ้งอุตสาหกรรม COD ≤ 120 mg/L (พอใช้ ≤ 200 · เสื่อมโทรม ≤ 400 · เกินมาก &gt; 400)</div><div class="donut"><svg id="donutPoms" viewBox="0 0 120 120"></svg><div class="lg" id="donutPomsLg"></div></div></div>
       <div class="card"><h3>โรงงาน POMS ตามจังหวัด</h3><div class="sub" id="pomsTbSub"></div><div style="overflow-x:auto;max-height:300px"><table class="tb" id="pomsTb"></table></div></div>
       <div class="card"><h3>โรงงานที่ค่าน้ำทิ้งสูงสุด</h3><div class="sub">เรียงตาม COD ล่าสุด · คลิกเพื่อดูกราฟย้อนหลัง</div><div class="alerts" id="pomsTop"></div></div>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>คุณภาพอากาศ Air4Thai ตามค่า PM2.5</h3><div class="sub">สถานีตรวจวัดอัตโนมัติ คพ. · ค่าล่าสุดรายชั่วโมง · เกณฑ์ ดี ≤ 25 · ปานกลาง ≤ 37.5 · เริ่มมีผลกระทบ ≤ 75 · มีผลกระทบ &gt; 75 µg/m³</div><div class="donut"><svg id="donutAir" viewBox="0 0 120 120"></svg><div class="lg" id="donutAirLg"></div></div></div>
+      <div class="card"><h3>PM2.5 ตามภูมิภาค (สถานี)</h3><div class="sub" id="airTbSub"></div><div style="overflow-x:auto"><table class="tb" id="airTb"></table></div></div>
+      <div class="card"><h3>สถานีที่ PM2.5 สูงสุดตอนนี้</h3><div class="sub">คลิกเพื่อดูกราฟย้อนหลัง</div><div class="alerts" id="airTop"></div></div>
     </div>
     <div class="card">
       <h3>ค่าวัดย้อนหลัง ทุกแหล่งข้อมูลที่มีประวัติ</h3>
@@ -142,8 +147,18 @@
     };
     const thTime = (iso, withDate = true) => new Date(iso).toLocaleString('th-TH', withDate ? { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
 
-    // ── โหลดสถานี + ค่าล่าสุด ──
-    const [iwis, poms] = await Promise.all([fetchStationsLatest('pcd_iwis'), fetchStationsLatest('diw_poms')]);
+    // ── โหลดสถานี + ค่าล่าสุด (ลองซ้ำ 3 ครั้ง — Supabase มีช่วง 401 "JWT issued at future"/statement timeout เป็นระยะ) ──
+    async function retry(fn, tries = 3) {
+      for (let i = 0; ; i++) { try { return await fn(); } catch (e) { if (i >= tries - 1) throw e; await new Promise((r) => setTimeout(r, 1500 * (i + 1))); } }
+    }
+    const fetchLatest = (src) => retry(() => fetchStationsLatest(src));
+    window.addEventListener('unhandledrejection', (e) => {
+      const msg = String(e.reason?.message ?? e.reason ?? '');
+      $('#badge').textContent = 'โหลดข้อมูลไม่สำเร็จ · กดรีเฟรช (F5)';
+      $('#badge').style.background = 'var(--crit)';
+      $('#alerts').innerHTML = `<div class="empty">เชื่อมต่อ Supabase ไม่สำเร็จ: ${esc(msg)}<br>มักเป็นเหตุขัดข้องชั่วคราวของผู้ให้บริการ (ดู status.supabase.com) ลองรีเฟรชอีกครั้ง</div>`;
+    });
+    const [iwis, poms] = await Promise.all([fetchLatest('pcd_iwis'), fetchLatest('diw_poms')]);
     const iw = iwis.map((s) => {
       const doV = s.latest?.DO?.value ?? null;
       return { ...s, doV, lv: pcdLevel(s.latest?.DO?.level) ?? doLevel(doV), region: (s.meta?.region ?? 'ไม่ระบุ'), source: s.meta?.water_source || 'ไม่ระบุแหล่งน้ำ' };
@@ -311,7 +326,7 @@
     };
 
     const sb = await getClient();
-    const [air, sat, dspot] = await Promise.all([fetchStationsLatest('air4thai'), fetchStationsLatest('gistda_pm25'), fetchStationsLatest('pcd_dspot')]);
+    const [air, sat, dspot] = await Promise.all([fetchLatest('air4thai'), fetchLatest('gistda_pm25'), fetchLatest('pcd_dspot')]);
     const withRegion = (s) => ({ ...s, region: s.meta?.region ?? REGION_OF(s.province) ?? 'ไม่ระบุภาค' });
     const POOL = {
       pcd_iwis: iw.sort((a, b) => order[a.lv] - order[b.lv] || a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
@@ -321,6 +336,25 @@
       gistda_pm25: sat.sort((a, b) => a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
     };
     const srcOf = (id) => SOURCES.find((s) => s.id === id);
+
+    // ── 4c. ภาพรวมอากาศ Air4Thai (PM2.5 ล่าสุด) ──
+    const airRows = POOL.air4thai.map((s) => ({ ...s, pm: s.latest?.PM25?.value ?? null, lv: levelOf('PM25', s.latest?.PM25?.value ?? null) }));
+    const aCount = Object.fromEntries(LV.map((l) => [l.key, airRows.filter((r) => r.lv === l.key).length]));
+    (function donutAir() {
+      const total = airRows.length || 1, r = 46, c = 2 * Math.PI * r; let acc = 0, paths = '';
+      for (const l of LV) { const n = aCount[l.key]; if (!n) continue; const len = c * n / total; paths += `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${l.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 60 60)"/>`; acc += len; }
+      $('#donutAir').innerHTML = paths + `<text x="60" y="56" text-anchor="middle" class="center">สถานี</text><text x="60" y="76" text-anchor="middle" class="total">${airRows.length}</text>`;
+      const names = { good: 'ดี (≤ 25)', fair: 'ปานกลาง (25.1 – 37.5)', poor: 'เริ่มมีผลกระทบ (37.6 – 75)', bad: 'มีผลกระทบต่อสุขภาพ (> 75)', none: 'ไม่มีค่า' };
+      $('#donutAirLg').innerHTML = LV.map((l) => `<div><i style="background:${l.color}"></i>${names[l.key]}<b>${aCount[l.key]}</b></div>`).join('');
+    })();
+    const airRegs = [...new Set([...REGIONS, ...airRows.map((r) => r.region)])].filter((r) => airRows.some((s) => s.region === r));
+    const aCnt = (r, k) => airRows.filter((s) => (r === null || s.region === r) && s.lv === k).length;
+    $('#airTbSub').textContent = `${airRows.length} สถานี · ค่าล่าสุด ${airRows.map((s) => s.observed_at).filter(Boolean).sort().pop() ? ago(airRows.map((s) => s.observed_at).filter(Boolean).sort().pop()) : '–'}`;
+    $('#airTb').innerHTML = `<thead><tr><th>ภาค</th>${shown.map((k) => `<th>${lvOf(k).name}</th>`).join('')}<th>ไม่มีค่า</th><th>ทั้งหมด</th></tr></thead><tbody>` +
+      airRegs.map((r) => `<tr><td>${esc(r)}</td>${shown.map((k) => `<td>${aCnt(r, k) || ''}</td>`).join('')}<td>${aCnt(r, 'none') || ''}</td><td style="font-weight:600">${airRows.filter((s) => s.region === r).length}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><td>สรุป</td>${shown.map((k) => `<td>${aCnt(null, k)}</td>`).join('')}<td>${aCnt(null, 'none')}</td><td>${airRows.length}</td></tr></tfoot>`;
+    const airTop = [...airRows].filter((r) => r.pm != null).sort((a, b) => b.pm - a.pm).slice(0, 10);
+    $('#airTop').innerHTML = airTop.length ? airTop.map((r) => `<div class="al" data-sid="${r.id}" data-param="PM25" style="cursor:pointer"><div class="ic" style="background:${lvOf(r.lv).color}">🌫️</div><div><div class="d">${esc(r.province ?? '')} · ${r.observed_at ? ago(r.observed_at) : ''}</div><b>${esc(r.name_th)}</b>PM2.5 ${fmt(r.pm, 1)} µg/m³${r.latest?.AQI?.value != null ? ` · AQI ${fmt(r.latest.AQI.value, 0)}` : ''}</div><div class="t">${lvOf(r.lv).name}</div></div>`).join('') : '<div class="empty">ยังไม่มีค่า</div>';
     $('#selSource').innerHTML = SOURCES.map((s) => `<option value="${s.id}">${esc(s.name)} · ${POOL[s.id].length}</option>`).join('');
     const byId = new Map(Object.values(POOL).flat().map((s) => [String(s.id), s]));
     const PARAM_ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N', 'PM25', 'PM10', 'O3', 'CO', 'NO2', 'SO2', 'AQI'];
@@ -362,14 +396,15 @@
       const suffix = param.includes(':') ? param.split(':').pop() : param;
       const ids = group.map((s) => s.id);
       let rows;
+      const run = (build) => retry(async () => { const r = await build(); if (r.error) throw r.error; return r.data ?? []; });
+      const withParam = (q) => param.includes(':') ? q.like('parameter', `%:${suffix}`) : q.eq('parameter', param);
+      $('#histSub').innerHTML = `กำลังโหลด ${esc(info?.name ?? param)} ของ ${group.length} สถานี…`;
       if (mode === 'hourly') {
-        let q = sb.from('observations').select('station_id, observed_at, value, parameter').in('station_id', ids).not('value', 'is', null).order('observed_at').limit(8000);
-        q = param.includes(':') ? q.like('parameter', `%:${suffix}`) : q.eq('parameter', param);
-        const { data, error } = await q; if (error) throw error; rows = (data ?? []).map((r) => ({ sid: r.station_id, t: r.observed_at, v: r.value }));
+        const data = await run(() => withParam(sb.from('observations').select('station_id, observed_at, value, parameter').in('station_id', ids).not('value', 'is', null).order('observed_at').limit(8000)));
+        rows = data.map((r) => ({ sid: r.station_id, t: r.observed_at, v: r.value }));
       } else {
-        let q = sb.from('observations_daily').select('station_id, day, value_avg, value_min, value_max, parameter').in('station_id', ids).order('day').limit(8000);
-        q = param.includes(':') ? q.like('parameter', `%:${suffix}`) : q.eq('parameter', param);
-        const { data, error } = await q; if (error) throw error; rows = (data ?? []).map((r) => ({ sid: r.station_id, t: r.day + 'T12:00:00+07:00', v: r.value_avg, min: r.value_min, max: r.value_max }));
+        const data = await run(() => withParam(sb.from('observations_daily').select('station_id, day, value_avg, value_min, value_max, parameter').in('station_id', ids).order('day').limit(8000)));
+        rows = data.map((r) => ({ sid: r.station_id, t: r.day + 'T12:00:00+07:00', v: r.value_avg, min: r.value_min, max: r.value_max }));
       }
       const unit = info?.unit || s0.latest?.[param]?.unit || '';
       const times = [...new Set(rows.map((r) => r.t))].sort();
@@ -419,7 +454,7 @@
     document.querySelectorAll('input[name=scope]').forEach((r) => r.addEventListener('change', loadHistory));
     $('#btnHourly').addEventListener('click', () => { mode = 'hourly'; $('#btnHourly').classList.add('on'); $('#btnDaily').classList.remove('on'); loadHistory(); });
     $('#btnDaily').addEventListener('click', () => { mode = 'daily'; $('#btnDaily').classList.add('on'); $('#btnHourly').classList.remove('on'); loadHistory(); });
-    for (const sel of ['#alerts', '#pomsTop']) $(sel).addEventListener('click', (e) => {
+    for (const sel of ['#alerts', '#pomsTop', '#airTop']) $(sel).addEventListener('click', (e) => {
       const el = e.target.closest('.al'); if (!el || !byId.has(el.dataset.sid)) return;
       $('#selSource').value = byId.get(el.dataset.sid).source_id; fillStations(); $('#selStation').value = el.dataset.sid; fillParams();
       if (el.dataset.param && [...$('#selParam').options].some((o) => o.value === el.dataset.param)) $('#selParam').value = el.dataset.param;
