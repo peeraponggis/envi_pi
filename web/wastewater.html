@@ -42,6 +42,13 @@
     .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; margin-bottom: 6px; }
     .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
     .dot-run { background: var(--good); } .dot-stop { background: var(--crit); } .dot-build { background: var(--warn); } .dot-cancel { background: var(--ink-3); } .dot-bkk { background: var(--info); } .dot-onep { background: var(--brand-line); }
+    .dot-poms { background: var(--ink-2); border-radius: 2px !important; transform: rotate(45deg); } .dot-iwis { background: var(--info); border-radius: 2px !important; }
+    .rt { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 6px; }
+    .rt div { background: var(--surface-2); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+    .rt b { display: block; font-size: 14px; }
+    .rt .lv { font-size: 11px; color: var(--ink-2); }
+    .marker-sq { width: 12px; height: 12px; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); transform: rotate(45deg); border-radius: 2px; }
+    .marker-tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 13px solid var(--info); filter: drop-shadow(0 0 1px rgba(0,0,0,.5)); }
     .list { display: grid; gap: 2px; max-height: 38vh; overflow: auto; }
     .row { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
     .row:hover { background: var(--brand-soft); }
@@ -94,7 +101,7 @@
     <button id="btnFilters" type="button">ตัวกรอง ▾</button>
     <span class="badge" id="srcBadge">กำลังโหลด…</span>
     <div class="filters" id="filters">
-      <label>ชั้น <select id="fLayer"><option value="all">ทุกแหล่ง</option><option value="dspot">คพ. DSPOT</option><option value="bkk">โรงควบคุมคุณภาพน้ำ กทม.</option><option value="onep">สผ. ระบบที่ได้เงินอุดหนุน</option></select></label>
+      <label>ชั้น <select id="fLayer"><option value="all">ทุกแหล่ง</option><option value="dspot">คพ. DSPOT ระบบบำบัดชุมชน</option><option value="bkk">โรงควบคุมคุณภาพน้ำ กทม.</option><option value="onep">สผ. ระบบที่ได้เงินอุดหนุน</option><option value="poms">โรงงานมีเซนเซอร์น้ำทิ้ง (POMS)</option><option value="iwis">สถานีคุณภาพน้ำแม่น้ำ (IWIS)</option></select></label>
       <label>ภาค <select id="fZone"><option value="">ทั้งหมด</option></select></label>
       <label>สถานะ <select id="fStatus"><option value="">ทั้งหมด</option></select></label>
       <label>ประเภท <select id="fType"><option value="">ทั้งหมด</option></select></label>
@@ -109,7 +116,7 @@
       <div class="card summary"><h3>ประเภทระบบบำบัด (คพ.)</h3><div class="bars" id="chartType"></div></div>
       <div class="card summary"><h3>ความสามารถรองรับ ลบ.ม./วัน แยกภาค (คพ.)</h3><div class="bars" id="chartZone"></div></div>
       <div class="card listcard"><h3>รายการ <span id="listCount" class="tag"></span></h3><div class="legend">
-        <span><i class="dot-run"></i>เดินระบบ</span><span><i class="dot-stop"></i>ไม่เดินระบบ</span><span><i class="dot-build"></i>ก่อสร้าง</span><span><i class="dot-cancel"></i>ยกเลิก</span><span><i class="dot-bkk"></i>กทม.</span><span><i class="dot-onep"></i>สผ. (ระดับตำบล)</span></div>
+        <span><i class="dot-run"></i>เดินระบบ</span><span><i class="dot-stop"></i>ไม่เดินระบบ</span><span><i class="dot-build"></i>ก่อสร้าง</span><span><i class="dot-cancel"></i>ยกเลิก</span><span><i class="dot-bkk"></i>กทม.</span><span><i class="dot-onep"></i>สผ. (ระดับตำบล)</span><span><i class="dot-poms"></i>◆ โรงงาน POMS (เรียลไทม์)</span><span><i class="dot-iwis"></i>▲ สถานีแม่น้ำ IWIS</span></div>
         <div class="list" id="list"></div></div>
       <div class="card plancard"><h3>ที่มาข้อมูลและแผนต่อ</h3><ol class="plan" id="plan"></ol></div>
     </aside>
@@ -118,13 +125,16 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script type="module">
-    import { getClient, isConfigured } from './js/envi-core.js';
+    import { getClient, isConfigured, fetchStationsLatest, ago } from './js/envi-core.js';
     const $ = (s) => document.querySelector(s);
     const fmt = (n, d = 0) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const STATUS_CLASS = { 'เดินระบบ': 'run', 'เปิดเดินระบบ': 'run', 'ไม่เดินระบบ': 'stop', 'ไม่เปิดเดินระบบ': 'stop', 'อยู่ระหว่างก่อสร้าง': 'build', 'ก่อสร้างไม่แล้วเสร็จ': 'build', 'ยกเลิกโครงการ': 'cancel' };
     const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const DO_COLOR = { 'ดีมาก': '--good', 'ดี': '--good', 'Normal': '--good', 'พอใช้': '--warn', 'เสื่อมโทรม': '--crit', 'เสื่อมโทรมมาก': '--crit' };
     const colorOf = (rec) => rec.layer === 'bkk' ? cssVar('--info') : rec.layer === 'onep' ? cssVar('--brand-line')
+      : rec.layer === 'poms' ? cssVar(rec.exceed ? '--crit' : rec.water?.length ? '--ink-2' : '--ink-3')
+      : rec.layer === 'iwis' ? cssVar(DO_COLOR[rec.latest?.DO?.level] ?? '--info')
       : ({ run: cssVar('--good'), stop: cssVar('--crit'), build: cssVar('--warn'), cancel: cssVar('--ink-3') }[STATUS_CLASS[rec.status] ?? 'cancel']);
 
     // ── แผนที่ + พื้นแผนที่ ESRI / Google (สลับได้มุมขวาบน) ──
@@ -162,10 +172,34 @@
     onep ??= snap.onep.filter((r) => r.lat).map((r) => ({ ...r, name: r.agency, zone: r.region }));
     $('#srcBadge').textContent = srcLabel; $('#srcBadge').classList.toggle('live', srcLabel.startsWith('Supabase'));
 
+    // ── เซนเซอร์เรียลไทม์จาก v_station_latest (Edge handler diw_poms / pcd_iwis เก็บค่าล่าสุดไว้) ──
+    const ZONE_OF = { 'กรุงเทพมหานคร': 'กลาง' };
+    let poms = [], iwis = [];
+    if (isConfigured()) {
+      try {
+        const [p, w] = await Promise.all([fetchStationsLatest('diw_poms'), fetchStationsLatest('pcd_iwis')]);
+        // POMS: แสดงเฉพาะโรงงานที่มีจุดวัดน้ำ (WPMS) — ค่าใน latest คีย์ "P0078:COD" มี extra.type
+        poms = p.map((s) => {
+          const water = Object.entries(s.latest ?? {}).filter(([, v]) => v.type && v.type !== 'CEMS');
+          const air = Object.entries(s.latest ?? {}).filter(([, v]) => v.type === 'CEMS');
+          const exceed = water.some(([, v]) => (v.severity ?? 1) >= 2) || (s.meta?.severity_wpms ?? 0) >= 2;
+          return { id: 'poms-' + s.ext_id, sid: s.id, name: s.name_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, water, air, exceed,
+                   status: exceed ? 'ค่าเกินเกณฑ์' : water.length ? 'ส่งค่าปกติ' : 'มีแต่เซนเซอร์อากาศ', observed_at: s.observed_at, zone: null };
+        }).filter((r) => r.water.length || r.count_wpms > 0);
+        iwis = w.map((s) => {
+          const lv = s.latest?.DO?.level ?? s.latest?.PH?.level ?? null;
+          return { id: 'iwis-' + s.ext_id, sid: s.id, name: s.name_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, latest: s.latest ?? {}, observed_at: s.observed_at,
+                   status: lv && lv !== 'No Data' && lv !== 'ไม่ระบุ' ? 'DO: ' + lv : 'ไม่มีค่า DO', zone: (s.meta?.region ?? '').replace(/^ภาค/, '') || null };
+        });
+      } catch (e) { console.warn('อ่านเซนเซอร์เรียลไทม์ไม่ได้', e); }
+    }
+
     const all = [
       ...dspot.map((r) => ({ ...r, layer: 'dspot' })),
       ...bkk.map((r) => ({ ...r, layer: 'bkk' })),
       ...onep.map((r) => ({ ...r, layer: 'onep' })),
+      ...poms.map((r) => ({ ...r, layer: 'poms' })),
+      ...iwis.map((r) => ({ ...r, layer: 'iwis' })),
     ];
     const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
     const fill = (sel, vals) => vals.forEach((v) => sel.append(new Option(v, v)));
@@ -180,6 +214,20 @@
     function popup(r) {
       const row = (k, v) => v == null || v === '' ? '' : `<tr><td>${k}</td><td>${v}</td></tr>`;
       if (r.layer === 'bkk') return `<b class="t">${esc(r.name)}</b><br><span class="tag">กทม. สำนักการระบายน้ำ</span><table>${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('พื้นที่บริการ', esc(r.service))}${row('ที่ตั้ง', esc(r.location))}${row('ท่อรวบรวม', esc(r.pipe_km) + ' กม.')}${row('ปล่อยลง', esc(r.discharge))}</table>`;
+      if (r.layer === 'poms') {
+        const cell = ([k, v]) => `<div><span>${esc(k)}</span><b>${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">${esc(v.name ?? v.type)}${(v.severity ?? 1) >= 2 ? ' · เกินเกณฑ์' : ''}</span></div>`;
+        return `<b class="t">${esc(r.name)}</b><br><span class="tag">กรมโรงงานฯ POMS</span> <span class="tag">${esc(r.status)}</span>
+          <table>${row('ประเภท', esc(r.type))}${row('นิคม/เขต', esc(r.colony ?? r.industry_type))}${row('ทะเบียน', esc(r.reg_no))}${row('ที่อยู่', esc(r.area_th))}${row('ค่าล่าสุด', r.observed_at ? ago(r.observed_at) : null)}</table>
+          ${r.water.length ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">เซนเซอร์น้ำทิ้ง (WPMS)</div><div class="rt">${r.water.map(cell).join('')}</div>` : ''}
+          ${r.air.length ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">เซนเซอร์ปล่องอากาศ (CEMS) ${r.air.length} ค่า</div><div class="rt">${r.air.slice(0, 6).map(cell).join('')}</div>` : ''}`;
+      }
+      if (r.layer === 'iwis') {
+        const ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N'];
+        const cells = ORDER.filter((k) => r.latest[k]).map((k) => { const v = r.latest[k]; return `<div><span>${k}</span><b style="color:${v.color && v.color !== '#808080' ? v.color : 'inherit'}">${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">${esc(v.level ?? '')}</span></div>`; });
+        return `<b class="t">${esc(r.name)}</b><br><span class="tag">คพ. IWIS สถานีอัตโนมัติ</span> <span class="tag">${esc(r.status)}</span>
+          <table>${row('แหล่งน้ำ', esc(r.water_source))}${row('ลุ่มน้ำ', esc(r.main_basin))}${row('ที่ตั้ง', esc(r.place))}${row('จังหวัด', esc(r.province))}${row('ค่าล่าสุด', r.observed_at ? ago(r.observed_at) : null)}</table>
+          <div class="rt">${cells.join('')}</div>`;
+      }
       if (r.layer === 'onep') return `<b class="t">${esc(r.agency)}</b><br><span class="tag">สผ. เงินอุดหนุนแผนฯ จังหวัด</span> <span class="tag">พิกัดระดับ${r.geocode === 'tambon' ? 'ตำบล' : 'อำเภอ'}</span><table>${row('ระบบ', esc(r.type) + ' (' + esc(r.type_code) + ')')}${row('สถานภาพ', esc(r.status))}${row('รองรับ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('งบประมาณปี', r.year_budget)}${row('เปิดใช้ปี', r.year_op)}${row('ที่ตั้ง', esc(r.location))}${row('แหล่งงบ', esc(r.fund))}</table>`;
       const w = r.wq ?? {}, rem = (i, o) => i && o ? ((1 - o / i) * 100).toFixed(0) + '%' : '–';
       return `<b class="t">${esc(r.name)}</b><br><span class="tag">คพ. DSPOT ปี ${r.report_year ?? '–'}</span> <span class="tag">${esc(r.status)}</span>
@@ -196,9 +244,14 @@
         && (!q || `${r.name ?? ''} ${r.province ?? ''} ${r.local_name ?? r.local ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q)));
       group.clearLayers(); markers = new Map();
       for (const r of rows) {
-        const big = r.layer !== 'onep' && (r.capacity ?? 0) > 0 ? Math.min(14, 4 + Math.sqrt(r.capacity) / 40) : 5;
-        const m = L.circleMarker([r.lat, r.lng], { radius: isMobile ? big + 2 : big, color: 'rgba(255,255,255,.9)', weight: 1.2, fillColor: colorOf(r), fillOpacity: r.layer === 'onep' ? .55 : .85 }).bindPopup(popup(r), { maxWidth: isMobile ? 300 : 360 });
-        m.addTo(group); markers.set(r.id, m);
+        let m;
+        if (r.layer === 'poms') m = L.marker([r.lat, r.lng], { icon: L.divIcon({ className: '', html: `<div class="marker-sq" style="background:${colorOf(r)}"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] }) });
+        else if (r.layer === 'iwis') m = L.marker([r.lat, r.lng], { icon: L.divIcon({ className: '', html: `<div class="marker-tri" style="border-bottom-color:${colorOf(r)}"></div>`, iconSize: [14, 13], iconAnchor: [7, 7] }) });
+        else {
+          const big = r.layer !== 'onep' && (r.capacity ?? 0) > 0 ? Math.min(14, 4 + Math.sqrt(r.capacity) / 40) : 5;
+          m = L.circleMarker([r.lat, r.lng], { radius: isMobile ? big + 2 : big, color: 'rgba(255,255,255,.9)', weight: 1.2, fillColor: colorOf(r), fillOpacity: r.layer === 'onep' ? .55 : .85 });
+        }
+        m.bindPopup(popup(r), { maxWidth: isMobile ? 300 : 360 }).addTo(group); markers.set(r.id, m);
       }
       const d = rows.filter((r) => r.layer === 'dspot'), cap = (a) => a.reduce((s, r) => s + (r.capacity ?? 0), 0);
       const withWq = d.filter((r) => r.wq?.bod_in && r.wq?.bod_out), bodRem = withWq.length ? withWq.reduce((s, r) => s + (1 - r.wq.bod_out / r.wq.bod_in), 0) / withWq.length * 100 : null;
@@ -232,7 +285,8 @@
       `<b>คพ. DSPOT</b> ${fmt(dspot.length)} ระบบ — ${srcLabel.startsWith('Supabase') ? 'อ่านจาก Supabase ตาราง <code>stations</code> (source <code>pcd_dspot</code>) ที่ Edge handler <code>pcd_dspot</code> ดึงจากหน้า dspot.pcd.go.th ทุกสัปดาห์ (cron อังคาร 03:20 น.) พร้อม observations BOD/TSS/pH ณ วันตรวจ' : 'สแนปช็อตในเครื่อง (ยังเชื่อม Supabase ไม่ได้)'} · หน้าต้นทางไม่มี CORS จึงดึงตรงจากเบราว์เซอร์ไม่ได้`,
       `<b>กทม.</b> ${bkk.length} โรงควบคุมคุณภาพน้ำ (CKAN data.bangkok.go.th, UTM 47N → WGS84) — stations source <code>bma_wwtp</code> นำเข้าด้วย <code>supabase/seed/wastewater_stations.sql</code> · ต่อไป: ชุด <code>report-plant-qwater</code> ปริมาณบำบัดจริงรายเดือน → observations`,
       `<b>สผ.</b> ${onep.length} ระบบที่ได้เงินอุดหนุน — stations source <code>onep_pap</code> พิกัดศูนย์กลางตำบล ${s.onep_pap.geocode.tambon} / อำเภอ ${s.onep_pap.geocode.amphoe} (อีก ${s.onep_pap.geocode.none} ระบบไม่มีที่ตั้งพอระบุพิกัด จึงไม่อยู่ในฐาน) · ส่วนใหญ่ซ้ำกับ DSPOT ใช้เติมปีงบประมาณ/แหล่งงบ`,
-      `<b>ใช้ในรายงานจุด</b>: <code>site_report(lat,lng).wwtp_10km</code> = ระบบบำบัดใน 10 กม. ใกล้สุด 5 แห่ง · <b>ยังไม่มี API</b>: อจน. (เดินระบบ 59 แห่ง) ใช้ข้อมูลจาก DSPOT แทน`,
+      `<b>เซนเซอร์เรียลไทม์</b>: <b>POMS กรมโรงงานฯ</b> ${fmt(poms.length)} โรงงานที่มีจุดวัดน้ำทิ้ง (COD/BOD/Flow รายชั่วโมง จาก 800 โรงงานในระบบ; ปล่องอากาศ CEMS แสดงใน popup) — Edge <code>diw_poms</code> ทุก 15 นาที แบ่ง 200 โรงงาน/รอบ · <b>IWIS คพ.</b> ${fmt(iwis.length)} สถานีอัตโนมัติในแม่น้ำ (DO/pH/EC/อุณหภูมิ/ความเค็ม ทุก 30 นาที) — Edge <code>pcd_iwis</code> ทุกชั่วโมง · สีสามเหลี่ยม = ระดับ DO ตามเกณฑ์ คพ. · สี่เหลี่ยมแดง = โรงงานที่ค่าเกินเกณฑ์`,
+      `<b>ใช้ในรายงานจุด</b>: <code>site_report(lat,lng)</code> คีย์ <code>wwtp_10km</code> (ระบบบำบัดใน 10 กม.) · <code>poms_5km</code> (โรงงานมีเซนเซอร์ใน 5 กม. + ค่าล่าสุด) · <code>iwis_20km</code> (สถานีแม่น้ำใกล้สุด 3 แห่ง) · <b>ยังไม่มี API</b>: อจน. (เดินระบบ 59 แห่ง) ใช้ข้อมูลจาก DSPOT แทน · ข้อมูลรายชั่วโมงเก็บ 7 วัน ประวัติยาวอยู่ในสรุปรายวัน`,
     ].map((t) => `<li>${t}</li>`).join('');
   </script>
 </body>

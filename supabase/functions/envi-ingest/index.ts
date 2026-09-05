@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.3.0"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR) · 1.3.0: handler pcd_dspot (ระบบบำบัดน้ำเสีย)
+export const VERSION = "1.4.0"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR) · 1.3.0: handler pcd_dspot · 1.4.0: handler diw_poms (เซนเซอร์โรงงาน) + pcd_iwis (สถานีแม่น้ำ)
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -611,12 +611,135 @@ async function pcd_dspot(ctx: Ctx): Promise<HandlerResult> {
   return { rows: stRows.length, note: `ระบบ ${stRows.length} (เดินระบบ ${running}) · ค่าน้ำ ${n1} · buildId ${nd.buildId ?? "?"}` };
 }
 
+/** วนเรียก fn กับทุก item พร้อมกันสูงสุด n งาน (ไม่มี p-limit ใน Deno) */
+async function mapLimit<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) { const k = i++; out[k] = await fn(items[k]); }
+  }));
+  return out;
+}
+
+/**
+ * กรมโรงงานฯ POMS — เซนเซอร์ต่อเนื่องในโรงงาน (WPMS น้ำทิ้ง: COD/BOD/Flow/Watt · CEMS ปล่อง: O2/ฝุ่น/CO/SO2/NOx)
+ *   factory-ws/get/factory-list?page=N (50/หน้า ≈ 800 โรงงาน, geom "POINT(lng lat)") · get/measurement-list/{id} = ค่าล่าสุดต่อจุดวัด
+ *   ไม่ต้องล็อกอิน แต่ประวัติต้องล็อกอิน → cron ทุก 15 นาที แบ่ง 200 โรงงาน/รอบ (cursor.offset) ให้ครบทุกชั่วโมง
+ *   ประหยัดที่: observations เก็บเฉพาะจุดวัดน้ำ (typeName ≠ CEMS) · CEMS เก็บใน latest_observations อย่างเดียว
+ */
+async function diw_poms(ctx: Ctx): Promise<HandlerResult> {
+  const base = String(ctx.source.url).replace(/\/$/, "");
+  const SLICE = Number((ctx.source.meta as Json)?.slice ?? 200);
+  const okData = (j: unknown) => { const o = j as Json; if (o?.code !== "SUCCESS") throw new Error("POMS ตอบ " + JSON.stringify(o).slice(0, 120)); return o.data as Json; };
+
+  // 1) รายชื่อโรงงานทั้งหมด (17 หน้า) — ดึงทุกรอบเพราะเบา (~55 KB/หน้า) และเป็นแหล่งเดียวของพิกัด
+  const first = okData(await fetchJson(`${base}/get/factory-list?page=1`));
+  const maxPage = Number(first.maxPage ?? 1);
+  const pages = await mapLimit(Array.from({ length: maxPage - 1 }, (_, i) => i + 2), 4, (p) => fetchJson(`${base}/get/factory-list?page=${p}`).then(okData));
+  const factories = [first, ...pages].flatMap((d) => (d.items as Json[]) ?? []);
+  const geomOf = (s: unknown) => { const m = String(s ?? "").match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/); return m ? { lng: +m[1], lat: +m[2] } : null; };
+  const stRows: Json[] = [];
+  for (const f of factories) {
+    const g = geomOf(f.geom);
+    if (!g || g.lat < 5 || g.lat > 21 || g.lng < 97 || g.lng > 106) continue;
+    const addr = String(f.address ?? "");
+    stRows.push({ ext_id: String(f.id), name_th: f.name ?? null, area_th: addr || null,
+      province: addr.match(/จ\.\s*([^\s,]+)/)?.[1] ?? null, station_type: "factory_sensor", lat: g.lat, lng: g.lng,
+      meta: { reg_no: f.no ?? null, reg_no_new: f.noNew ?? null, type: (f.type as Json)?.name ?? null, industry_type: (f.industryType as Json)?.name ?? null,
+              colony: (f.colonyIndustry as Json)?.name ?? null, count_wpms: f.countOpms ?? 0, count_cems: f.countCems ?? 0, count_station: f.countStation ?? 0,
+              severity_wpms: f.severityOpms ?? null, severity_cems: f.severityCems ?? null, logo: f.logo ?? null } });
+  }
+  const ids = await upsertStations(ctx, "diw_poms", stRows);
+
+  // 2) ค่าล่าสุดของโรงงานในสไลซ์นี้
+  const offset = Number(ctx.cursor?.offset ?? 0) % Math.max(stRows.length, 1);
+  const slice = stRows.slice(offset, offset + SLICE);
+  const obs: Json[] = [], latest: Json[] = [];
+  let points = 0, errors = 0;
+  await mapLimit(slice, 8, async (s) => {
+    const id = ids.get(String(s.ext_id));
+    if (!id) return;
+    let d: Json;
+    try { d = okData(await fetchJson(`${base}/get/measurement-list/${s.ext_id}`)); } catch { errors++; return; }
+    const params = (d.parameters ?? {}) as Record<string, Json>;
+    for (const m of Object.values((d.measurements ?? {}) as Record<string, Json>)) {
+      const rec = String(m.recordedDate ?? "");
+      const at = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(rec) ? rec.replace(" ", "T").slice(0, 19) + "+07:00" : null;
+      if (!at) continue;
+      const type = String(m.typeName ?? "?"), code = String(m.code ?? m.id ?? "");
+      const isWater = type !== "CEMS";
+      points++;
+      for (const [pid, pv] of Object.entries((m.parameters ?? {}) as Record<string, Json>)) {
+        const p = params[pid]; if (!p || pv?.isVisible === false) continue;
+        const v = num(pv.value), unit = String(p.unit ?? "").replace(/\\\//g, "/");
+        const parameter = `${code}:${p.name}`;
+        if (isWater) obs.push({ station_id: id, observed_at: at, parameter, value: v, unit, quality: v === null || pv.isError ? "missing" : "ok" });
+        latest.push({ station_id: id, parameter, observed_at: at, value: v, unit,
+          extra: { type, code, name: m.measName ?? null, severity: pv.severity ?? null, error: pv.isError ? (pv.errMsg ?? true) : null, channel: pv.channel ?? null } });
+      }
+    }
+  });
+  const n1 = await upsert(ctx, "observations", obs, "station_id,parameter,observed_at");
+  await upsert(ctx, "latest_observations", latest, "station_id,parameter");
+  const next = offset + SLICE >= stRows.length ? 0 : offset + SLICE;
+  return { rows: n1, cursor: { offset: next, total: stRows.length },
+    note: `โรงงาน ${stRows.length} · รอบนี้ ${offset}-${offset + slice.length} · จุดวัด ${points} · ค่าน้ำ ${n1} · latest ${latest.length}${errors ? ` · ดึงไม่ได้ ${errors}` : ""}` };
+}
+
+/**
+ * คพ. IWIS — สถานีตรวจวัดคุณภาพน้ำแหล่งน้ำผิวดินอัตโนมัติ (64 สถานี ทุก 30 นาที)
+ *   api-iwis.pcd.go.th/mst-station-with-summary?limit=200 → result.data[] มี station_lat/lng + water_quality_summary_50 (50 รอบล่าสุด)
+ *   observations เก็บเฉพาะรอบนาที :00 (รายชั่วโมง) ประหยัดที่ · latest เก็บทุกพารามิเตอร์พร้อม level/color ของ คพ.
+ */
+async function pcd_iwis(ctx: Ctx): Promise<HandlerResult> {
+  const j = await fetchJson(String(ctx.source.url)) as Json;
+  const data = ((j.result as Json)?.data ?? []) as Json[];
+  if (data.length === 0) throw new Error("IWIS คืน data ว่าง: " + JSON.stringify(j).slice(0, 120));
+  const UNITS = ((ctx.source.meta as Json)?.units ?? {}) as Record<string, string>;
+  const stRows: Json[] = [];
+  for (const s of data) {
+    const lat = num(s.station_lat), lng = num(s.station_lng);
+    if (lat === null || lng === null) continue;
+    const ms = (s.mst_station ?? {}) as Json;
+    stRows.push({ ext_id: String(ms.STATION_ID ?? s.station_code ?? s.station_name), name_th: s.station_name ?? null,
+      area_th: [s.water_source_name, s.province_name && ("จ." + s.province_name)].filter(Boolean).join(" ") || null, province: s.province_name ?? null,
+      station_type: "river_auto", lat, lng,
+      meta: { station_code: s.station_code ?? null, place: ms.PLACE ?? null, water_source: s.water_source_name ?? null, main_basin: s.main_basin_name || null,
+              region: s.region_name ?? null, station_uuid: ms.STATION_UUID ?? null, sub_basin_uuid: ms.SUB_BASIN_UUID ?? null } });
+  }
+  const ids = await upsertStations(ctx, "pcd_iwis", stRows);
+
+  const obs: Json[] = [], latest: Json[] = [];
+  const seenLatest = new Set<string>();
+  for (const s of data) {
+    const ms = (s.mst_station ?? {}) as Json;
+    const id = ids.get(String(ms.STATION_ID ?? s.station_code ?? s.station_name));
+    if (!id) continue;
+    const rounds = [...((s.water_quality_summary ?? []) as Json[]), ...((s.water_quality_summary_50 ?? []) as Json[])]
+      .filter((r) => r?.MEASURE_DATETIME).sort((a, b) => String(b.MEASURE_DATETIME).localeCompare(String(a.MEASURE_DATETIME)));
+    for (const r of rounds) {
+      const at = String(r.MEASURE_DATETIME);
+      const hourly = /:00:00/.test(String(r.MEASURE_TIME ?? ""));
+      for (const p of (((r.SUMMARY_JSON as Json)?.data ?? []) as Json[])) {
+        const name = String(p.parameter ?? ""); if (!name) continue;
+        const v = num(p.value), unit = UNITS[name] ?? "";
+        const key = `${id}:${name}`;
+        if (!seenLatest.has(key)) { seenLatest.add(key); latest.push({ station_id: id, parameter: name, observed_at: at, value: v, unit, extra: { level: p.level ?? null, color: p.color ?? null } }); }
+        if (hourly && v !== null) obs.push({ station_id: id, observed_at: at, parameter: name, value: v, unit, quality: "ok" });
+      }
+    }
+  }
+  const n1 = await upsert(ctx, "observations", obs, "station_id,parameter,observed_at");
+  await upsert(ctx, "latest_observations", latest, "station_id,parameter");
+  const fresh = data.filter((s) => (s.measure_date ?? "") !== "ไม่ระบุ").length;
+  return { rows: n1, note: `สถานี ${stRows.length} (ส่งค่าล่าสุด ${fresh}) · ค่ารายชั่วโมง ${n1} · latest ${latest.length}` };
+}
+
 async function not_ready(_ctx: Ctx): Promise<HandlerResult> {
   throw new Error("handler นี้อยู่ในเฟสถัดไป (ต้องมี api key) — ดู docs/แหล่งข้อมูลราชการ.md");
 }
 
 const HANDLERS: Record<string, (c: Ctx) => Promise<HandlerResult>> = {
-  air4thai, gistda_pm25, gistda_hotspot, tmd_quake, dgr_wells, royalrain, gistda_flood, pcd_dspot,
+  air4thai, gistda_pm25, gistda_hotspot, tmd_quake, dgr_wells, royalrain, gistda_flood, pcd_dspot, diw_poms, pcd_iwis,
   tmd_today: tmd_obs, tmd_3h: tmd_obs,
   firms: not_ready, tmd_nwp: not_ready,
 };
