@@ -14,6 +14,10 @@
 - Secrets (ENVI_CRON_TOKEN, TMD_UID/UKEY, GISTDA_API_KEY, FIRMS_MAP_KEY) อยู่ใน Edge Secrets + Vault เท่านั้น **ห้ามเขียนลงไฟล์**
 - `web/js/config.js` มีแค่ URL + publishable key (เปิดเผยได้) — ค่าเริ่มต้นเป็น placeholder ผู้ใช้กรอกเอง
 
+## เผยแพร่ออนไลน์ (5 ก.ย. 2569 ผู้ใช้เปิด GitHub Pages เอง)
+- **GitHub Pages** จาก branch `main` โฟลเดอร์ `/ (root)` → `https://peeraponggis.github.io/envi_pi/web/index.html` · `…/web/wastewater.html` · `…/web/water-realtime.html` · push ไป main แล้วขึ้นเว็บเองใน 1–2 นาที (ไม่มี build) · repo public อยู่แล้ว ไม่มี secret ในไฟล์ · หน้าเว็บอ่าน Supabase ด้วย publishable key ตามการออกแบบ
+- ทดสอบในเครื่อง: `node scripts/serve.mjs` → `http://127.0.0.1:5510/web/…`
+
 ## โครงไฟล์
 - `supabase/migrations/…_schema.sql` (1) · `…_rls.sql` (2) · `…_rpc.sql` (3) · `…_seed_sources.sql` (4) · `…_cron.sql` (5, รันหลังตั้ง Vault) · `…_import.sql` (6)
 - `supabase/เปิดสิทธิ์ Data API.sql` (รันหลัง 1-3) · `supabase/ตรวจสภาพ.sql` (แสดงทุกแถว raise เฉพาะเรื่องใช้งานไม่ได้)
