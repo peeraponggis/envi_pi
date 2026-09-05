@@ -108,6 +108,7 @@ end $$;
 select s.id, s.cron_enabled, s.handler, s.refresh_minutes,
        (select count(*) from public.stations st where st.source_id = s.id) as stations,
        (select jobname || ' @ ' || schedule from cron.job where jobname = 'envi_' || s.id) as cron_job
-  from public.sources s where s.id in ('diw_poms', 'pcd_iwis') order by s.id
+  from public.sources s where s.id in ('diw_poms', 'pcd_iwis')
 union all
-select 'purge', null, null, null, (select count(*) from public.observations), (select jobname || ' @ ' || schedule || ' → ' || command from cron.job where jobname = 'envi_purge_observations');
+select 'purge', null, null, null, (select count(*) from public.observations), (select jobname || ' @ ' || schedule || ' → ' || command from cron.job where jobname = 'envi_purge_observations')
+order by 1;
