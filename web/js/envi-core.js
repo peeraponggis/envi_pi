@@ -125,7 +125,10 @@ function unwrap({ data, error }) {
 /** สถานี + ค่าล่าสุดของแหล่งที่ขึ้นต้นด้วย prefix (เช่น 'air4thai', 'tmd_') */
 export async function fetchStationsLatest(sourcePrefix) {
   const sb = await getClient();
-  return unwrap(await sb.from('v_station_latest').select('*').like('source_id', `${sourcePrefix}%`).limit(5000)) ?? [];
+  // ⚠️ `like 'x%'` ใช้ดัชนี idx_stations_source ไม่ได้ → สแกน 124k แถว + lateral ต่อแถว จน statement timeout (เจอบน GitHub Pages 5 ก.ย. 69)
+  //    ส่ง id เต็ม (เช่น 'diw_poms') จะใช้ eq · ใช้ like เฉพาะเมื่อลงท้าย '_' (prefix จริง เช่น 'tmd_')
+  const q = sb.from('v_station_latest').select('*');
+  return unwrap(await (sourcePrefix.endsWith('_') ? q.like('source_id', `${sourcePrefix}%`) : q.eq('source_id', sourcePrefix)).limit(5000)) ?? [];
 }
 
 /**
