@@ -140,26 +140,32 @@
 
     // ── โหลดข้อมูล: DSPOT จาก Supabase (stations source pcd_dspot) → ไม่ได้ค่อยใช้สแนปช็อต · กทม./สผ. จากสแนปช็อต ──
     const snap = await fetch('data/wastewater.json').then((r) => r.json());
-    let dspot = null, srcLabel = '';
+    // stations ทั้ง 3 แหล่ง (pcd_dspot / bma_wwtp / onep_pap) อยู่ในตารางเดียว แยกด้วย source_id
+    let dspot = null, bkk = null, onep = null, srcLabel = '';
     if (isConfigured()) {
       try {
         const sb = await getClient();
-        const { data, error } = await sb.from('stations').select('id, ext_id, name_th, area_th, province, lat, lng, meta, updated_at').eq('source_id', 'pcd_dspot').eq('active', true).range(0, 999);
+        const { data, error } = await sb.from('stations').select('id, source_id, ext_id, name_th, area_th, province, lat, lng, meta, updated_at').in('source_id', ['pcd_dspot', 'bma_wwtp', 'onep_pap']).eq('active', true).range(0, 999);
         if (error) throw error;
-        if (data?.length) {
-          dspot = data.map((s) => ({ id: s.ext_id, sid: s.id, name: s.name_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, manage: s.meta.manage_type, type: s.meta.plant_type }));
-          const upd = data.reduce((m, s) => s.updated_at > m ? s.updated_at : m, '');
+        const rows = (src) => (data ?? []).filter((s) => s.source_id === src);
+        if (rows('pcd_dspot').length) {
+          dspot = rows('pcd_dspot').map((s) => ({ id: s.ext_id, sid: s.id, name: s.name_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, manage: s.meta.manage_type, type: s.meta.plant_type }));
+          const upd = rows('pcd_dspot').reduce((m, s) => s.updated_at > m ? s.updated_at : m, '');
           srcLabel = `Supabase · คพ. อัปเดต ${new Date(upd).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`;
         }
+        if (rows('bma_wwtp').length) bkk = rows('bma_wwtp').map((s) => ({ id: 'bkk-' + s.ext_id, sid: s.id, name: s.name_th, location: s.area_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, type: 'AS' }));
+        if (rows('onep_pap').length) onep = rows('onep_pap').map((s) => ({ id: 'onep-' + s.ext_id, sid: s.id, agency: s.name_th, name: s.name_th, location: s.area_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, type: s.meta.type, type_code: s.meta.type_code, zone: s.meta.region }));
       } catch (e) { console.warn('อ่าน Supabase ไม่ได้ ใช้สแนปช็อต', e); }
     }
     if (!dspot) { dspot = snap.dspot; srcLabel = `สแนปช็อต ${new Date(snap.built_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`; }
+    bkk ??= snap.bkk.map((r) => ({ ...r, zone: 'กลาง', province: 'กรุงเทพมหานคร', status: 'เดินระบบ', type: 'AS' }));
+    onep ??= snap.onep.filter((r) => r.lat).map((r) => ({ ...r, name: r.agency, zone: r.region }));
     $('#srcBadge').textContent = srcLabel; $('#srcBadge').classList.toggle('live', srcLabel.startsWith('Supabase'));
 
     const all = [
       ...dspot.map((r) => ({ ...r, layer: 'dspot' })),
-      ...snap.bkk.map((r) => ({ ...r, layer: 'bkk', zone: 'กลาง', province: 'กรุงเทพมหานคร', status: 'เดินระบบ', type: 'AS' })),
-      ...snap.onep.filter((r) => r.lat).map((r) => ({ ...r, layer: 'onep', name: r.agency, zone: r.region })),
+      ...bkk.map((r) => ({ ...r, layer: 'bkk' })),
+      ...onep.map((r) => ({ ...r, layer: 'onep' })),
     ];
     const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
     const fill = (sel, vals) => vals.forEach((v) => sel.append(new Option(v, v)));

@@ -105,4 +105,27 @@ const out = {
 };
 fs.mkdirSync('web/data', { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(out));
+
+// ── SQL นำเข้า กทม. + สผ. เป็น stations (รันใน SQL Editor ได้เลย รันซ้ำได้) ──
+// DSPOT ไม่อยู่ในไฟล์นี้เพราะ Edge handler pcd_dspot ดึงเองทุกสัปดาห์
+const stRows = [
+  ...bkk.map((r) => ({ source_id: 'bma_wwtp', ext_id: r.id.replace('bkk-', ''), name_th: r.name, area_th: r.location, province: 'กรุงเทพมหานคร', station_type: 'wwtp', lat: r.lat, lng: r.lng,
+    meta: { status: 'เดินระบบ', manage_type: 'ระบบบำบัดน้ำเสียรวมของชุมชน', operator: 'กทม.', capacity: r.capacity, service: r.service, pipe_km: r.pipe_km, area: r.area, discharge: r.discharge, dcode: r.dcode, zone: 'กลาง' } })),
+  ...onep.filter((r) => r.lat && r.lng).map((r) => ({ source_id: 'onep_pap', ext_id: r.id.replace('onep-', ''), name_th: r.agency, area_th: r.location, province: r.province, station_type: 'wwtp', lat: r.lat, lng: r.lng,
+    meta: { status: r.status, type_code: r.type_code, plant_type: r.type_code, type: r.type, capacity: r.capacity, year_budget: r.year_budget, year_op: r.year_op, fund: r.fund, region: r.region, zone: r.region, geocode: r.geocode } })),
+];
+const sql = `-- สร้างโดย scripts/build_wastewater_data.mjs เมื่อ ${out.built_at} — stations ระบบบำบัดน้ำเสีย กทม. ${bkk.length} + สผ. ${stRows.length - bkk.length} (สผ. ที่ไม่มีพิกัด ${onepStat.none} ระบบไม่รวม)
+-- รันซ้ำได้ (upsert ตาม source_id, ext_id) · ต้องรัน migration 1100 ก่อน (sources bma_wwtp/onep_pap)
+insert into public.stations (source_id, ext_id, name_th, area_th, province, station_type, lat, lng, meta)
+select x.source_id, x.ext_id, x.name_th, x.area_th, x.province, x.station_type, x.lat, x.lng, x.meta
+  from jsonb_to_recordset($j$${JSON.stringify(stRows).replace(/\$j\$/g, '')}$j$::jsonb)
+    as x(source_id text, ext_id text, name_th text, area_th text, province text, station_type text, lat double precision, lng double precision, meta jsonb)
+on conflict (source_id, ext_id) do update set
+  name_th = excluded.name_th, area_th = excluded.area_th, province = excluded.province, station_type = excluded.station_type,
+  lat = excluded.lat, lng = excluded.lng, meta = excluded.meta, active = true;
+select source_id, count(*) as stations, sum((meta->>'capacity')::numeric) as capacity_m3d from public.stations where source_id in ('bma_wwtp', 'onep_pap', 'pcd_dspot') group by 1 order by 1;
+`;
+fs.mkdirSync('supabase/seed', { recursive: true });
+fs.writeFileSync('supabase/seed/wastewater_stations.sql', sql);
+console.log(`เขียน supabase/seed/wastewater_stations.sql · ${stRows.length} แถว`);
 console.log(`เขียน ${OUT} · DSPOT ${dspot.length} · กทม. ${bkk.length} · สผ. ${onep.length} (geocode`, onepStat, `) · buildId ${nd.buildId}`);
