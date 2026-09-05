@@ -57,6 +57,12 @@
     .kpi .v { font-size: 22px; font-weight: 700; line-height: 1.1; }
     .kpi .l { font-size: 12px; opacity: .95; }
     .empty { color: var(--ink-3); font-size: 13px; padding: 20px; text-align: center; }
+    .explain { margin-top: 12px; padding: 10px 14px; background: var(--surface-2); border-radius: 10px; font-size: 13px; line-height: 1.6; display: grid; gap: 6px; }
+    .explain h4 { margin: 0; font-size: 14px; color: var(--brand-dark); }
+    .explain .th { display: flex; flex-wrap: wrap; gap: 6px; }
+    .explain .th span { padding: 2px 8px; border-radius: 6px; color: #fff; font-size: 12px; }
+    .chart.tall { height: 380px; }
+    .controls input[type="radio"] { accent-color: var(--brand); }
     .credit { font-size: 11.5px; color: var(--ink-3); text-align: right; }
     @media (max-width: 640px) { main { padding: 10px; } .kpis { grid-template-columns: repeat(3, 1fr); } .donut { grid-template-columns: 120px 1fr; } .donut svg { width: 120px; height: 120px; } .chart { height: 240px; } header.bar .sub { display: none; } }
   </style>
@@ -84,15 +90,25 @@
       <div class="card"><h3>โรงงานที่ค่าน้ำทิ้งสูงสุด</h3><div class="sub">เรียงตาม COD ล่าสุด · คลิกเพื่อดูกราฟย้อนหลัง</div><div class="alerts" id="pomsTop"></div></div>
     </div>
     <div class="card">
-      <h3>ค่าวัดคุณภาพน้ำย้อนหลัง รายสถานี</h3>
-      <div class="sub" id="histSub">เลือกสถานีและพารามิเตอร์ · จุดสีตามระดับ DO (ดี ≥ 6 · พอใช้ 4–5.9 · เสื่อมโทรม 2–3.9 · เสื่อมโทรมมาก &lt; 2 mg/L) · น้ำทิ้งโรงงาน: BOD ≤ 20, COD ≤ 120 mg/L</div>
+      <h3>ค่าวัดย้อนหลัง ทุกแหล่งข้อมูลที่มีประวัติ</h3>
+      <div class="sub" id="histSub">เลือกแหล่ง สถานี พารามิเตอร์ และขอบเขตการเทียบ · เส้นประ = ค่ามาตรฐาน/เกณฑ์ระดับ · จุดสีตามระดับของค่านั้น</div>
       <div class="controls">
+        <label>แหล่ง <select id="selSource"></select></label>
         <label>สถานี <select id="selStation"></select></label>
         <label>พารามิเตอร์ <select id="selParam"></select></label>
+      </div>
+      <div class="controls">
+        <span style="font-size:12.5px">แสดง:</span>
+        <label><input type="radio" name="scope" value="station" checked> รายสถานี</label>
+        <label><input type="radio" name="scope" value="province"> สถานีในจังหวัดเดียวกัน</label>
+        <label><input type="radio" name="scope" value="region"> สถานีในภาคเดียวกัน</label>
+        <span class="spacer" style="flex:1"></span>
         <button id="btnHourly" class="on" type="button">รายชั่วโมง (7 วัน)</button><button id="btnDaily" type="button">รายวัน (ทั้งหมด)</button>
       </div>
-      <div class="chart"><canvas id="hist"></canvas></div>
+      <div class="chart" id="chartWrap"><canvas id="hist"></canvas></div>
       <div class="kpis" id="histKpis"></div>
+      <div class="explain" id="explain"></div>
+      <div style="overflow-x:auto;margin-top:10px"><table class="tb" id="seriesTb"></table></div>
     </div>
     <div class="credit" id="credit"></div>
   </main>
@@ -216,55 +232,190 @@
     const top = [...pomsRows].filter((r) => r.codV != null || r.bodV != null).sort((a, b) => (b.codV ?? 0) - (a.codV ?? 0)).slice(0, 12);
     $('#pomsTop').innerHTML = top.length ? top.map((r) => `<div class="al" data-sid="${r.id}" data-param="${esc(r.codKey)}" style="cursor:pointer"><div class="ic" style="background:${lvOf(r.lv).color}">🏭</div><div><div class="d">${esc(r.province)} · ${r.observed_at ? ago(r.observed_at) : ''}</div><b>${esc(r.name_th)}</b>COD ${fmt(r.codV, 1)} mg/L${r.bodV != null ? ` · BOD ${fmt(r.bodV, 1)} mg/L` : ''}${r.exceed ? ' · <span style="color:var(--crit)">ระบบ POMS แจ้งเกินเกณฑ์</span>' : ''}</div><div class="t">${lvOf(r.lv).name}</div></div>`).join('') : '<div class="empty">ยังไม่มีค่าน้ำทิ้ง</div>';
 
-    // ── 5. กราฟย้อนหลังรายสถานี ──
+    // ── 5. กราฟย้อนหลัง ทุกแหล่งที่มี observations ──
+    // แหล่ง: air4thai (รายชั่วโมง), gistda_pm25 (รายชั่วโมง รายจังหวัด), pcd_dspot (ผลแล็บปีละครั้ง), diw_poms (รายชั่วโมง), pcd_iwis (รายชั่วโมง)
+    const SOURCES = [
+      { id: 'pcd_iwis', name: 'คพ. IWIS สถานีคุณภาพน้ำแม่น้ำ', kind: 'water' },
+      { id: 'diw_poms', name: 'กรมโรงงานฯ POMS น้ำทิ้งโรงงาน (เฉพาะที่มีจุดวัดน้ำ)', kind: 'effluent' },
+      { id: 'pcd_dspot', name: 'คพ. DSPOT ระบบบำบัดน้ำเสียชุมชน (ผลตรวจปีละครั้ง)', kind: 'effluent' },
+      { id: 'air4thai', name: 'คพ. Air4Thai คุณภาพอากาศ (รายชั่วโมง)', kind: 'air' },
+      { id: 'gistda_pm25', name: 'GISTDA PM2.5 ดาวเทียม รายจังหวัด (รายชั่วโมง)', kind: 'air' },
+    ];
+    const REGION_OF = (() => {
+      const m = {};
+      const put = (r, list) => list.forEach((p) => { m[p] = r; });
+      put('ภาคเหนือ', ['เชียงราย', 'เชียงใหม่', 'น่าน', 'พะเยา', 'แพร่', 'แม่ฮ่องสอน', 'ลำปาง', 'ลำพูน', 'อุตรดิตถ์']);
+      put('ภาคกลาง', ['กรุงเทพมหานคร', 'กำแพงเพชร', 'ชัยนาท', 'นครนายก', 'นครปฐม', 'นครสวรรค์', 'นนทบุรี', 'ปทุมธานี', 'พระนครศรีอยุธยา', 'พิจิตร', 'พิษณุโลก', 'เพชรบูรณ์', 'ลพบุรี', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'อ่างทอง', 'อุทัยธานี']);
+      put('ภาคตะวันออกเฉียงเหนือ', ['กาฬสินธุ์', 'ขอนแก่น', 'ชัยภูมิ', 'นครพนม', 'นครราชสีมา', 'บึงกาฬ', 'บุรีรัมย์', 'มหาสารคาม', 'มุกดาหาร', 'ยโสธร', 'ร้อยเอ็ด', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อำนาจเจริญ', 'อุดรธานี', 'อุบลราชธานี']);
+      put('ภาคตะวันออก', ['จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ตราด', 'ปราจีนบุรี', 'ระยอง', 'สระแก้ว']);
+      put('ภาคตะวันตก', ['กาญจนบุรี', 'ตาก', 'ประจวบคีรีขันธ์', 'เพชรบุรี', 'ราชบุรี']);
+      put('ภาคใต้', ['กระบี่', 'ชุมพร', 'ตรัง', 'นครศรีธรรมราช', 'นราธิวาส', 'ปัตตานี', 'พังงา', 'พัทลุง', 'ภูเก็ต', 'ยะลา', 'ระนอง', 'สงขลา', 'สตูล', 'สุราษฎร์ธานี']);
+      return (p) => m[String(p ?? '').replace(/^จ\.\s*/, '').replace(/\s+/g, '').replace('จังหวัด', '')] ?? null;
+    })();
+    /** คำอธิบาย + เกณฑ์ต่อพารามิเตอร์ (key = ชื่อพารามิเตอร์หลัง ':' หรือชื่อเต็ม) · thresholds ใช้ระบายสีจุดและวาดเส้นอ้างอิง */
+    const PARAM_INFO = {
+      DO: { name: 'ออกซิเจนละลายน้ำ (DO)', unit: 'mg/L', desc: 'ปริมาณออกซิเจนที่ละลายอยู่ในน้ำ ยิ่งสูงสัตว์น้ำยิ่งอยู่ได้ · ต่ำกว่า 2 mg/L สัตว์น้ำเริ่มตาย', std: 'มาตรฐานแหล่งน้ำผิวดินประเภทที่ 3 (คพ.): DO ≥ 4.0 mg/L', dir: 'high', lines: [{ v: 6, l: 'ดี ≥ 6' }, { v: 4, l: 'มาตรฐาน 4' }, { v: 2, l: 'วิกฤต 2' }], bands: [['good', '≥ 6.0'], ['fair', '4.0 – 5.9'], ['poor', '2.0 – 3.9'], ['bad', '< 2.0']] },
+      PH: { name: 'ความเป็นกรด-ด่าง (pH)', unit: '', desc: 'ค่ากลาง 7 · น้ำธรรมชาติปกติ 6.5–8.5 · เบี่ยงมากกระทบสิ่งมีชีวิตและการบำบัด', std: 'มาตรฐานแหล่งน้ำผิวดิน 5.0–9.0 · น้ำทิ้ง 5.5–9.0', dir: 'range', lines: [{ v: 9, l: 'สูงสุด 9.0' }, { v: 5.5, l: 'ต่ำสุด 5.5' }], bands: [['good', '5.5 – 9.0'], ['fair', '5.0 – 5.4 หรือ 9.1 – 9.5'], ['bad', 'นอกช่วง 5.0 – 9.5']] },
+      EC: { name: 'การนำไฟฟ้า (EC)', unit: 'µS/cm', desc: 'บอกปริมาณเกลือ/ไอออนที่ละลายในน้ำ สูงขึ้นเมื่อน้ำเค็มหนุนหรือมีน้ำทิ้งปนเปื้อน', std: 'ไม่มีค่ามาตรฐานตรง · น้ำจืดทั่วไป < 1,000 µS/cm', dir: 'none', lines: [{ v: 1000, l: 'น้ำจืด < 1,000' }], bands: [] },
+      Temp: { name: 'อุณหภูมิน้ำ', unit: '°C', desc: 'อุณหภูมิสูงทำให้ออกซิเจนละลายได้น้อยลง', std: 'มาตรฐานแหล่งน้ำผิวดิน: ไม่สูงกว่าธรรมชาติเกิน 3 °C', dir: 'none', lines: [], bands: [] },
+      Salinity: { name: 'ความเค็ม', unit: 'ppt', desc: 'ปริมาณเกลือ · น้ำจืด < 0.5 ppt · เกิน 2 ppt ไม่เหมาะกับการเกษตร', std: 'น้ำใช้เพื่อการเกษตร ≤ 2 ppt (กรมชลประทาน)', dir: 'low', lines: [{ v: 0.5, l: 'น้ำจืด 0.5' }, { v: 2, l: 'เกษตร 2' }], bands: [['good', '≤ 0.5'], ['fair', '0.6 – 2.0'], ['poor', '2.1 – 5.0'], ['bad', '> 5.0']] },
+      Tur: { name: 'ความขุ่น', unit: 'NTU', desc: 'ตะกอนแขวนลอยในน้ำ · สูงเมื่อมีน้ำหลาก/การชะล้างหน้าดิน', std: 'ไม่มีค่ามาตรฐานแหล่งน้ำผิวดินโดยตรง · น้ำประปา ≤ 5 NTU', dir: 'none', lines: [], bands: [] },
+      NH4N: { name: 'แอมโมเนีย-ไนโตรเจน (NH4-N)', unit: 'mg/L', desc: 'บ่งชี้น้ำเสียจากชุมชน/ปศุสัตว์ · สูงเป็นพิษต่อสัตว์น้ำ', std: 'มาตรฐานแหล่งน้ำผิวดินประเภท 3: ≤ 0.5 mg/L', dir: 'low', lines: [{ v: 0.5, l: 'มาตรฐาน 0.5' }], bands: [['good', '≤ 0.5'], ['fair', '0.6 – 1.0'], ['poor', '1.1 – 2.0'], ['bad', '> 2.0']] },
+      BOD: { name: 'บีโอดี (BOD)', unit: 'mg/L', desc: 'ออกซิเจนที่จุลินทรีย์ใช้ย่อยสารอินทรีย์ · สูง = สารอินทรีย์/น้ำเสียมาก', std: 'แหล่งน้ำผิวดินประเภท 3: ≤ 2.0 mg/L', dir: 'low', lines: [{ v: 2, l: 'มาตรฐาน 2' }, { v: 4, l: 'ประเภท 4: 4' }], bands: [['good', '≤ 1.5'], ['fair', '1.6 – 2.0'], ['poor', '2.1 – 4.0'], ['bad', '> 4.0']] },
+      COD: { name: 'ซีโอดี (COD)', unit: 'mg/L', desc: 'ออกซิเจนที่ใช้ออกซิไดซ์สารอินทรีย์ทางเคมี · ใช้คู่กับ BOD', std: 'ไม่มีมาตรฐานแหล่งน้ำผิวดินโดยตรง · น้ำทิ้งอุตสาหกรรม ≤ 120 mg/L', dir: 'low', lines: [{ v: 120, l: 'น้ำทิ้ง 120' }], bands: [['good', '≤ 120'], ['fair', '121 – 200'], ['poor', '201 – 400'], ['bad', '> 400']] },
+      'eff:BOD': { name: 'บีโอดีน้ำทิ้ง (BOD)', unit: 'mg/L', desc: 'สารอินทรีย์ในน้ำทิ้งที่ระบายออก', std: 'มาตรฐานน้ำทิ้งโรงงาน/ชุมชน: BOD ≤ 20 mg/L', dir: 'low', lines: [{ v: 20, l: 'มาตรฐาน 20' }], bands: [['good', '≤ 20'], ['fair', '21 – 40'], ['poor', '41 – 60'], ['bad', '> 60']] },
+      'eff:COD': { name: 'ซีโอดีน้ำทิ้ง (COD)', unit: 'mg/L', desc: 'สารอินทรีย์รวมในน้ำทิ้งที่ระบายออก (เซนเซอร์ออนไลน์ POMS วัดค่านี้ทุกชั่วโมง)', std: 'มาตรฐานน้ำทิ้งโรงงาน: COD ≤ 120 mg/L (บางประเภท ≤ 400)', dir: 'low', lines: [{ v: 120, l: 'มาตรฐาน 120' }, { v: 400, l: 'สูงสุดบางประเภท 400' }], bands: [['good', '≤ 120'], ['fair', '121 – 200'], ['poor', '201 – 400'], ['bad', '> 400']] },
+      'eff:TSS': { name: 'สารแขวนลอยน้ำทิ้ง (TSS)', unit: 'mg/L', desc: 'ตะกอนแขวนลอยในน้ำทิ้ง', std: 'มาตรฐานน้ำทิ้งชุมชน ≤ 30 mg/L (โรงงาน ≤ 50)', dir: 'low', lines: [{ v: 30, l: 'ชุมชน 30' }, { v: 50, l: 'โรงงาน 50' }], bands: [['good', '≤ 30'], ['fair', '31 – 50'], ['poor', '51 – 150'], ['bad', '> 150']] },
+      Flow: { name: 'อัตราการไหลน้ำทิ้ง', unit: 'm³/hr', desc: 'ปริมาณน้ำทิ้งที่ระบายต่อชั่วโมง · 0 = ไม่ระบาย/หยุดเดิน', std: 'ไม่มีมาตรฐาน (ใช้ประกอบ COD เพื่อคิดภาระมลพิษ)', dir: 'none', lines: [], bands: [] },
+      Watt: { name: 'กำลังไฟฟ้าระบบบำบัด', unit: 'kW', desc: 'การใช้ไฟของระบบบำบัด · 0 ขณะมีน้ำไหล = ระบบอาจไม่ทำงาน', std: 'ไม่มีมาตรฐาน', dir: 'none', lines: [], bands: [] },
+      inflow_pct: { name: 'น้ำเสียเข้าเทียบความสามารถ', unit: '%', desc: 'ระบบบำบัดชุมชนรับน้ำเสียจริงกี่ % ของที่ออกแบบ · ต่ำมาก = ท่อรวบรวมไม่ครอบคลุม', std: 'เป้าหมายใช้งาน ≥ 60 %', dir: 'high', lines: [{ v: 60, l: 'เป้า 60 %' }], bands: [['good', '≥ 60'], ['fair', '40 – 59'], ['poor', '20 – 39'], ['bad', '< 20']] },
+      avg_inflow: { name: 'น้ำเสียเข้าระบบเฉลี่ย', unit: 'm³/d', desc: 'ปริมาณน้ำเสียที่เข้าระบบบำบัดต่อวัน', std: 'ไม่มีมาตรฐาน', dir: 'none', lines: [], bands: [] },
+      PM25: { name: 'ฝุ่น PM2.5', unit: 'µg/m³', desc: 'ฝุ่นละอองขนาดไม่เกิน 2.5 ไมครอน เข้าปอด/กระแสเลือดได้', std: 'มาตรฐาน 24 ชม. ประเทศไทย (2566) ≤ 37.5 µg/m³', dir: 'low', lines: [{ v: 37.5, l: 'มาตรฐาน 37.5' }, { v: 75, l: 'มีผลกระทบ 75' }], bands: [['good', '≤ 25 ดี'], ['fair', '25.1 – 37.5 ปานกลาง'], ['poor', '37.6 – 75 เริ่มมีผลกระทบ'], ['bad', '> 75 มีผลกระทบต่อสุขภาพ']] },
+      PM10: { name: 'ฝุ่น PM10', unit: 'µg/m³', desc: 'ฝุ่นละอองขนาดไม่เกิน 10 ไมครอน', std: 'มาตรฐาน 24 ชม. ≤ 120 µg/m³', dir: 'low', lines: [{ v: 120, l: 'มาตรฐาน 120' }], bands: [['good', '≤ 80'], ['fair', '81 – 120'], ['poor', '121 – 180'], ['bad', '> 180']] },
+      O3: { name: 'โอโซน (O3)', unit: 'ppb', desc: 'ก๊าซที่เกิดจากแสงแดดทำปฏิกิริยากับไอเสีย ระคายเคืองระบบหายใจ', std: 'มาตรฐาน 8 ชม. ≤ 70 ppb', dir: 'low', lines: [{ v: 70, l: 'มาตรฐาน 70' }], bands: [['good', '≤ 50'], ['fair', '51 – 70'], ['poor', '71 – 120'], ['bad', '> 120']] },
+      CO: { name: 'คาร์บอนมอนอกไซด์ (CO)', unit: 'ppm', desc: 'ก๊าซจากการเผาไหม้ไม่สมบูรณ์ (รถยนต์)', std: 'มาตรฐาน 8 ชม. ≤ 9 ppm', dir: 'low', lines: [{ v: 9, l: 'มาตรฐาน 9' }], bands: [['good', '≤ 6.4'], ['fair', '6.5 – 9.0'], ['poor', '9.1 – 15'], ['bad', '> 15']] },
+      NO2: { name: 'ไนโตรเจนไดออกไซด์ (NO2)', unit: 'ppb', desc: 'ก๊าซจากการจราจร/โรงไฟฟ้า', std: 'มาตรฐาน 1 ชม. ≤ 170 ppb', dir: 'low', lines: [{ v: 170, l: 'มาตรฐาน 170' }], bands: [['good', '≤ 100'], ['fair', '101 – 170'], ['poor', '171 – 340'], ['bad', '> 340']] },
+      SO2: { name: 'ซัลเฟอร์ไดออกไซด์ (SO2)', unit: 'ppb', desc: 'ก๊าซจากการเผาเชื้อเพลิงฟอสซิล', std: 'มาตรฐาน 1 ชม. ≤ 300 ppb', dir: 'low', lines: [{ v: 300, l: 'มาตรฐาน 300' }], bands: [['good', '≤ 200'], ['fair', '201 – 300'], ['poor', '301 – 400'], ['bad', '> 400']] },
+      AQI: { name: 'ดัชนีคุณภาพอากาศ (AQI)', unit: '', desc: 'ดัชนีรวมของ คพ. คิดจากค่าที่แย่สุดในสถานี', std: 'AQI ≤ 100 อยู่ในเกณฑ์มาตรฐาน', dir: 'low', lines: [{ v: 100, l: 'มาตรฐาน 100' }, { v: 200, l: 'มีผลกระทบ 200' }], bands: [['good', '0 – 50 ดี'], ['fair', '51 – 100 ปานกลาง'], ['poor', '101 – 200 เริ่มมีผลกระทบ'], ['bad', '> 200 มีผลกระทบ']] },
+    };
+    const ALIAS = { bod_in: 'BOD', bod_out: 'eff:BOD', tss_in: 'eff:TSS', tss_out: 'eff:TSS', ph_in: 'PH', ph_out: 'PH', pm25: 'PM25', 'PM2.5': 'PM25' };
+    /** คืนคีย์ใน PARAM_INFO ของพารามิเตอร์ (ชื่อจริงใน DB) ตามชนิดแหล่ง */
+    const infoKey = (param, srcKind) => {
+      const base = param.includes(':') ? param.split(':').pop() : param;
+      const a = ALIAS[base] ?? base;
+      if (srcKind === 'effluent' && PARAM_INFO['eff:' + a]) return 'eff:' + a;
+      return PARAM_INFO[a] ? a : null;
+    };
+    const levelOf = (key, v) => {
+      if (v == null || isNaN(v)) return 'none';
+      const rules = {
+        DO: (x) => x >= 6 ? 'good' : x >= 4 ? 'fair' : x >= 2 ? 'poor' : 'bad',
+        PH: (x) => x >= 5.5 && x <= 9 ? 'good' : x >= 5 && x <= 9.5 ? 'fair' : 'bad',
+        Salinity: (x) => x <= .5 ? 'good' : x <= 2 ? 'fair' : x <= 5 ? 'poor' : 'bad',
+        NH4N: (x) => x <= .5 ? 'good' : x <= 1 ? 'fair' : x <= 2 ? 'poor' : 'bad',
+        BOD: (x) => x <= 1.5 ? 'good' : x <= 2 ? 'fair' : x <= 4 ? 'poor' : 'bad',
+        COD: (x) => x <= 120 ? 'good' : x <= 200 ? 'fair' : x <= 400 ? 'poor' : 'bad',
+        'eff:BOD': (x) => x <= 20 ? 'good' : x <= 40 ? 'fair' : x <= 60 ? 'poor' : 'bad',
+        'eff:COD': (x) => x <= 120 ? 'good' : x <= 200 ? 'fair' : x <= 400 ? 'poor' : 'bad',
+        'eff:TSS': (x) => x <= 30 ? 'good' : x <= 50 ? 'fair' : x <= 150 ? 'poor' : 'bad',
+        inflow_pct: (x) => x >= 60 ? 'good' : x >= 40 ? 'fair' : x >= 20 ? 'poor' : 'bad',
+        PM25: (x) => x <= 25 ? 'good' : x <= 37.5 ? 'fair' : x <= 75 ? 'poor' : 'bad',
+        PM10: (x) => x <= 80 ? 'good' : x <= 120 ? 'fair' : x <= 180 ? 'poor' : 'bad',
+        O3: (x) => x <= 50 ? 'good' : x <= 70 ? 'fair' : x <= 120 ? 'poor' : 'bad',
+        CO: (x) => x <= 6.4 ? 'good' : x <= 9 ? 'fair' : x <= 15 ? 'poor' : 'bad',
+        NO2: (x) => x <= 100 ? 'good' : x <= 170 ? 'fair' : x <= 340 ? 'poor' : 'bad',
+        SO2: (x) => x <= 200 ? 'good' : x <= 300 ? 'fair' : x <= 400 ? 'poor' : 'bad',
+        AQI: (x) => x <= 50 ? 'good' : x <= 100 ? 'fair' : x <= 200 ? 'poor' : 'bad',
+      };
+      return rules[key] ? rules[key](v) : 'none';
+    };
+
     const sb = await getClient();
-    const stations = [...iw.sort((a, b) => order[a.lv] - order[b.lv] || a.name_th.localeCompare(b.name_th, 'th')).map((s) => ({ ...s, grp: 'IWIS สถานีแม่น้ำ' })), ...pw.sort((a, b) => a.name_th.localeCompare(b.name_th, 'th')).map((s) => ({ ...s, grp: 'POMS น้ำทิ้งโรงงาน' }))];
-    const byId = new Map(stations.map((s) => [String(s.id), s]));
-    $('#selStation').innerHTML = ['IWIS สถานีแม่น้ำ', 'POMS น้ำทิ้งโรงงาน'].map((g) => `<optgroup label="${g}">${stations.filter((s) => s.grp === g).map((s) => `<option value="${s.id}">${esc(s.name_th)}${s.grp.startsWith('IWIS') ? ' · ' + lvOf(s.lv).name : ''}</option>`).join('')}</optgroup>`).join('');
-    const PARAM_ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N'];
-    function fillParams(s) {
+    const [air, sat, dspot] = await Promise.all([fetchStationsLatest('air4thai'), fetchStationsLatest('gistda_pm25'), fetchStationsLatest('pcd_dspot')]);
+    const withRegion = (s) => ({ ...s, region: s.meta?.region ?? REGION_OF(s.province) ?? 'ไม่ระบุภาค' });
+    const POOL = {
+      pcd_iwis: iw.sort((a, b) => order[a.lv] - order[b.lv] || a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
+      diw_poms: pw.sort((a, b) => a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
+      pcd_dspot: dspot.filter((s) => s.latest).sort((a, b) => a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
+      air4thai: air.sort((a, b) => (a.province ?? '').localeCompare(b.province ?? '', 'th') || a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
+      gistda_pm25: sat.sort((a, b) => a.name_th.localeCompare(b.name_th, 'th')).map(withRegion),
+    };
+    const srcOf = (id) => SOURCES.find((s) => s.id === id);
+    $('#selSource').innerHTML = SOURCES.map((s) => `<option value="${s.id}">${esc(s.name)} · ${POOL[s.id].length}</option>`).join('');
+    const byId = new Map(Object.values(POOL).flat().map((s) => [String(s.id), s]));
+    const PARAM_ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N', 'PM25', 'PM10', 'O3', 'CO', 'NO2', 'SO2', 'AQI'];
+    const paramLabel = (k, kind) => { const key = infoKey(k, kind); return key ? `${k} — ${PARAM_INFO[key].name}` : k; };
+    function fillStations() {
+      const src = $('#selSource').value;
+      $('#selStation').innerHTML = POOL[src].map((s) => `<option value="${s.id}">${esc(s.name_th)}${s.province ? ' · ' + esc(s.province) : ''}${s.lv && src === 'pcd_iwis' ? ' · ' + lvOf(s.lv).name : ''}</option>`).join('');
+    }
+    function fillParams() {
+      const s = byId.get($('#selStation').value); if (!s) return;
+      const kind = srcOf($('#selSource').value).kind;
       const keys = Object.entries(s.latest ?? {}).filter(([, v]) => !v.type || v.type !== 'CEMS').map(([k]) => k)
-        .sort((a, b) => (PARAM_ORDER.indexOf(a.split(':').pop()) + 99) % 99 - (PARAM_ORDER.indexOf(b.split(':').pop()) + 99) % 99 || a.localeCompare(b));
-      $('#selParam').innerHTML = keys.map((k) => `<option value="${esc(k)}">${esc(k)}${s.latest[k].unit ? ' (' + esc(s.latest[k].unit) + ')' : ''}</option>`).join('');
-      const pref = keys.find((k) => /(^|:)(DO|COD)$/.test(k)); if (pref) $('#selParam').value = pref;
+        .sort((a, b) => (PARAM_ORDER.indexOf((ALIAS[a.split(':').pop()] ?? a.split(':').pop())) + 99) % 99 - (PARAM_ORDER.indexOf((ALIAS[b.split(':').pop()] ?? b.split(':').pop())) + 99) % 99 || a.localeCompare(b));
+      $('#selParam').innerHTML = keys.map((k) => `<option value="${esc(k)}">${esc(paramLabel(k, kind))}${s.latest[k].unit ? ' (' + esc(s.latest[k].unit) + ')' : ''}</option>`).join('');
+      const pref = keys.find((k) => /(^|:)(DO|COD|PM25|bod_out)$/.test(k)); if (pref) $('#selParam').value = pref;
     }
     let mode = 'hourly', chart;
+    const PALETTE = ['#2e7d32', '#1d4ed8', '#be123c', '#a16207', '#7c3aed', '#0e7490', '#c2410c', '#4d7c0f', '#9d174d', '#374151', '#0f766e', '#b45309'];
     async function loadHistory() {
-      const s = byId.get($('#selStation').value); const param = $('#selParam').value; if (!s || !param) return;
-      let pts;
+      const src = $('#selSource').value, kind = srcOf(src).kind, s0 = byId.get($('#selStation').value), param = $('#selParam').value;
+      if (!s0 || !param) return;
+      const scope = document.querySelector('input[name=scope]:checked').value;
+      let group = [s0];
+      if (scope === 'province') group = POOL[src].filter((s) => s.province && s.province === s0.province);
+      if (scope === 'region') group = POOL[src].filter((s) => s.region === s0.region);
+      if (!group.some((s) => s.id === s0.id)) group.unshift(s0);
+      const MAXS = 40; const truncated = group.length > MAXS; group = group.slice(0, MAXS);
+      const key = infoKey(param, kind), info = key ? PARAM_INFO[key] : null;
+      const suffix = param.includes(':') ? param.split(':').pop() : param;
+      const ids = group.map((s) => s.id);
+      let rows;
       if (mode === 'hourly') {
-        const { data, error } = await sb.from('observations').select('observed_at, value').eq('station_id', s.id).eq('parameter', param).not('value', 'is', null).order('observed_at').limit(1000);
-        if (error) throw error; pts = (data ?? []).map((r) => ({ t: r.observed_at, v: r.value }));
+        let q = sb.from('observations').select('station_id, observed_at, value, parameter').in('station_id', ids).not('value', 'is', null).order('observed_at').limit(8000);
+        q = param.includes(':') ? q.like('parameter', `%:${suffix}`) : q.eq('parameter', param);
+        const { data, error } = await q; if (error) throw error; rows = (data ?? []).map((r) => ({ sid: r.station_id, t: r.observed_at, v: r.value }));
       } else {
-        const { data, error } = await sb.from('observations_daily').select('day, value_avg, value_min, value_max').eq('station_id', s.id).eq('parameter', param).order('day').limit(400);
-        if (error) throw error; pts = (data ?? []).map((r) => ({ t: r.day + 'T12:00:00+07:00', v: r.value_avg, min: r.value_min, max: r.value_max }));
+        let q = sb.from('observations_daily').select('station_id, day, value_avg, value_min, value_max, parameter').in('station_id', ids).order('day').limit(8000);
+        q = param.includes(':') ? q.like('parameter', `%:${suffix}`) : q.eq('parameter', param);
+        const { data, error } = await q; if (error) throw error; rows = (data ?? []).map((r) => ({ sid: r.station_id, t: r.day + 'T12:00:00+07:00', v: r.value_avg, min: r.value_min, max: r.value_max }));
       }
-      const unit = s.latest?.[param]?.unit ?? '';
-      const range = pts.length ? `จาก ${new Date(pts[0].t).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })} – ${new Date(pts.at(-1).t).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}` : 'ยังไม่มีข้อมูลย้อนหลัง (เก็บสะสมตั้งแต่ 5 ก.ย. 69)';
-      $('#histSub').innerHTML = `<b>${esc(s.name_th)}</b> · ${esc(param)} ${esc(unit)} · ${mode === 'hourly' ? 'รายชั่วโมง (เก็บ 7 วัน)' : 'ค่าเฉลี่ยรายวัน (สรุปทุกคืน เก็บระยะยาว)'} · ${range} · ${pts.length} จุด`;
-      const colors = pts.map((p) => lvOf(levelFor(param, p.v)).color);
+      const unit = info?.unit || s0.latest?.[param]?.unit || '';
+      const times = [...new Set(rows.map((r) => r.t))].sort();
+      const fmtT = (t) => mode === 'hourly' ? thTime(t) : new Date(t).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+      const series = group.map((s, i) => { const m = new Map(rows.filter((r) => r.sid === s.id).map((r) => [r.t, r.v])); return { s, color: PALETTE[i % PALETTE.length], data: times.map((t) => m.get(t) ?? null) }; }).filter((x) => x.data.some((v) => v != null));
+      const scopeText = scope === 'station' ? 'รายสถานี' : scope === 'province' ? `สถานีในจังหวัด${s0.province ?? '–'} (${series.length} สถานีมีข้อมูล)` : `สถานีใน${s0.region} (${series.length} สถานีมีข้อมูล)`;
+      const range = times.length ? `${new Date(times[0]).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })} – ${new Date(times.at(-1)).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}` : 'ยังไม่มีข้อมูลย้อนหลัง';
+      $('#histSub').innerHTML = `<b>${esc(s0.name_th)}</b> · ${esc(info?.name ?? param)} ${esc(unit)} · ${scopeText} · ${mode === 'hourly' ? 'รายชั่วโมง (เก็บ 7 วัน)' : 'ค่าเฉลี่ยรายวัน (เก็บระยะยาว)'} · ${range} · ${rows.length} จุด${truncated ? ` · แสดง ${MAXS} สถานีแรก` : ''}`;
+      $('#chartWrap').classList.toggle('tall', series.length > 3);
       chart?.destroy();
-      chart = new Chart($('#hist'), {
-        type: 'line',
-        data: { labels: pts.map((p) => mode === 'hourly' ? thTime(p.t) : new Date(p.t).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })),
-          datasets: [{ data: pts.map((p) => p.v), borderColor: cssVar('--ink-3'), borderWidth: 1.2, tension: .25, spanGaps: false, pointBackgroundColor: colors, pointBorderColor: colors, pointRadius: mode === 'hourly' ? 3.5 : 4, pointHoverRadius: 6, segment: { borderColor: (ctx) => colors[ctx.p1DataIndex] } },
-            ...(mode === 'daily' && pts.some((p) => p.min != null) ? [{ data: pts.map((p) => p.max), borderColor: 'transparent', backgroundColor: 'rgba(120,120,120,.12)', fill: '+1', pointRadius: 0 }, { data: pts.map((p) => p.min), borderColor: 'transparent', pointRadius: 0 }] : [])] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.datasetIndex ? '' : `${fmt(c.raw, 3)} ${unit} · ${lvOf(levelFor(param, c.raw)).name}` } } },
-          scales: { x: { ticks: { maxTicksLimit: 8, color: cssVar('--ink-3'), font: { family: 'Sarabun' } }, grid: { color: cssVar('--line') } }, y: { ticks: { color: cssVar('--ink-3') }, grid: { color: cssVar('--line') }, title: { display: !!unit, text: unit } } } },
-      });
-      const n = Object.fromEntries(LV.map((l) => [l.key, pts.filter((p) => levelFor(param, p.v) === l.key).length]));
-      $('#histKpis').innerHTML = LV.map((l) => `<div class="kpi" style="background:${l.color}"><div class="v">${n[l.key]}</div><div class="l">${l.name}</div></div>`).join('');
+      const single = series.length <= 1;
+      const datasets = series.map((x) => ({ label: x.s.name_th, data: x.data, borderColor: single ? cssVar('--ink-3') : x.color, backgroundColor: x.color, borderWidth: single ? 1.2 : 1.5, tension: .25, spanGaps: true,
+        pointRadius: single ? (mode === 'hourly' ? 3.5 : 4) : 2.5, pointHoverRadius: 6,
+        pointBackgroundColor: (c) => key ? lvOf(levelOf(key, c.raw)).color : x.color, pointBorderColor: (c) => key ? lvOf(levelOf(key, c.raw)).color : x.color,
+        ...(single && key ? { segment: { borderColor: (ctx) => lvOf(levelOf(key, ctx.p1.parsed.y)).color } } : {}) }));
+      for (const ln of info?.lines ?? []) datasets.push({ label: ln.l, data: times.map(() => ln.v), borderColor: cssVar('--ink-2'), borderDash: [6, 4], borderWidth: 1, pointRadius: 0, fill: false, isRef: true });
+      chart = new Chart($('#hist'), { type: 'line', data: { labels: times.map(fmtT), datasets },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', intersect: false },
+          plugins: { legend: { display: !single || (info?.lines?.length ?? 0) > 0, position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 }, filter: (l, d) => !single || d.datasets[l.datasetIndex].isRef } },
+            tooltip: { callbacks: { label: (c) => c.dataset.isRef ? `${c.dataset.label}` : `${c.dataset.label}: ${fmt(c.raw, 3)} ${unit}${key ? ' · ' + lvOf(levelOf(key, c.raw)).name : ''}` } } },
+          scales: { x: { ticks: { maxTicksLimit: 8, color: cssVar('--ink-3'), font: { family: 'Sarabun' } }, grid: { color: cssVar('--line') } }, y: { ticks: { color: cssVar('--ink-3') }, grid: { color: cssVar('--line') }, title: { display: !!unit, text: unit } } } } });
+      // สรุประดับ (นับทุกจุดของทุกสถานีที่แสดง)
+      const all = rows.map((r) => key ? levelOf(key, r.v) : 'none');
+      const n = Object.fromEntries(LV.map((l) => [l.key, all.filter((x) => x === l.key).length]));
+      $('#histKpis').innerHTML = LV.map((l) => `<div class="kpi" style="background:${l.color}"><div class="v">${n[l.key]}</div><div class="l">${l.key === 'none' ? 'ไม่มีเกณฑ์/ไม่มีข้อมูล' : l.name}</div></div>`).join('');
+      // คำอธิบาย
+      const latestLv = key ? levelOf(key, s0.latest?.[param]?.value) : 'none';
+      $('#explain').innerHTML = info ? `<h4>${esc(info.name)} ${info.unit ? '(' + esc(info.unit) + ')' : ''}</h4><div>${esc(info.desc)}</div><div><b>เกณฑ์อ้างอิง:</b> ${esc(info.std)}${info.dir === 'high' ? ' · ยิ่งสูงยิ่งดี' : info.dir === 'low' ? ' · ยิ่งต่ำยิ่งดี' : info.dir === 'range' ? ' · ต้องอยู่ในช่วง' : ''}</div>` +
+        (info.bands.length ? `<div class="th">${info.bands.map(([k, t]) => `<span style="background:${lvOf(k).color}">${lvOf(k).name}: ${esc(t)}</span>`).join('')}</div>` : '<div style="color:var(--ink-3)">พารามิเตอร์นี้ไม่มีเกณฑ์แบ่งระดับ จึงแสดงจุดสีเทาและใช้เส้นอ้างอิงประกอบ</div>') +
+        `<div><b>สรุป ${esc(s0.name_th)}:</b> ค่าล่าสุด ${fmt(s0.latest?.[param]?.value, 3)} ${esc(unit)} (${s0.latest?.[param]?.at ? ago(s0.latest[param].at) : '–'}) อยู่ในระดับ <span style="color:${lvOf(latestLv).color};font-weight:600">${lvOf(latestLv).name}</span> · ช่วงที่แสดง: ${series.length} สถานี ${rows.length} จุด → ดี ${n.good} · พอใช้ ${n.fair} · เสื่อมโทรม ${n.poor} · เสื่อมโทรมมาก ${n.bad} · ไม่มีเกณฑ์/ไม่มีข้อมูล ${n.none}</div>`
+        : `<h4>${esc(param)}</h4><div style="color:var(--ink-3)">ยังไม่มีคำอธิบายและเกณฑ์สำหรับพารามิเตอร์นี้</div>`;
+      // ตารางรายสถานีในขอบเขต
+      const stat = (arr) => { const v = arr.filter((x) => x != null); return v.length ? { n: v.length, min: Math.min(...v), max: Math.max(...v), avg: v.reduce((a, b) => a + b, 0) / v.length, last: v.at(-1) } : null; };
+      $('#seriesTb').innerHTML = series.length ? `<thead><tr><th>สถานี</th><th>จังหวัด</th><th>จุด</th><th>ต่ำสุด</th><th>เฉลี่ย</th><th>สูงสุด</th><th>ล่าสุดในช่วง</th><th>ระดับล่าสุด</th></tr></thead><tbody>` +
+        series.map((x) => { const st = stat(x.data); const lv = key ? levelOf(key, st?.last) : 'none'; return `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${x.color};margin-right:6px"></i>${esc(x.s.name_th)}</td><td>${esc(x.s.province ?? '')}</td><td>${st?.n ?? 0}</td><td>${fmt(st?.min, 2)}</td><td>${fmt(st?.avg, 2)}</td><td>${fmt(st?.max, 2)}</td><td>${fmt(st?.last, 2)}</td><td><span style="color:${lvOf(lv).color};font-weight:600">${lvOf(lv).name}</span></td></tr>`; }).join('') + '</tbody>' : '';
     }
+    // ค่าเริ่มต้น: สถานีจากแจ้งเตือนแรก (IWIS) ถ้ามี
     const first = alerts.find((a) => byId.has(String(a.sid))) ?? null;
-    $('#selStation').value = first ? String(first.sid) : String(stations[0]?.id ?? '');
-    fillParams(byId.get($('#selStation').value)); if (first) $('#selParam').value = first.param;
-    $('#selStation').addEventListener('change', () => { fillParams(byId.get($('#selStation').value)); loadHistory(); });
+    $('#selSource').value = first ? byId.get(String(first.sid)).source_id : 'pcd_iwis';
+    fillStations();
+    if (first) $('#selStation').value = String(first.sid);
+    fillParams(); if (first && [...$('#selParam').options].some((o) => o.value === first.param)) $('#selParam').value = first.param;
+    $('#selSource').addEventListener('change', () => { fillStations(); fillParams(); loadHistory(); });
+    $('#selStation').addEventListener('change', () => { fillParams(); loadHistory(); });
     $('#selParam').addEventListener('change', loadHistory);
+    document.querySelectorAll('input[name=scope]').forEach((r) => r.addEventListener('change', loadHistory));
     $('#btnHourly').addEventListener('click', () => { mode = 'hourly'; $('#btnHourly').classList.add('on'); $('#btnDaily').classList.remove('on'); loadHistory(); });
     $('#btnDaily').addEventListener('click', () => { mode = 'daily'; $('#btnDaily').classList.add('on'); $('#btnHourly').classList.remove('on'); loadHistory(); });
-    for (const sel of ['#alerts', '#pomsTop']) $(sel).addEventListener('click', (e) => { const el = e.target.closest('.al'); if (!el || !byId.has(el.dataset.sid)) return; $('#selStation').value = el.dataset.sid; fillParams(byId.get(el.dataset.sid)); if (el.dataset.param) $('#selParam').value = el.dataset.param; loadHistory(); $('#hist').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    for (const sel of ['#alerts', '#pomsTop']) $(sel).addEventListener('click', (e) => {
+      const el = e.target.closest('.al'); if (!el || !byId.has(el.dataset.sid)) return;
+      $('#selSource').value = byId.get(el.dataset.sid).source_id; fillStations(); $('#selStation').value = el.dataset.sid; fillParams();
+      if (el.dataset.param && [...$('#selParam').options].some((o) => o.value === el.dataset.param)) $('#selParam').value = el.dataset.param;
+      loadHistory(); $('#hist').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
     await loadHistory();
-    $('#credit').textContent = 'ที่มา: กรมควบคุมมลพิษ IWIS (api-iwis.pcd.go.th) · กรมโรงงานอุตสาหกรรม POMS (poms.diw.go.th) · เกณฑ์ระดับ DO ตามการจำแนกของ คพ. · ข้อมูลรายชั่วโมงเก็บ 7 วัน ค่าเฉลี่ยรายวันเก็บระยะยาว';
+    $('#credit').textContent = 'ที่มา: กรมควบคุมมลพิษ IWIS (api-iwis.pcd.go.th), Air4Thai, DSPOT · กรมโรงงานอุตสาหกรรม POMS (poms.diw.go.th) · GISTDA PM2.5 · เกณฑ์ระดับตามมาตรฐานคุณภาพน้ำผิวดิน/น้ำทิ้ง/อากาศของ คพ. · ข้อมูลรายชั่วโมงเก็บ 7 วัน ค่าเฉลี่ยรายวันเก็บระยะยาว';
   </script>
 </body>
 </html>
