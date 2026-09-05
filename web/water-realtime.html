@@ -337,8 +337,18 @@
       $('#selParam').innerHTML = keys.map((k) => `<option value="${esc(k)}">${esc(paramLabel(k, kind))}${s.latest[k].unit ? ' (' + esc(s.latest[k].unit) + ')' : ''}</option>`).join('');
       const pref = keys.find((k) => /(^|:)(DO|COD|PM25|bod_out)$/.test(k)); if (pref) $('#selParam').value = pref;
     }
+    /** ข้อความเครื่องมือวัดใต้พารามิเตอร์ — แสดงเท่าที่ต้นทางเปิดเผย (ตรวจ 5 ก.ย. 69: ไม่มีแหล่งใดให้ยี่ห้อ/รุ่นหัววัด) */
+    function sensorText(s, param, src) {
+      const v = s.latest?.[param] ?? {};
+      if (src === 'diw_poms') return `เซนเซอร์ออนไลน์ ${v.type ?? 'WPMS'} ของโรงงาน จุดวัด "${v.name ?? v.code ?? '–'}" (รหัส ${v.code ?? '–'})${v.treatment ? ` · ระบบบำบัด: ${v.treatment}` : ''} · ส่งค่าเข้าระบบ POMS กรมโรงงานฯ ทุกชั่วโมง · ต้นทางไม่เปิดเผยยี่ห้อ/รุ่นเครื่องวัด`;
+      if (src === 'pcd_iwis') return `สถานีตรวจวัดคุณภาพน้ำอัตโนมัติ คพ. (หัววัดแบบ multi-parameter probe วัดทุก 30 นาที)${s.meta?.logger ? ` · เครื่องบันทึก: ${s.meta.logger}` : ''}${s.meta?.project ? ` · โครงการ: ${s.meta.project}` : ''} · ต้นทางไม่เปิดเผยยี่ห้อ/รุ่นหัววัด`;
+      if (src === 'air4thai') return `สถานีตรวจวัดคุณภาพอากาศอัตโนมัติ คพ. (ชนิดสถานี ${s.meta?.station_type ?? s.station_type ?? '–'}) เครื่องวัดอ้างอิงตามวิธีมาตรฐาน คพ. (PM2.5/PM10 แบบ Beta Attenuation หรือ TEOM, ก๊าซแบบ UV/Chemiluminescence/IR) · ต้นทางไม่ระบุยี่ห้อรายสถานี`;
+      if (src === 'gistda_pm25') return 'ค่าประมาณจากภาพดาวเทียม (GISTDA เช็คฝุ่น) ไม่ใช่เซนเซอร์ภาคพื้น · ความละเอียดระดับจังหวัด';
+      if (src === 'pcd_dspot') return `ผลตรวจวิเคราะห์ในห้องปฏิบัติการ (เก็บตัวอย่าง ณ วันที่ ${s.meta?.date_quality ?? '–'}) รายงานโดยผู้เดินระบบ ${s.meta?.operator ?? '–'} เข้าระบบ DSPOT · ไม่ใช่เซนเซอร์ต่อเนื่อง`;
+      return 'ไม่มีข้อมูลเครื่องมือวัดจากต้นทาง';
+    }
     let mode = 'hourly', chart;
-    const PALETTE = ['#2e7d32', '#1d4ed8', '#be123c', '#a16207', '#7c3aed', '#0e7490', '#c2410c', '#4d7c0f', '#9d174d', '#374151', '#0f766e', '#b45309'];
+    const PALETTE =['#2e7d32', '#1d4ed8', '#be123c', '#a16207', '#7c3aed', '#0e7490', '#c2410c', '#4d7c0f', '#9d174d', '#374151', '#0f766e', '#b45309'];
     async function loadHistory() {
       const src = $('#selSource').value, kind = srcOf(src).kind, s0 = byId.get($('#selStation').value), param = $('#selParam').value;
       if (!s0 || !param) return;
@@ -389,6 +399,7 @@
       const latestLv = key ? levelOf(key, s0.latest?.[param]?.value) : 'none';
       $('#explain').innerHTML = info ? `<h4>${esc(info.name)} ${info.unit ? '(' + esc(info.unit) + ')' : ''}</h4><div>${esc(info.desc)}</div><div><b>เกณฑ์อ้างอิง:</b> ${esc(info.std)}${info.dir === 'high' ? ' · ยิ่งสูงยิ่งดี' : info.dir === 'low' ? ' · ยิ่งต่ำยิ่งดี' : info.dir === 'range' ? ' · ต้องอยู่ในช่วง' : ''}</div>` +
         (info.bands.length ? `<div class="th">${info.bands.map(([k, t]) => `<span style="background:${lvOf(k).color}">${lvOf(k).name}: ${esc(t)}</span>`).join('')}</div>` : '<div style="color:var(--ink-3)">พารามิเตอร์นี้ไม่มีเกณฑ์แบ่งระดับ จึงแสดงจุดสีเทาและใช้เส้นอ้างอิงประกอบ</div>') +
+        `<div><b>เครื่องมือวัด:</b> ${esc(sensorText(s0, param, src))}</div>` +
         `<div><b>สรุป ${esc(s0.name_th)}:</b> ค่าล่าสุด ${fmt(s0.latest?.[param]?.value, 3)} ${esc(unit)} (${s0.latest?.[param]?.at ? ago(s0.latest[param].at) : '–'}) อยู่ในระดับ <span style="color:${lvOf(latestLv).color};font-weight:600">${lvOf(latestLv).name}</span> · ช่วงที่แสดง: ${series.length} สถานี ${rows.length} จุด → ดี ${n.good} · พอใช้ ${n.fair} · เสื่อมโทรม ${n.poor} · เสื่อมโทรมมาก ${n.bad} · ไม่มีเกณฑ์/ไม่มีข้อมูล ${n.none}</div>`
         : `<h4>${esc(param)}</h4><div style="color:var(--ink-3)">ยังไม่มีคำอธิบายและเกณฑ์สำหรับพารามิเตอร์นี้</div>`;
       // ตารางรายสถานีในขอบเขต

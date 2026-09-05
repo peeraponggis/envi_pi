@@ -216,7 +216,8 @@
       const row = (k, v) => v == null || v === '' ? '' : `<tr><td>${k}</td><td>${v}</td></tr>`;
       if (r.layer === 'bkk') return `<b class="t">${esc(r.name)}</b><br><span class="tag">กทม. สำนักการระบายน้ำ</span><table>${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('พื้นที่บริการ', esc(r.service))}${row('ที่ตั้ง', esc(r.location))}${row('ท่อรวบรวม', esc(r.pipe_km) + ' กม.')}${row('ปล่อยลง', esc(r.discharge))}</table>`;
       if (r.layer === 'poms') {
-        const cell = ([k, v]) => `<div><span>${esc(k)}</span><b>${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">${esc(v.name ?? v.type)}${(v.severity ?? 1) >= 2 ? ' · เกินเกณฑ์' : ''}</span></div>`;
+        // ใต้ค่าแต่ละตัว: ชนิดเซนเซอร์/จุดวัด/ระบบบำบัด เท่าที่ POMS เปิดเผย (ไม่มียี่ห้อเครื่อง)
+        const cell = ([k, v]) => `<div><span>${esc(k)}</span><b>${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">เซนเซอร์ ${esc(v.type ?? '')} จุดวัด ${esc(v.name ?? v.code ?? '')}${v.treatment ? ' · ' + esc(v.treatment) : ''}${(v.severity ?? 1) >= 2 ? ' · <b style="color:var(--crit)">เกินเกณฑ์</b>' : ''}</span></div>`;
         return `<b class="t">${esc(r.name)}</b><br><span class="tag">กรมโรงงานฯ POMS</span> <span class="tag">${esc(r.status)}</span>
           <table>${row('ประเภท', esc(r.type))}${row('นิคม/เขต', esc(r.colony ?? r.industry_type))}${row('ทะเบียน', esc(r.reg_no))}${row('ที่อยู่', esc(r.area_th))}${row('ค่าล่าสุด', r.observed_at ? ago(r.observed_at) : null)}</table>
           ${r.water.length ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">เซนเซอร์น้ำทิ้ง (WPMS)</div><div class="rt">${r.water.map(cell).join('')}</div>` : ''}
@@ -226,7 +227,7 @@
         const ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N'];
         const cells = ORDER.filter((k) => r.latest[k]).map((k) => { const v = r.latest[k]; return `<div><span>${k}</span><b style="color:${v.color && v.color !== '#808080' ? v.color : 'inherit'}">${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">${esc(v.level ?? '')}</span></div>`; });
         return `<b class="t">${esc(r.name)}</b><br><span class="tag">คพ. IWIS สถานีอัตโนมัติ</span> <span class="tag">${esc(r.status)}</span>
-          <table>${row('แหล่งน้ำ', esc(r.water_source))}${row('ลุ่มน้ำ', esc(r.main_basin))}${row('ที่ตั้ง', esc(r.place))}${row('จังหวัด', esc(r.province))}${row('ค่าล่าสุด', r.observed_at ? ago(r.observed_at) : null)}</table>
+          <table>${row('แหล่งน้ำ', esc(r.water_source))}${row('ลุ่มน้ำ', esc(r.main_basin))}${row('ที่ตั้ง', esc(r.place))}${row('จังหวัด', esc(r.province))}${row('ค่าล่าสุด', r.observed_at ? ago(r.observed_at) : null)}${row('เครื่องมือ', 'หัววัดอัตโนมัติ multi-parameter วัดทุก 30 นาที' + (r.logger ? ' · เครื่องบันทึก ' + esc(r.logger) : '') + ' · ต้นทางไม่เปิดเผยยี่ห้อ')}</table>
           <div class="rt">${cells.join('')}</div>`;
       }
       if (r.layer === 'onep') return `<b class="t">${esc(r.agency)}</b><br><span class="tag">สผ. เงินอุดหนุนแผนฯ จังหวัด</span> <span class="tag">พิกัดระดับ${r.geocode === 'tambon' ? 'ตำบล' : 'อำเภอ'}</span><table>${row('ระบบ', esc(r.type) + ' (' + esc(r.type_code) + ')')}${row('สถานภาพ', esc(r.status))}${row('รองรับ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('งบประมาณปี', r.year_budget)}${row('เปิดใช้ปี', r.year_op)}${row('ที่ตั้ง', esc(r.location))}${row('แหล่งงบ', esc(r.fund))}</table>`;

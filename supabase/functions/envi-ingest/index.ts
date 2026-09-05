@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.4.0"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR) · 1.3.0: handler pcd_dspot · 1.4.0: handler diw_poms (เซนเซอร์โรงงาน) + pcd_iwis (สถานีแม่น้ำ)
+export const VERSION = "1.4.1"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR) · 1.3.0: handler pcd_dspot · 1.4.0: handler diw_poms + pcd_iwis · 1.4.1: เก็บข้อมูลเครื่องมือ (POMS treatment · IWIS logger/project)
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -674,7 +674,8 @@ async function diw_poms(ctx: Ctx): Promise<HandlerResult> {
         const parameter = `${code}:${p.name}`;
         if (isWater) obs.push({ station_id: id, observed_at: at, parameter, value: v, unit, quality: v === null || pv.isError ? "missing" : "ok" });
         latest.push({ station_id: id, parameter, observed_at: at, value: v, unit,
-          extra: { type, code, name: m.measName ?? null, severity: pv.severity ?? null, error: pv.isError ? (pv.errMsg ?? true) : null, channel: pv.channel ?? null } });
+          extra: { type, code, name: m.measName ?? null, treatment: m.treatmentSystemDetail || null, severity: pv.severity ?? null, error: pv.isError ? (pv.errMsg ?? true) : null, channel: pv.channel ?? null,
+                   sensor: null /* POMS ไม่เปิดชื่อ/ยี่ห้อเครื่องวัดสาธารณะ (get/instrument ต้องล็อกอิน) */ } });
       }
     }
   });
@@ -704,7 +705,11 @@ async function pcd_iwis(ctx: Ctx): Promise<HandlerResult> {
       area_th: [s.water_source_name, s.province_name && ("จ." + s.province_name)].filter(Boolean).join(" ") || null, province: s.province_name ?? null,
       station_type: "river_auto", lat, lng,
       meta: { station_code: s.station_code ?? null, place: ms.PLACE ?? null, water_source: s.water_source_name ?? null, main_basin: s.main_basin_name || null,
-              region: s.region_name ?? null, station_uuid: ms.STATION_UUID ?? null, sub_basin_uuid: ms.SUB_BASIN_UUID ?? null } });
+              region: s.region_name ?? null, station_uuid: ms.STATION_UUID ?? null, sub_basin_uuid: ms.SUB_BASIN_UUID ?? null,
+              amphoe: ms.AMPHURE_NAME ?? null, tambon: ms.DISTRICT_NAME ?? null, station_year: ms.STATION_YEAR ?? null,
+              // ข้อมูลเครื่องมือเท่าที่ต้นทางเปิด: LOGGER = เครื่องบันทึก/ส่งข้อมูล · PROJECT_NAME = โครงการติดตั้ง · ไม่มีชื่อยี่ห้อหัววัด
+              logger: ms.LOGGER || null, project: ms.PROJECT_NAME || null, station_type_name: ms.STATION_TYPE_NAME || null, organization: ms.ORGANIZATION_CODE || null,
+              param_ignore: ms.PARAMETER_IGNORE || null } });
   }
   const ids = await upsertStations(ctx, "pcd_iwis", stRows);
 
