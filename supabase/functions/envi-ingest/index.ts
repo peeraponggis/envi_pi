@@ -19,7 +19,7 @@
 //
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-export const VERSION = "1.2.1"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR)
+export const VERSION = "1.3.0"; // 1.0.1: CA YR1 air4thai · 1.1.0: action forecast (TMD NWP) + CORS · 1.2.0: GISTDA flood layer + action burnscar · 1.2.1: dedupe ก่อน upsert (DGR) · 1.3.0: handler pcd_dspot (ระบบบำบัดน้ำเสีย)
 
 type Json = Record<string, unknown>;
 type HandlerResult = { rows: number; cursor?: Json; note?: string };
@@ -549,12 +549,74 @@ async function burnScarAt(sb: SupabaseClient, lat: number, lng: number): Promise
   return { ...payload, cached: false, fetched_at: new Date().toISOString() };
 }
 
+/**
+ * คพ. DSPOT — ระบบบำบัดน้ำเสียรวมชุมชน/กลุ่มอาคาร ทั้งประเทศ (216 ระบบ, รายงานปีล่าสุด)
+ *   หน้า https://dspot.pcd.go.th/database/s?area= เป็น Next.js ฝัง JSON ใน <script id="__NEXT_DATA__"> → props.pageProps.reports[]
+ *   ไม่ใช้ /_next/data/<buildId>/…json เพราะ buildId เปลี่ยนทุก deploy · ไม่มี CORS จึงต้องผ่านที่นี่
+ *   → stations (station_type wwtp, meta = รายงานทั้งก้อนแบบตัดฟิลด์รูป) + observations คุณภาพน้ำ ณ วันตรวจ (date_quality)
+ */
+async function pcd_dspot(ctx: Ctx): Promise<HandlerResult> {
+  const html = await fetchText(String(ctx.source.url));
+  const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!m) throw new Error("ไม่พบ __NEXT_DATA__ ในหน้า DSPOT (โครงสร้างหน้าเปลี่ยน?)");
+  const nd = JSON.parse(m[1]) as Json;
+  const reports = ((nd.props as Json)?.pageProps as Json)?.reports as Json[] | undefined;
+  if (!Array.isArray(reports) || reports.length === 0) throw new Error("DSPOT reports ว่าง");
+
+  const stRows: Json[] = [];
+  const byExt = new Map<string, Json>();
+  for (const r of reports) {
+    const lat = num(r.lat), lng = num(r.lng);
+    if (lat === null || lng === null || lat < 5 || lat > 21 || lng < 97 || lng > 106) continue;
+    const ext = String(r.plant_id ?? r._id);
+    const meta: Json = {
+      manage_type: r.manage_type ?? null, status: r.wwt_status ?? null, plant_type: r.plant_type ?? null, operator: r.unit_op ?? null,
+      level_gov: r.level_gov ?? null, local_name: r.local_name ?? null, region: r.region ?? null, zone: r.zone ?? null,
+      capacity: num(r.capacity), inflow_pct: num(r.p_inflow), avg_inflow: num(r.avg_collect_waste), pop: num(r.total_pop), service_pct: num(r.p_service_area),
+      basin: r.basin || null, river: r.river || null, discharge: r.discharge_place || null, year_op: num(r.year_op), cost_mb: num(r.total_const_cost),
+      fund: r.unit_fund || null, fee: r.fee_charge || null, location: r.location || null, report_year: num(r.report_year), report_status: r.report_status ?? null,
+      date_quality: r.date_quality || null,
+      wq: { bod_in: num(r.bod_inflow), bod_out: num(r.bod_discharge), tss_in: num(r.tss_inflow), tss_out: num(r.tss_discharge), ph_in: num(r.ph_inflow), ph_out: num(r.ph_discharge),
+            tn_in: num(r.tn_inflow), tn_out: num(r.tn_discharge), tp_in: num(r.tp_inflow), tp_out: num(r.tp_discharge), fog_in: num(r.fog_inflow), fog_out: num(r.fog_discharge) },
+      remark: typeof r.remark_general === "string" ? r.remark_general.slice(0, 400) : null,
+      photo: Array.isArray(r.plant_photos) && (r.plant_photos[0] as Json)?.photo_src ? (r.plant_photos[0] as Json).photo_src : null,
+    };
+    stRows.push({ ext_id: ext, name_th: r.plant_name ?? r.local_name ?? ext, area_th: [r.local_name, r.province && ("จ." + r.province)].filter(Boolean).join(" "),
+      province: r.province ?? null, station_type: "wwtp", lat, lng, meta });
+    byExt.set(ext, r);
+  }
+  const ids = await upsertStations(ctx, "pcd_dspot", stRows);
+
+  // observations: ค่าน้ำ ณ วันตรวจ (ถ้าไม่มีวันตรวจใช้ 1 ม.ค. ของปีรายงาน ค.ศ.)
+  const PARAMS: [string, string, string][] = [["bod_in", "bod_inflow", "mg/L"], ["bod_out", "bod_discharge", "mg/L"], ["tss_in", "tss_inflow", "mg/L"], ["tss_out", "tss_discharge", "mg/L"],
+    ["ph_in", "ph_inflow", ""], ["ph_out", "ph_discharge", ""], ["inflow_pct", "p_inflow", "%"], ["avg_inflow", "avg_collect_waste", "m³/d"]];
+  const obs: Json[] = [], latest: Json[] = [];
+  for (const [ext, r] of byExt) {
+    const id = ids.get(ext);
+    if (!id) continue;
+    const dq = String(r.date_quality ?? "");
+    const yr = num(r.report_year); const ce = yr === null ? null : (yr > 2400 ? yr - 543 : yr);
+    const at = /^\d{4}-\d{2}-\d{2}$/.test(dq) ? `${dq}T00:00:00+07:00` : ce ? `${ce}-01-01T00:00:00+07:00` : null;
+    if (!at) continue;
+    for (const [p, key, unit] of PARAMS) {
+      const v = num(r[key]);
+      if (v === null) continue;                                   // ไม่เก็บค่าว่าง/"-" (รายงานส่วนใหญ่ไม่มี TSS)
+      obs.push({ station_id: id, observed_at: at, parameter: p, value: v, unit, quality: "ok" });
+      latest.push({ station_id: id, parameter: p, observed_at: at, value: v, unit, extra: { report_year: yr } });
+    }
+  }
+  const n1 = await upsert(ctx, "observations", obs, "station_id,parameter,observed_at");
+  await upsert(ctx, "latest_observations", latest, "station_id,parameter");
+  const running = stRows.filter((s) => (s.meta as Json).status === "เดินระบบ").length;
+  return { rows: stRows.length, note: `ระบบ ${stRows.length} (เดินระบบ ${running}) · ค่าน้ำ ${n1} · buildId ${nd.buildId ?? "?"}` };
+}
+
 async function not_ready(_ctx: Ctx): Promise<HandlerResult> {
   throw new Error("handler นี้อยู่ในเฟสถัดไป (ต้องมี api key) — ดู docs/แหล่งข้อมูลราชการ.md");
 }
 
 const HANDLERS: Record<string, (c: Ctx) => Promise<HandlerResult>> = {
-  air4thai, gistda_pm25, gistda_hotspot, tmd_quake, dgr_wells, royalrain, gistda_flood,
+  air4thai, gistda_pm25, gistda_hotspot, tmd_quake, dgr_wells, royalrain, gistda_flood, pcd_dspot,
   tmd_today: tmd_obs, tmd_3h: tmd_obs,
   firms: not_ready, tmd_nwp: not_ready,
 };
