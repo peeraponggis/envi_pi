@@ -71,6 +71,7 @@
   <header class="bar">
     <div><h1>💧 คุณภาพน้ำ/อากาศเรียลไทม์</h1><div class="sub">แม่น้ำ (คพ. IWIS) · น้ำทิ้งโรงงาน (กรมโรงงานฯ POMS) · อากาศ (คพ. Air4Thai) · ระบบบำบัดชุมชน (DSPOT) · จาก Supabase</div></div>
     <div class="spacer"></div>
+    <a href="report.html">📄 ส่งออกรายงาน</a>
     <a href="wastewater.html">แผนที่ระบบบำบัดน้ำเสีย →</a>
     <span class="badge" id="badge">กำลังโหลด…</span>
   </header>
@@ -121,20 +122,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script type="module">
     import { getClient, fetchStationsLatest, ago } from './js/envi-core.js';
+    import { LV, lvOf, PARAM_INFO, ALIAS, infoKey, levelOf, pcdLevel, REGIONS, regionOf } from './js/param-info.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const fmt = (n, d = 2) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
     const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-    const LV = [
-      { key: 'good', name: 'ดี', color: cssVar('--lv-good'), desc: 'DO ≥ 6.0 mg/L' },
-      { key: 'fair', name: 'พอใช้', color: cssVar('--lv-fair'), desc: 'DO 4.0 – 5.9 mg/L' },
-      { key: 'poor', name: 'เสื่อมโทรม', color: cssVar('--lv-poor'), desc: 'DO 2.0 – 3.9 mg/L' },
-      { key: 'bad', name: 'เสื่อมโทรมมาก', color: cssVar('--lv-bad'), desc: 'DO 0 – 1.9 mg/L' },
-      { key: 'none', name: 'ไม่ระบุ', color: cssVar('--lv-none'), desc: 'ไม่มีค่า' },
-    ];
-    const lvOf = (k) => LV.find((l) => l.key === k);
+    const LV_DESC = { good: 'DO ≥ 6.0 mg/L', fair: 'DO 4.0 – 5.9 mg/L', poor: 'DO 2.0 – 3.9 mg/L', bad: 'DO 0 – 1.9 mg/L', none: 'ไม่มีค่า' };
     const doLevel = (v) => v == null || isNaN(v) ? 'none' : v >= 6 ? 'good' : v >= 4 ? 'fair' : v >= 2 ? 'poor' : 'bad';
-    const pcdLevel = (txt) => ({ 'ดีมาก': 'good', 'ดี': 'good', 'พอใช้': 'fair', 'เสื่อมโทรม': 'poor', 'เสื่อมโทรมมาก': 'bad' }[txt] ?? null);
     /** ระดับของค่าใด ๆ ตามพารามิเตอร์ (ใช้ระบายสีจุดกราฟ) */
     const levelFor = (param, v) => {
       if (v == null) return 'none';
@@ -176,7 +170,7 @@
       const total = bySource.size, r = 46, c = 2 * Math.PI * r; let acc = 0, paths = '';
       for (const l of LV) { const n = srcCount[l.key]; if (!n) continue; const len = c * n / total; paths += `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${l.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 60 60)"/>`; acc += len; }
       $('#donut').innerHTML = paths + `<text x="60" y="56" text-anchor="middle" class="center">รวมทั้งหมด</text><text x="60" y="76" text-anchor="middle" class="total">${total}</text>`;
-      $('#donutLg').innerHTML = LV.map((l) => `<div><i style="background:${l.color}"></i>${l.name} <small style="color:var(--ink-3)">(${l.desc})</small><b>${srcCount[l.key]}</b></div>`).join('');
+      $('#donutLg').innerHTML = LV.map((l) => `<div><i style="background:${l.color}"></i>${l.name} <small style="color:var(--ink-3)">(${LV_DESC[l.key]})</small><b>${srcCount[l.key]}</b></div>`).join('');
     })();
 
     // ── 2. รายชื่อแหล่งน้ำต่อระดับ ──
@@ -199,7 +193,6 @@
     $('#alerts').innerHTML = alerts.length ? alerts.map((a) => `<div class="al" data-sid="${a.sid}" data-param="${esc(a.param)}" style="cursor:pointer"><div class="ic" style="background:${lvOf(a.lv).color}">💧</div><div><div class="d">${new Date(a.at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}</div><b>${esc(a.title)}</b>${esc(a.text)}</div><div class="t">${thTime(a.at, false)}</div></div>`).join('') : '<div class="empty">ไม่มีการแจ้งเตือน</div>';
 
     // ── 4. ภูมิภาค: แท่งซ้อน + ตาราง (สถานี IWIS) ──
-    const REGIONS = ['ภาคเหนือ', 'ภาคกลาง', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคตะวันออก', 'ภาคตะวันตก', 'ภาคใต้'];
     const regs = [...new Set([...REGIONS.filter((r) => iw.some((s) => s.region === r)), ...iw.map((s) => s.region)])];
     const cnt = (r, k) => iw.filter((s) => (r === null || s.region === r) && s.lv === k).length;
     const shown = ['good', 'fair', 'poor', 'bad'];
@@ -256,74 +249,8 @@
       { id: 'air4thai', name: 'คพ. Air4Thai คุณภาพอากาศ (รายชั่วโมง)', kind: 'air' },
       { id: 'gistda_pm25', name: 'GISTDA PM2.5 ดาวเทียม รายจังหวัด (รายชั่วโมง)', kind: 'air' },
     ];
-    const REGION_OF = (() => {
-      const m = {};
-      const put = (r, list) => list.forEach((p) => { m[p] = r; });
-      put('ภาคเหนือ', ['เชียงราย', 'เชียงใหม่', 'น่าน', 'พะเยา', 'แพร่', 'แม่ฮ่องสอน', 'ลำปาง', 'ลำพูน', 'อุตรดิตถ์']);
-      put('ภาคกลาง', ['กรุงเทพมหานคร', 'กำแพงเพชร', 'ชัยนาท', 'นครนายก', 'นครปฐม', 'นครสวรรค์', 'นนทบุรี', 'ปทุมธานี', 'พระนครศรีอยุธยา', 'พิจิตร', 'พิษณุโลก', 'เพชรบูรณ์', 'ลพบุรี', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'อ่างทอง', 'อุทัยธานี']);
-      put('ภาคตะวันออกเฉียงเหนือ', ['กาฬสินธุ์', 'ขอนแก่น', 'ชัยภูมิ', 'นครพนม', 'นครราชสีมา', 'บึงกาฬ', 'บุรีรัมย์', 'มหาสารคาม', 'มุกดาหาร', 'ยโสธร', 'ร้อยเอ็ด', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อำนาจเจริญ', 'อุดรธานี', 'อุบลราชธานี']);
-      put('ภาคตะวันออก', ['จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ตราด', 'ปราจีนบุรี', 'ระยอง', 'สระแก้ว']);
-      put('ภาคตะวันตก', ['กาญจนบุรี', 'ตาก', 'ประจวบคีรีขันธ์', 'เพชรบุรี', 'ราชบุรี']);
-      put('ภาคใต้', ['กระบี่', 'ชุมพร', 'ตรัง', 'นครศรีธรรมราช', 'นราธิวาส', 'ปัตตานี', 'พังงา', 'พัทลุง', 'ภูเก็ต', 'ยะลา', 'ระนอง', 'สงขลา', 'สตูล', 'สุราษฎร์ธานี']);
-      return (p) => m[String(p ?? '').replace(/^จ\.\s*/, '').replace(/\s+/g, '').replace('จังหวัด', '')] ?? null;
-    })();
-    /** คำอธิบาย + เกณฑ์ต่อพารามิเตอร์ (key = ชื่อพารามิเตอร์หลัง ':' หรือชื่อเต็ม) · thresholds ใช้ระบายสีจุดและวาดเส้นอ้างอิง */
-    const PARAM_INFO = {
-      DO: { name: 'ออกซิเจนละลายน้ำ (DO)', unit: 'mg/L', desc: 'ปริมาณออกซิเจนที่ละลายอยู่ในน้ำ ยิ่งสูงสัตว์น้ำยิ่งอยู่ได้ · ต่ำกว่า 2 mg/L สัตว์น้ำเริ่มตาย', std: 'มาตรฐานแหล่งน้ำผิวดินประเภทที่ 3 (คพ.): DO ≥ 4.0 mg/L', dir: 'high', lines: [{ v: 6, l: 'ดี ≥ 6' }, { v: 4, l: 'มาตรฐาน 4' }, { v: 2, l: 'วิกฤต 2' }], bands: [['good', '≥ 6.0'], ['fair', '4.0 – 5.9'], ['poor', '2.0 – 3.9'], ['bad', '< 2.0']] },
-      PH: { name: 'ความเป็นกรด-ด่าง (pH)', unit: '', desc: 'ค่ากลาง 7 · น้ำธรรมชาติปกติ 6.5–8.5 · เบี่ยงมากกระทบสิ่งมีชีวิตและการบำบัด', std: 'มาตรฐานแหล่งน้ำผิวดิน 5.0–9.0 · น้ำทิ้ง 5.5–9.0', dir: 'range', lines: [{ v: 9, l: 'สูงสุด 9.0' }, { v: 5.5, l: 'ต่ำสุด 5.5' }], bands: [['good', '5.5 – 9.0'], ['fair', '5.0 – 5.4 หรือ 9.1 – 9.5'], ['bad', 'นอกช่วง 5.0 – 9.5']] },
-      EC: { name: 'การนำไฟฟ้า (EC)', unit: 'µS/cm', desc: 'บอกปริมาณเกลือ/ไอออนที่ละลายในน้ำ สูงขึ้นเมื่อน้ำเค็มหนุนหรือมีน้ำทิ้งปนเปื้อน', std: 'ไม่มีค่ามาตรฐานตรง · น้ำจืดทั่วไป < 1,000 µS/cm', dir: 'none', lines: [{ v: 1000, l: 'น้ำจืด < 1,000' }], bands: [] },
-      Temp: { name: 'อุณหภูมิน้ำ', unit: '°C', desc: 'อุณหภูมิสูงทำให้ออกซิเจนละลายได้น้อยลง', std: 'มาตรฐานแหล่งน้ำผิวดิน: ไม่สูงกว่าธรรมชาติเกิน 3 °C', dir: 'none', lines: [], bands: [] },
-      Salinity: { name: 'ความเค็ม', unit: 'ppt', desc: 'ปริมาณเกลือ · น้ำจืด < 0.5 ppt · เกิน 2 ppt ไม่เหมาะกับการเกษตร', std: 'น้ำใช้เพื่อการเกษตร ≤ 2 ppt (กรมชลประทาน)', dir: 'low', lines: [{ v: 0.5, l: 'น้ำจืด 0.5' }, { v: 2, l: 'เกษตร 2' }], bands: [['good', '≤ 0.5'], ['fair', '0.6 – 2.0'], ['poor', '2.1 – 5.0'], ['bad', '> 5.0']] },
-      Tur: { name: 'ความขุ่น', unit: 'NTU', desc: 'ตะกอนแขวนลอยในน้ำ · สูงเมื่อมีน้ำหลาก/การชะล้างหน้าดิน', std: 'ไม่มีค่ามาตรฐานแหล่งน้ำผิวดินโดยตรง · น้ำประปา ≤ 5 NTU', dir: 'none', lines: [], bands: [] },
-      NH4N: { name: 'แอมโมเนีย-ไนโตรเจน (NH4-N)', unit: 'mg/L', desc: 'บ่งชี้น้ำเสียจากชุมชน/ปศุสัตว์ · สูงเป็นพิษต่อสัตว์น้ำ', std: 'มาตรฐานแหล่งน้ำผิวดินประเภท 3: ≤ 0.5 mg/L', dir: 'low', lines: [{ v: 0.5, l: 'มาตรฐาน 0.5' }], bands: [['good', '≤ 0.5'], ['fair', '0.6 – 1.0'], ['poor', '1.1 – 2.0'], ['bad', '> 2.0']] },
-      BOD: { name: 'บีโอดี (BOD)', unit: 'mg/L', desc: 'ออกซิเจนที่จุลินทรีย์ใช้ย่อยสารอินทรีย์ · สูง = สารอินทรีย์/น้ำเสียมาก', std: 'แหล่งน้ำผิวดินประเภท 3: ≤ 2.0 mg/L', dir: 'low', lines: [{ v: 2, l: 'มาตรฐาน 2' }, { v: 4, l: 'ประเภท 4: 4' }], bands: [['good', '≤ 1.5'], ['fair', '1.6 – 2.0'], ['poor', '2.1 – 4.0'], ['bad', '> 4.0']] },
-      COD: { name: 'ซีโอดี (COD)', unit: 'mg/L', desc: 'ออกซิเจนที่ใช้ออกซิไดซ์สารอินทรีย์ทางเคมี · ใช้คู่กับ BOD', std: 'ไม่มีมาตรฐานแหล่งน้ำผิวดินโดยตรง · น้ำทิ้งอุตสาหกรรม ≤ 120 mg/L', dir: 'low', lines: [{ v: 120, l: 'น้ำทิ้ง 120' }], bands: [['good', '≤ 120'], ['fair', '121 – 200'], ['poor', '201 – 400'], ['bad', '> 400']] },
-      'eff:BOD': { name: 'บีโอดีน้ำทิ้ง (BOD)', unit: 'mg/L', desc: 'สารอินทรีย์ในน้ำทิ้งที่ระบายออก', std: 'มาตรฐานน้ำทิ้งโรงงาน/ชุมชน: BOD ≤ 20 mg/L', dir: 'low', lines: [{ v: 20, l: 'มาตรฐาน 20' }], bands: [['good', '≤ 20'], ['fair', '21 – 40'], ['poor', '41 – 60'], ['bad', '> 60']] },
-      'eff:COD': { name: 'ซีโอดีน้ำทิ้ง (COD)', unit: 'mg/L', desc: 'สารอินทรีย์รวมในน้ำทิ้งที่ระบายออก (เซนเซอร์ออนไลน์ POMS วัดค่านี้ทุกชั่วโมง)', std: 'มาตรฐานน้ำทิ้งโรงงาน: COD ≤ 120 mg/L (บางประเภท ≤ 400)', dir: 'low', lines: [{ v: 120, l: 'มาตรฐาน 120' }, { v: 400, l: 'สูงสุดบางประเภท 400' }], bands: [['good', '≤ 120'], ['fair', '121 – 200'], ['poor', '201 – 400'], ['bad', '> 400']] },
-      'eff:TSS': { name: 'สารแขวนลอยน้ำทิ้ง (TSS)', unit: 'mg/L', desc: 'ตะกอนแขวนลอยในน้ำทิ้ง', std: 'มาตรฐานน้ำทิ้งชุมชน ≤ 30 mg/L (โรงงาน ≤ 50)', dir: 'low', lines: [{ v: 30, l: 'ชุมชน 30' }, { v: 50, l: 'โรงงาน 50' }], bands: [['good', '≤ 30'], ['fair', '31 – 50'], ['poor', '51 – 150'], ['bad', '> 150']] },
-      Flow: { name: 'อัตราการไหลน้ำทิ้ง', unit: 'm³/hr', desc: 'ปริมาณน้ำทิ้งที่ระบายต่อชั่วโมง · 0 = ไม่ระบาย/หยุดเดิน', std: 'ไม่มีมาตรฐาน (ใช้ประกอบ COD เพื่อคิดภาระมลพิษ)', dir: 'none', lines: [], bands: [] },
-      Watt: { name: 'กำลังไฟฟ้าระบบบำบัด', unit: 'kW', desc: 'การใช้ไฟของระบบบำบัด · 0 ขณะมีน้ำไหล = ระบบอาจไม่ทำงาน', std: 'ไม่มีมาตรฐาน', dir: 'none', lines: [], bands: [] },
-      inflow_pct: { name: 'น้ำเสียเข้าเทียบความสามารถ', unit: '%', desc: 'ระบบบำบัดชุมชนรับน้ำเสียจริงกี่ % ของที่ออกแบบ · ต่ำมาก = ท่อรวบรวมไม่ครอบคลุม', std: 'เป้าหมายใช้งาน ≥ 60 %', dir: 'high', lines: [{ v: 60, l: 'เป้า 60 %' }], bands: [['good', '≥ 60'], ['fair', '40 – 59'], ['poor', '20 – 39'], ['bad', '< 20']] },
-      avg_inflow: { name: 'น้ำเสียเข้าระบบเฉลี่ย', unit: 'm³/d', desc: 'ปริมาณน้ำเสียที่เข้าระบบบำบัดต่อวัน', std: 'ไม่มีมาตรฐาน', dir: 'none', lines: [], bands: [] },
-      PM25: { name: 'ฝุ่น PM2.5', unit: 'µg/m³', desc: 'ฝุ่นละอองขนาดไม่เกิน 2.5 ไมครอน เข้าปอด/กระแสเลือดได้', std: 'มาตรฐาน 24 ชม. ประเทศไทย (2566) ≤ 37.5 µg/m³', dir: 'low', lines: [{ v: 37.5, l: 'มาตรฐาน 37.5' }, { v: 75, l: 'มีผลกระทบ 75' }], bands: [['good', '≤ 25 ดี'], ['fair', '25.1 – 37.5 ปานกลาง'], ['poor', '37.6 – 75 เริ่มมีผลกระทบ'], ['bad', '> 75 มีผลกระทบต่อสุขภาพ']] },
-      PM10: { name: 'ฝุ่น PM10', unit: 'µg/m³', desc: 'ฝุ่นละอองขนาดไม่เกิน 10 ไมครอน', std: 'มาตรฐาน 24 ชม. ≤ 120 µg/m³', dir: 'low', lines: [{ v: 120, l: 'มาตรฐาน 120' }], bands: [['good', '≤ 80'], ['fair', '81 – 120'], ['poor', '121 – 180'], ['bad', '> 180']] },
-      O3: { name: 'โอโซน (O3)', unit: 'ppb', desc: 'ก๊าซที่เกิดจากแสงแดดทำปฏิกิริยากับไอเสีย ระคายเคืองระบบหายใจ', std: 'มาตรฐาน 8 ชม. ≤ 70 ppb', dir: 'low', lines: [{ v: 70, l: 'มาตรฐาน 70' }], bands: [['good', '≤ 50'], ['fair', '51 – 70'], ['poor', '71 – 120'], ['bad', '> 120']] },
-      CO: { name: 'คาร์บอนมอนอกไซด์ (CO)', unit: 'ppm', desc: 'ก๊าซจากการเผาไหม้ไม่สมบูรณ์ (รถยนต์)', std: 'มาตรฐาน 8 ชม. ≤ 9 ppm', dir: 'low', lines: [{ v: 9, l: 'มาตรฐาน 9' }], bands: [['good', '≤ 6.4'], ['fair', '6.5 – 9.0'], ['poor', '9.1 – 15'], ['bad', '> 15']] },
-      NO2: { name: 'ไนโตรเจนไดออกไซด์ (NO2)', unit: 'ppb', desc: 'ก๊าซจากการจราจร/โรงไฟฟ้า', std: 'มาตรฐาน 1 ชม. ≤ 170 ppb', dir: 'low', lines: [{ v: 170, l: 'มาตรฐาน 170' }], bands: [['good', '≤ 100'], ['fair', '101 – 170'], ['poor', '171 – 340'], ['bad', '> 340']] },
-      SO2: { name: 'ซัลเฟอร์ไดออกไซด์ (SO2)', unit: 'ppb', desc: 'ก๊าซจากการเผาเชื้อเพลิงฟอสซิล', std: 'มาตรฐาน 1 ชม. ≤ 300 ppb', dir: 'low', lines: [{ v: 300, l: 'มาตรฐาน 300' }], bands: [['good', '≤ 200'], ['fair', '201 – 300'], ['poor', '301 – 400'], ['bad', '> 400']] },
-      AQI: { name: 'ดัชนีคุณภาพอากาศ (AQI)', unit: '', desc: 'ดัชนีรวมของ คพ. คิดจากค่าที่แย่สุดในสถานี', std: 'AQI ≤ 100 อยู่ในเกณฑ์มาตรฐาน', dir: 'low', lines: [{ v: 100, l: 'มาตรฐาน 100' }, { v: 200, l: 'มีผลกระทบ 200' }], bands: [['good', '0 – 50 ดี'], ['fair', '51 – 100 ปานกลาง'], ['poor', '101 – 200 เริ่มมีผลกระทบ'], ['bad', '> 200 มีผลกระทบ']] },
-    };
-    const ALIAS = { bod_in: 'BOD', bod_out: 'eff:BOD', tss_in: 'eff:TSS', tss_out: 'eff:TSS', ph_in: 'PH', ph_out: 'PH', pm25: 'PM25', 'PM2.5': 'PM25' };
-    /** คืนคีย์ใน PARAM_INFO ของพารามิเตอร์ (ชื่อจริงใน DB) ตามชนิดแหล่ง */
-    const infoKey = (param, srcKind) => {
-      const base = param.includes(':') ? param.split(':').pop() : param;
-      const a = ALIAS[base] ?? base;
-      if (srcKind === 'effluent' && PARAM_INFO['eff:' + a]) return 'eff:' + a;
-      return PARAM_INFO[a] ? a : null;
-    };
-    const levelOf = (key, v) => {
-      if (v == null || isNaN(v)) return 'none';
-      const rules = {
-        DO: (x) => x >= 6 ? 'good' : x >= 4 ? 'fair' : x >= 2 ? 'poor' : 'bad',
-        PH: (x) => x >= 5.5 && x <= 9 ? 'good' : x >= 5 && x <= 9.5 ? 'fair' : 'bad',
-        Salinity: (x) => x <= .5 ? 'good' : x <= 2 ? 'fair' : x <= 5 ? 'poor' : 'bad',
-        NH4N: (x) => x <= .5 ? 'good' : x <= 1 ? 'fair' : x <= 2 ? 'poor' : 'bad',
-        BOD: (x) => x <= 1.5 ? 'good' : x <= 2 ? 'fair' : x <= 4 ? 'poor' : 'bad',
-        COD: (x) => x <= 120 ? 'good' : x <= 200 ? 'fair' : x <= 400 ? 'poor' : 'bad',
-        'eff:BOD': (x) => x <= 20 ? 'good' : x <= 40 ? 'fair' : x <= 60 ? 'poor' : 'bad',
-        'eff:COD': (x) => x <= 120 ? 'good' : x <= 200 ? 'fair' : x <= 400 ? 'poor' : 'bad',
-        'eff:TSS': (x) => x <= 30 ? 'good' : x <= 50 ? 'fair' : x <= 150 ? 'poor' : 'bad',
-        inflow_pct: (x) => x >= 60 ? 'good' : x >= 40 ? 'fair' : x >= 20 ? 'poor' : 'bad',
-        PM25: (x) => x <= 25 ? 'good' : x <= 37.5 ? 'fair' : x <= 75 ? 'poor' : 'bad',
-        PM10: (x) => x <= 80 ? 'good' : x <= 120 ? 'fair' : x <= 180 ? 'poor' : 'bad',
-        O3: (x) => x <= 50 ? 'good' : x <= 70 ? 'fair' : x <= 120 ? 'poor' : 'bad',
-        CO: (x) => x <= 6.4 ? 'good' : x <= 9 ? 'fair' : x <= 15 ? 'poor' : 'bad',
-        NO2: (x) => x <= 100 ? 'good' : x <= 170 ? 'fair' : x <= 340 ? 'poor' : 'bad',
-        SO2: (x) => x <= 200 ? 'good' : x <= 300 ? 'fair' : x <= 400 ? 'poor' : 'bad',
-        AQI: (x) => x <= 50 ? 'good' : x <= 100 ? 'fair' : x <= 200 ? 'poor' : 'bad',
-      };
-      return rules[key] ? rules[key](v) : 'none';
-    };
+    const REGION_OF = regionOf;
+    // PARAM_INFO / infoKey / levelOf ย้ายไป js/param-info.js (ใช้ร่วมกับ report.html)
 
     const sb = await getClient();
     const [air, sat, dspot] = await Promise.all([fetchLatest('air4thai'), fetchLatest('gistda_pm25'), fetchLatest('pcd_dspot')]);
