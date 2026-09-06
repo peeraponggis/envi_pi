@@ -11,8 +11,23 @@
  * ทุกอย่างที่คุย DOM อยู่ใน app.js เท่านั้น
  */
 import {
-  SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, AUTH_STORAGE_KEY, CACHE_TTL_DAYS, AQI_LEVELS, PM25_LEVELS,
+  SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, AUTH_STORAGE_KEY, CACHE_TTL_DAYS, AQI_LEVELS, PM25_LEVELS, PUBLIC_FACTORY_NAMES,
 } from './config.js';
+
+/**
+ * โหมดสาธารณะซ่อนชื่อโรงงาน (POMS) — ผู้ล็อกอินเห็นชื่อจริง · ตั้งค่าที่ config.PUBLIC_FACTORY_NAMES
+ * canSeeFactoryNames(): true ถ้าเปิดสาธารณะ หรือมี session · factoryLabel(): ชื่อที่ควรแสดง
+ */
+export async function canSeeFactoryNames() {
+  if (PUBLIC_FACTORY_NAMES) return true;
+  try { return !!(await currentSession()); } catch { return false; }
+}
+export function factoryLabel(s, show, { code = null } = {}) {
+  if (show) return s.name_th ?? s.name ?? '–';
+  const c = code ?? s.ext_id ?? s.id ?? '';
+  const type = s.meta?.type ?? s.type ?? null;
+  return `โรงงาน ${c}${type ? ' · ' + String(type).replace(/^โรงงาน/, '').trim().slice(0, 40) : ''}`;
+}
 
 const CDN = 'https://esm.sh/@supabase/supabase-js@2';
 

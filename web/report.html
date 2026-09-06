@@ -106,8 +106,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script type="module">
-    import { getClient, fetchStationsLatest, siteReport, ago } from './js/envi-core.js';
-    import { LV, lvOf, LV_ORDER, PARAM_INFO, infoKey, levelOf, pcdLevel, PLANT_TYPE, regionOf } from './js/param-info.js';
+    import { getClient, fetchStationsLatest, siteReport, ago, canSeeFactoryNames, factoryLabel } from './js/envi-core.js';
+    import { LV, lvOf, LV_ORDER, PARAM_INFO, infoKey, levelOf, pcdLevel, PLANT_TYPE, regionOf, pomsLevelName, POMS_DISCLAIMER } from './js/param-info.js';
+    const SHOW_NAMES = await canSeeFactoryNames();   // โหมดสาธารณะซ่อนชื่อโรงงาน POMS
+    const fname = (s) => factoryLabel(s, SHOW_NAMES);
     import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, ALL_PARAM_INFO, stageName, brandsFor, designSystem, powerBudget, plantEnergy, solarSizing, batterySizing, pshFromDede, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
     import { nearestStations, fetchStationMeta } from './js/envi-core.js';
     const $ = (s) => document.querySelector(s);
@@ -149,7 +151,7 @@
       $('#oScope').onchange = () => { const v = $('#oScope').value; $('#lScopeVal').hidden = v === 'all'; $('#oScopeVal').innerHTML = (v === 'region' ? regs : provs).map((x) => `<option>${esc(x)}</option>`).join(''); };
       // ตัวเลือกประวัติรายสถานี
       $('#hSource').innerHTML = Object.entries(SRC).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('');
-      const fillH = () => { const src = $('#hSource').value; $('#hStation').innerHTML = [...D[src]].sort((a, b) => (a.name_th ?? '').localeCompare(b.name_th ?? '', 'th')).map((s) => `<option value="${s.id}">${esc(s.name_th)}${s.province ? ' · ' + esc(s.province) : ''}</option>`).join(''); fillP(); };
+      const fillH = () => { const src = $('#hSource').value; $('#hStation').innerHTML = [...D[src]].sort((a, b) => (a.name_th ?? '').localeCompare(b.name_th ?? '', 'th')).map((s) => `<option value="${s.id}">${esc(src === 'diw_poms' ? fname(s) : s.name_th)}${s.province ? ' · ' + esc(s.province) : ''}</option>`).join(''); fillP(); };
       const fillP = () => { const s = D.byId.get($('#hStation').value); const kind = SRC[$('#hSource').value].kind; const keys = Object.entries(s?.latest ?? {}).filter(([, v]) => !v.type || v.type !== 'CEMS').map(([k]) => k); $('#hParam').innerHTML = keys.map((k) => { const key = infoKey(k, kind); return `<option value="${esc(k)}">${esc(k)}${key ? ' — ' + esc(PARAM_INFO[key].name) : ''}</option>`; }).join(''); const pref = keys.find((k) => /(^|:)(DO|COD|PM25|bod_out)$/.test(k)); if (pref) $('#hParam').value = pref; };
       $('#hSource').onchange = fillH; $('#hStation').onchange = fillP; fillH();
       return D;
@@ -212,10 +214,10 @@
         return ['รายงานน้ำทิ้งโรงงานจากเซนเซอร์ออนไลน์ (กรมโรงงานอุตสาหกรรม POMS/WPMS)',
           kp([[rows.length, 'โรงงานที่มีเซนเซอร์น้ำทิ้ง'], [rows.filter((r) => r.lv === 'good').length, 'COD ≤ 120 mg/L'], [ex.length, 'ระบบ POMS แจ้งเกินเกณฑ์'], [rows.filter((r) => r.cod == null).length, 'ไม่มีค่า COD']]) +
           chart(stackedByGroup(rows, 'province', 'โรงงานตามระดับ COD 12 จังหวัดที่มีเซนเซอร์มากสุด')) +
-          (ex.length ? '<h3>โรงงานที่ระบบแจ้งเกินเกณฑ์</h3>' + table('POMS เกินเกณฑ์', [['โรงงาน', (r) => esc(r.name_th)], ['จังหวัด', (r) => esc(r.province)], ['COD', (r) => fmt(r.cod, 1)], ['BOD', (r) => fmt(r.bod, 1)], ['Flow m³/hr', (r) => fmt(r.flow, 1)], ['ระบบบำบัด', (r) => esc(r.treat)], timeCol], ex) : '') +
-          '<h3>สรุปตามภูมิภาค (ระดับ COD)</h3>' + byRegion(rows) +
-          ($('#oTable').checked ? '<h3>รายโรงงาน</h3>' + table('POMS รายโรงงาน', [['โรงงาน', (r) => esc(r.name_th)], ['จังหวัด', (r) => esc(r.province)], ['ประเภท', (r) => esc(r.meta?.type)], ['COD', (r) => fmt(r.cod, 1)], ['BOD', (r) => fmt(r.bod, 1)], ['Flow', (r) => fmt(r.flow, 1)], ['ระดับ', (r) => pill(r.lv), (r) => lvOf(r.lv).name], ['ระบบบำบัด', (r) => esc(r.treat)], ...statCols(stats), timeCol], rows) : '') +
-          (note ? `<div class="note">${note}</div>` : '') + bandNote('eff:COD', ' · ค่าจากเซนเซอร์ออนไลน์รายชั่วโมงที่โรงงานส่งเข้า POMS · ต้นทางไม่เปิดเผยยี่ห้อเครื่องวัด'), 'กรมโรงงานอุตสาหกรรม POMS (poms.diw.go.th)'];
+          (ex.length ? '<h3>โรงงานที่ระบบ POMS แจ้งเกินเกณฑ์</h3>' + table('POMS เกินเกณฑ์', [['โรงงาน', (r) => esc(fname(r))], ['จังหวัด', (r) => esc(r.province)], ['COD', (r) => fmt(r.cod, 1)], ['BOD', (r) => fmt(r.bod, 1)], ['Flow m³/hr', (r) => fmt(r.flow, 1)], ['ระบบบำบัด', (r) => esc(r.treat)], timeCol], ex) : '') +
+          '<h3>สรุปตามภูมิภาค (เทียบค่าอ้างอิง COD)</h3>' + byRegion(rows) +
+          ($('#oTable').checked ? '<h3>รายโรงงาน</h3>' + table('POMS รายโรงงาน', [['โรงงาน', (r) => esc(fname(r))], ['จังหวัด', (r) => esc(r.province)], ['ประเภท', (r) => esc(r.meta?.type)], ['COD', (r) => fmt(r.cod, 1)], ['BOD', (r) => fmt(r.bod, 1)], ['Flow', (r) => fmt(r.flow, 1)], ['เทียบค่าอ้างอิง', (r) => `<span class="pill" style="background:${lvOf(r.lv).color}">${pomsLevelName(r.lv)}</span>`, (r) => pomsLevelName(r.lv)], ['ระบบบำบัด', (r) => esc(r.treat)], ...statCols(stats), timeCol], rows) : '') +
+          (note ? `<div class="note">${note}</div>` : '') + bandNote('eff:COD', ' · ค่าจากเซนเซอร์ออนไลน์รายชั่วโมงที่โรงงานส่งเข้า POMS · ต้นทางไม่เปิดเผยยี่ห้อเครื่องวัด') + `<div class="note">${POMS_DISCLAIMER}${SHOW_NAMES ? '' : ' · รายงานสาธารณะแสดงรหัสโรงงานแทนชื่อ (ล็อกอินเพื่อดูชื่อ)'}</div>`, 'กรมโรงงานอุตสาหกรรม POMS (poms.diw.go.th)'];
       },
       async dspot(d) {
         const base = d.pcd_dspot.filter(inScope).map((s) => ({ ...s, lv: s.meta?.status === 'เดินระบบ' ? lvl('eff:BOD', s.meta?.wq?.bod_out) : 'none' }));
@@ -252,7 +254,7 @@
           `<div class="note"><b>ที่ตั้ง (ชั้นข้อมูล DWR):</b> ${esc(addr || 'อยู่นอกขอบเขตตำบลที่มีข้อมูล')} · <b>ชั้นที่จุดตก:</b> ${esc((r.layer_hits ?? []).filter((h) => !['dwr_tambon', 'dwr_amphoe', 'dwr_province'].includes(h.layer_id)).map((h) => h.layer + ' ' + (h.feature ?? '')).join(' · ') || 'ไม่อยู่ในป่าสงวน/แรมซาร์/น้ำท่วม')} · <b>ลุ่มน้ำ:</b> ${esc((r.layer_hits ?? []).filter((h) => h.layer_id.includes('basin')).map((h) => h.feature).join(' → ') || '–')}</div>` +
           `<h3>คุณภาพอากาศใกล้จุด</h3>` + (air ? table('อากาศใกล้จุด', [['สถานี', (x) => esc(x.name_th)], ['ระยะ กม.', (x) => fmt(x.distance_m / 1000, 1)], ['PM2.5', (x) => fmt(x.latest?.PM25?.value, 1)], ['PM10', (x) => fmt(x.latest?.PM10?.value, 1)], ['AQI', (x) => fmt(x.latest?.AQI?.value, 0)], ['ระดับ', (x) => pill(lvl('PM25', x.latest?.PM25?.value)), (x) => lvOf(lvl('PM25', x.latest?.PM25?.value)).name], timeCol], [air]) : '<div class="note">ไม่มีสถานี Air4Thai ใน 50 กม.</div>') + (pm ? `<div class="note">PM2.5 จากดาวเทียม GISTDA ระดับจังหวัด: ${fmt(pm.latest?.PM25?.value, 1)} µg/m³ (${esc(pm.name_th)})</div>` : '') +
           secTable('สถานีคุณภาพน้ำแม่น้ำใน 20 กม. (IWIS)', [['สถานี', (x) => esc(x.name_th)], ['ระยะ กม.', (x) => fmt(x.distance_m / 1000, 1)], ['DO', (x) => fmt(x.latest?.DO?.value)], ['pH', (x) => fmt(x.latest?.PH?.value)], ['ระดับ', (x) => pill(lvl('DO', x.latest?.DO?.value)), (x) => lvOf(lvl('DO', x.latest?.DO?.value)).name]], items(r.iwis_20km)) +
-          secTable('โรงงานที่มีเซนเซอร์น้ำทิ้งใน 5 กม. (POMS)', [['โรงงาน', (x) => esc(x.name_th)], ['ระยะ ม.', (x) => fmt(x.distance_m, 0)], ['ค่าน้ำทิ้งล่าสุด', (x) => esc(Object.entries(x.latest ?? {}).filter(([, v]) => v.type && v.type !== 'CEMS').map(([k, v]) => `${k.split(':').pop()} ${fmt(v.value, 1)}`).join(', ') || 'มีแต่เซนเซอร์อากาศ')]], items(r.poms_5km)) +
+          secTable('โรงงานที่มีเซนเซอร์น้ำทิ้งใน 5 กม. (POMS)', [['โรงงาน', (x) => esc(fname(x))], ['ระยะ ม.', (x) => fmt(x.distance_m, 0)], ['ค่าน้ำทิ้งล่าสุด', (x) => esc(Object.entries(x.latest ?? {}).filter(([, v]) => v.type && v.type !== 'CEMS').map(([k, v]) => `${k.split(':').pop()} ${fmt(v.value, 1)}`).join(', ') || 'มีแต่เซนเซอร์อากาศ')]], items(r.poms_5km)) +
           secTable('ระบบบำบัดน้ำเสียชุมชนใน 10 กม. (DSPOT)', [['ระบบ', (x) => esc(x.name)], ['ระยะ ม.', (x) => fmt(x.distance_m, 0)], ['สถานะ', (x) => esc(x.meta?.status)], ['ความสามารถ m³/d', (x) => fmt(x.meta?.capacity, 0)], ['BOD ออก', (x) => fmt(x.meta?.wq?.bod_out, 1)]], items(r.wwtp_10km)) +
           `<h3>โรงงานใน 5 กม. (กรมโรงงานฯ ระดับตำบล) ${r.factories_5km?.count ?? 0} แห่ง · จัดการของเสีย ${r.factories_5km?.waste_handlers ?? 0}</h3>` + ((r.factories_5km?.by_type ?? []).length ? table('ประเภทโรงงาน 5 กม.', [['ประเภท', (x) => esc(x.type)], ['จำนวน', (x) => x.n]], r.factories_5km.by_type) : '<div class="note">ไม่พบ</div>') +
           secTable(`โครงการ EIA ใน 20 กม. (สผ.) ${r.eia_20km?.count ?? 0} โครงการ · แสดง 15 ที่ใกล้สุด`, [['โครงการ', (x) => esc(x.name)], ['ประเภท', (x) => esc(x.category)], ['ระยะ กม.', (x) => fmt(x.distance_m / 1000, 1)], ['เห็นชอบ', (x) => esc(x.approval_date)]], items(r.eia_20km)) +
@@ -270,12 +272,12 @@
         const vals = pts.map((p) => p.v); const st = vals.length ? { min: Math.min(...vals), max: Math.max(...vals), avg: vals.reduce((a, b) => a + b, 0) / vals.length } : null;
         const labels = pts.map((p) => range === 'daily' ? thD(p.t) : thDT(p.t)), colors = pts.map((p) => lvOf(lv(p.v)).color);
         const datasets = [{ label: info?.name ?? param, data: vals, borderColor: '#7b8783', borderWidth: 1.2, tension: .25, pointRadius: 3, pointBackgroundColor: colors, pointBorderColor: colors }, ...(info?.lines ?? []).map((ln) => ({ label: ln.l, data: vals.map(() => ln.v), borderColor: '#4a5450', borderDash: [6, 4], borderWidth: 1, pointRadius: 0 }))];
-        const body = kp([[esc(s.name_th), esc(SRC[src].name) + (s.province ? ' · ' + esc(s.province) : '')], [pts.length, `จุดข้อมูล (${rangeLabel()})`], [st ? fmt(st.avg) + ' ' + esc(unit) : '–', 'เฉลี่ย'], [st ? `${fmt(st.min)} – ${fmt(st.max)}` : '–', 'ต่ำสุด – สูงสุด']]) +
+        const body = kp([[esc(src === 'diw_poms' ? fname(s) : s.name_th), esc(SRC[src].name) + (s.province ? ' · ' + esc(s.province) : '')], [pts.length, `จุดข้อมูล (${rangeLabel()})`], [st ? fmt(st.avg) + ' ' + esc(unit) : '–', 'เฉลี่ย'], [st ? `${fmt(st.min)} – ${fmt(st.max)}` : '–', 'ต่ำสุด – สูงสุด']]) +
           chart({ type: 'line', data: { labels, datasets }, options: { responsive: false, animation: false, plugins: { title: { display: true, text: `${info?.name ?? param} ${unit}`, font: { family: 'Sarabun', size: 12 } }, legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 10 } } } }, scales: { x: { ticks: { maxTicksLimit: 10, font: { family: 'Sarabun', size: 9 } } }, y: { ticks: { font: { size: 10 } }, title: { display: !!unit, text: unit } } } } }, 660, 260) +
           `<div class="kp" style="grid-template-columns:repeat(5,1fr)">${LV.map((l) => `<div style="border-color:${l.color}"><b style="color:${l.color}">${n[l.key]}</b><span>${l.key === 'none' ? 'ไม่มีเกณฑ์/ไม่มีค่า' : l.name}</span></div>`).join('')}</div>` +
           (info ? bandNote(key) : '') +
           ($('#oTable').checked ? `<h3>ค่าทุกจุด (${pts.length})</h3>` + table('ประวัติ ' + s.name_th, [['เวลา', (p) => range === 'daily' ? thD(p.t) : thDT(p.t)], ['ค่า ' + unit, (p) => fmt(p.v, 3)], ...(range === 'daily' ? [['ต่ำสุด', (p) => fmt(p.min, 3)], ['สูงสุด', (p) => fmt(p.max, 3)], ['จำนวนวัด', (p) => p.n]] : []), ['ระดับ', (p) => pill(lv(p.v)), (p) => lvOf(lv(p.v)).name]], pts) : '');
-        return [`ประวัติค่าวัด ${s.name_th} — ${info?.name ?? param}`, body, SRC[src].name];
+        return [`ประวัติค่าวัด ${src === 'diw_poms' ? fname(s) : s.name_th} — ${info?.name ?? param}`, body, SRC[src].name];
       },
       async exec(d) {
         const iw = d.pcd_iwis.map((s) => ({ ...s, lv: pcdLevel(s.latest?.DO?.level) ?? lvl('DO', s.latest?.DO?.value) }));
@@ -283,7 +285,7 @@
         const ai = d.air4thai.map((s) => ({ ...s, pm: s.latest?.PM25?.value ?? null, lv: lvl('PM25', s.latest?.PM25?.value) }));
         const ds = d.pcd_dspot; const run_ = ds.filter((s) => s.meta?.status === 'เดินระบบ');
         const watch = [...iw.filter((s) => s.lv === 'bad' || s.lv === 'poor').sort((a, b) => (a.latest?.DO?.value ?? 9) - (b.latest?.DO?.value ?? 9)).slice(0, 4).map((s) => ({ what: `DO ${fmt(s.latest?.DO?.value)} mg/L (${lvOf(s.lv).name})`, where: `${s.name_th} · ${s.meta?.water_source ?? ''} จ.${s.province ?? ''}`, src: 'IWIS', lv: s.lv, at: s.observed_at })),
-          ...pw.filter((s) => s.exceed || s.lv === 'poor' || s.lv === 'bad').sort((a, b) => (b.cod ?? 0) - (a.cod ?? 0)).slice(0, 3).map((s) => ({ what: `COD ${fmt(s.cod, 0)} mg/L${s.exceed ? ' · ระบบแจ้งเกินเกณฑ์' : ''}`, where: `${s.name_th} จ.${s.province ?? ''}`, src: 'POMS', lv: s.exceed ? 'bad' : s.lv, at: s.observed_at })),
+          ...pw.filter((s) => s.exceed || s.lv === 'poor' || s.lv === 'bad').sort((a, b) => (b.cod ?? 0) - (a.cod ?? 0)).slice(0, 3).map((s) => ({ what: `COD ${fmt(s.cod, 0)} mg/L (${pomsLevelName(s.lv)})${s.exceed ? ' · ระบบ POMS แจ้งเกินเกณฑ์' : ''}`, where: `${fname(s)} จ.${s.province ?? ''}`, src: 'POMS', lv: s.exceed ? 'bad' : s.lv, at: s.observed_at })),
           ...ai.filter((s) => s.lv === 'poor' || s.lv === 'bad').sort((a, b) => (b.pm ?? 0) - (a.pm ?? 0)).slice(0, 2).map((s) => ({ what: `PM2.5 ${fmt(s.pm, 1)} µg/m³ (${lvOf(s.lv).name})`, where: `${s.name_th} จ.${s.province ?? ''}`, src: 'Air4Thai', lv: s.lv, at: s.observed_at })),
           ...run_.filter((s) => (s.meta?.wq?.bod_out ?? 0) > 40).sort((a, b) => b.meta.wq.bod_out - a.meta.wq.bod_out).slice(0, 2).map((s) => ({ what: `BOD น้ำออก ${fmt(s.meta.wq.bod_out, 1)} mg/L (มาตรฐาน 20)`, where: `${s.name_th} จ.${s.province ?? ''}`, src: 'DSPOT', lv: 'bad', at: null }))].sort((a, b) => LV_ORDER[a.lv] - LV_ORDER[b.lv]).slice(0, 10);
         // แนวโน้มรายวัน: เฉลี่ยทุกสถานีต่อวันจาก observations_daily

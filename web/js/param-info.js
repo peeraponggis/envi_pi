@@ -75,6 +75,14 @@ export function levelOf(key, v) {
 /** ระดับ DO/pH ที่ คพ. ให้มาเป็นข้อความ → key */
 export const pcdLevel = (txt) => ({ 'ดีมาก': 'good', 'ดี': 'good', 'พอใช้': 'fair', 'เสื่อมโทรม': 'poor', 'เสื่อมโทรมมาก': 'bad' }[txt] ?? null);
 
+/**
+ * ถ้อยคำเป็นกลางสำหรับค่าน้ำทิ้งโรงงาน (POMS) — ไม่ใช้คำตัดสินอย่าง "เสื่อมโทรม" กับชื่อโรงงาน
+ * ระดับเทียบค่าอ้างอิงมาตรฐานน้ำทิ้ง (COD 120 / BOD 20 mg/L) · คำว่า "เกินเกณฑ์" ใช้เฉพาะเมื่อระบบ POMS ของกรมโรงงานฯ แจ้งเอง (severity ≥ 2)
+ */
+export const POMS_LEVEL_NAME = { good: 'อยู่ในค่าอ้างอิง', fair: 'สูงกว่าค่าอ้างอิง', poor: 'สูงกว่าค่าอ้างอิงมาก', bad: 'สูงกว่าค่าอ้างอิงหลายเท่า', none: 'ไม่มีค่า' };
+export const pomsLevelName = (k) => POMS_LEVEL_NAME[k] ?? POMS_LEVEL_NAME.none;
+export const POMS_DISCLAIMER = 'ค่าจากเซนเซอร์ออนไลน์ ณ เวลาที่ระบุ อาจไม่สะท้อนสถานะปัจจุบัน และไม่ใช่ผลการตรวจสอบของทางราชการ · ที่มา กรมโรงงานอุตสาหกรรม POMS (poms.diw.go.th) · การเทียบค่าอ้างอิงเป็นการประมวลของระบบนี้';
+
 /** ชื่อเต็มรหัสประเภทระบบบำบัด (คพ./สผ.) */
 export const PLANT_TYPE = {
   AS: 'Activated Sludge · ตะกอนเร่ง', SP: 'Stabilization Pond · บ่อปรับเสถียร', AL: 'Aerated Lagoon · สระเติมอากาศ', OD: 'Oxidation Ditch · คลองวนเวียน',

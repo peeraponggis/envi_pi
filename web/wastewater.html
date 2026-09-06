@@ -73,6 +73,21 @@
     .plan li { margin: 3px 0; }
     .credit { position: absolute; right: 8px; bottom: 8px; z-index: 500; font-size: 11px; background: var(--surface); color: var(--ink-2); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); max-width: 70%; }
     .leaflet-control-layers { font-family: inherit; font-size: 12.5px; }
+    /* แถบข้อมูลด้านขวา */
+    .info { position: absolute; top: 12px; right: 12px; width: 360px; max-width: calc(100% - 24px); max-height: calc(100% - 24px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); z-index: 700; font-size: 13px; }
+    .info[hidden] { display: none; }
+    .info-hd { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: move; user-select: none; background: var(--brand-soft); border-radius: 12px 12px 0 0; }
+    .info-hd b { flex: 1; font-size: 13.5px; color: var(--brand-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .info-hd .grip { color: var(--ink-3); }
+    .info-hd button { font: inherit; font-size: 14px; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+    .info-body { overflow: auto; padding: 10px 12px; line-height: 1.5; }
+    .info-body table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .info-body td { padding: 2px 4px; border-bottom: 1px dashed var(--line); vertical-align: top; }
+    .info-body td:first-child { color: var(--ink-2); white-space: nowrap; width: 38%; }
+    .info-body b.t { font-size: 14px; color: var(--brand-dark); }
+    .info.collapsed .info-body { display: none; }
+    .info.collapsed .info-hd { border-bottom: none; border-radius: 12px; }
+    @media (max-width: 900px) { .info { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; max-height: 55%; } .info-hd { cursor: default; } }
 
     /* ── มือถือ / แท็บเล็ตแนวตั้ง ── */
     @media (max-width: 900px) {
@@ -126,12 +141,18 @@
         <div class="list" id="list"></div></div>
       <div class="card plancard"><h3>ที่มาข้อมูลและแผนต่อ</h3><ol class="plan" id="plan"></ol></div>
     </aside>
-    <div class="mapwrap"><div id="map"></div><div class="credit" id="credit"></div></div>
+    <div class="mapwrap"><div id="map"></div><div class="credit" id="credit"></div>
+      <!-- แถบข้อมูลด้านขวา แทน popup ที่บังแผนที่: พับเก็บ/ลากย้าย/ปิดได้ จำตำแหน่งใน localStorage -->
+      <div class="info" id="info" hidden><div class="info-hd" id="infoHd"><span class="grip" title="ลากเพื่อย้าย">⠿</span><b id="infoTitle">ข้อมูล</b><button type="button" id="infoCollapse" title="พับ/กาง">▾</button><button type="button" id="infoClose" title="ปิด">×</button></div><div class="info-body" id="infoBody"></div></div>
+    </div>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script type="module">
-    import { getClient, isConfigured, fetchStationsLatest, ago } from './js/envi-core.js';
+    import { getClient, isConfigured, fetchStationsLatest, ago, canSeeFactoryNames, factoryLabel } from './js/envi-core.js';
+    import { pomsLevelName, POMS_DISCLAIMER } from './js/param-info.js';
+    const SHOW_NAMES = await canSeeFactoryNames();   // โหมดสาธารณะซ่อนชื่อโรงงาน POMS (config.PUBLIC_FACTORY_NAMES) · ผู้ล็อกอินเห็นชื่อ
+    const fname = (s) => factoryLabel({ name_th: s.name, ext_id: s.id?.replace?.('poms-', '') ?? s.ext_id, meta: { type: s.type_name ?? s.type } }, SHOW_NAMES);
     const $ = (s) => document.querySelector(s);
     const fmt = (n, d = 0) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -197,8 +218,10 @@
           const water = Object.entries(s.latest ?? {}).filter(([, v]) => v.type && v.type !== 'CEMS');
           const air = Object.entries(s.latest ?? {}).filter(([, v]) => v.type === 'CEMS');
           const exceed = water.some(([, v]) => (v.severity ?? 1) >= 2) || (s.meta?.severity_wpms ?? 0) >= 2;
-          return { id: 'poms-' + s.ext_id, sid: s.id, name: s.name_th, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, water, air, exceed,
-                   status: exceed ? 'ค่าเกินเกณฑ์' : water.length ? 'ส่งค่าปกติ' : 'มีแต่เซนเซอร์อากาศ', observed_at: s.observed_at, zone: null };
+          const rec = { id: 'poms-' + s.ext_id, sid: s.id, province: s.province, lat: s.lat, lng: s.lng, ...s.meta, type_name: s.meta?.type, water, air, exceed,
+                   status: exceed ? 'ระบบ POMS แจ้งเกินเกณฑ์' : water.length ? 'ส่งค่าปกติ' : 'มีแต่เซนเซอร์อากาศ', observed_at: s.observed_at, zone: null };
+          rec.name = factoryLabel(s, SHOW_NAMES);   // ชื่อที่แสดง (ซ่อนในโหมดสาธารณะ)
+          return rec;
         }).filter((r) => r.water.length || r.count_wpms > 0);
         iwis = w.map((s) => {
           const lv = s.latest?.DO?.level ?? s.latest?.PH?.level ?? null;
@@ -234,11 +257,12 @@
       if (r.layer === 'bkk') return `<b class="t">${esc(r.name)}</b><br><span class="tag">กทม. สำนักการระบายน้ำ</span><table>${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('พื้นที่บริการ', esc(r.service))}${row('ที่ตั้ง', esc(r.location))}${row('ท่อรวบรวม', esc(r.pipe_km) + ' กม.')}${row('ปล่อยลง', esc(r.discharge))}</table>`;
       if (r.layer === 'poms') {
         // ใต้ค่าแต่ละตัว: ชนิดเซนเซอร์/จุดวัด/ระบบบำบัด เท่าที่ POMS เปิดเผย (ไม่มียี่ห้อเครื่อง)
-        const cell = ([k, v]) => `<div><span>${esc(k)}</span><b>${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">เซนเซอร์ ${esc(v.type ?? '')} จุดวัด ${esc(v.name ?? v.code ?? '')}${v.treatment ? ' · ' + esc(v.treatment) : ''}${(v.severity ?? 1) >= 2 ? ' · <b style="color:var(--crit)">เกินเกณฑ์</b>' : ''}</span></div>`;
+        const cell = ([k, v]) => `<div><span>${esc(k)}</span><b>${v.value == null ? '–' : fmt(v.value, 2)} <small>${esc(v.unit)}</small></b><span class="lv">เซนเซอร์ ${esc(v.type ?? '')} จุดวัด ${esc(v.name ?? v.code ?? '')}${v.treatment ? ' · ' + esc(v.treatment) : ''}${(v.severity ?? 1) >= 2 ? ' · <b style="color:var(--crit)">ระบบ POMS แจ้งเกินเกณฑ์</b>' : ''}</span></div>`;
         return `<b class="t">${esc(r.name)}</b><br><span class="tag">กรมโรงงานฯ POMS</span> <span class="tag">${esc(r.status)}</span>
-          <table>${row('ประเภท', esc(r.type))}${row('นิคม/เขต', esc(r.colony ?? r.industry_type))}${row('ทะเบียน', esc(r.reg_no))}${row('ที่อยู่', esc(r.area_th))}${row('ค่าล่าสุด', r.observed_at ? ago(r.observed_at) : null)}</table>
+          <table>${row('ประเภท', esc(r.type))}${row('นิคม/เขต', esc(r.colony ?? r.industry_type))}${SHOW_NAMES ? row('ทะเบียน', esc(r.reg_no)) : ''}${SHOW_NAMES ? row('ที่อยู่', esc(r.area_th)) : row('จังหวัด', esc(r.province))}${row('วัดเมื่อ', r.observed_at ? ago(r.observed_at) : null)}</table>
           ${r.water.length ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">เซนเซอร์น้ำทิ้ง (WPMS)</div><div class="rt">${r.water.map(cell).join('')}</div>` : ''}
-          ${r.air.length ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">เซนเซอร์ปล่องอากาศ (CEMS) ${r.air.length} ค่า</div><div class="rt">${r.air.slice(0, 6).map(cell).join('')}</div>` : ''}`;
+          ${r.air.length ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">เซนเซอร์ปล่องอากาศ (CEMS) ${r.air.length} ค่า</div><div class="rt">${r.air.slice(0, 6).map(cell).join('')}</div>` : ''}
+          <div style="margin-top:6px;font-size:11px;color:var(--ink-3)">${POMS_DISCLAIMER}${SHOW_NAMES ? '' : ' · ชื่อและที่อยู่โรงงานแสดงเฉพาะผู้ล็อกอิน'}</div>`;
       }
       if (r.layer === 'iwis') {
         const ORDER = ['DO', 'PH', 'EC', 'Temp', 'Salinity', 'Tur', 'BOD', 'COD', 'NH4N'];
@@ -270,7 +294,7 @@
           const big = r.layer !== 'onep' && (r.capacity ?? 0) > 0 ? Math.min(14, 4 + Math.sqrt(r.capacity) / 40) : 5;
           m = L.circleMarker([r.lat, r.lng], { radius: isMobile ? big + 2 : big, color: 'rgba(255,255,255,.9)', weight: 1.2, fillColor: colorOf(r), fillOpacity: r.layer === 'onep' ? .55 : .85 });
         }
-        m.bindPopup(popup(r), { maxWidth: isMobile ? 300 : 360 }).addTo(group); markers.set(r.id, m);
+        m.on('click', () => showInfo(r)).addTo(group); markers.set(r.id, m);
       }
       const d = rows.filter((r) => r.layer === 'dspot'), cap = (a) => a.reduce((s, r) => s + (r.capacity ?? 0), 0);
       const withWq = d.filter((r) => r.wq?.bod_in && r.wq?.bod_out), bodRem = withWq.length ? withWq.reduce((s, r) => s + (1 - r.wq.bod_out / r.wq.bod_in), 0) / withWq.length * 100 : null;
@@ -285,9 +309,28 @@
       $('#list').innerHTML = rows.sort((a, b) => (b.capacity ?? 0) - (a.capacity ?? 0)).slice(0, 400).map((r) =>
         `<div class="row" data-id="${esc(r.id)}"><i style="background:${colorOf(r)}"></i><span>${esc(r.name)} <span class="p">${esc(r.province)}</span></span><span class="c">${r.capacity ? fmt(r.capacity) : ''}</span></div>`).join('');
     }
+    // ── แถบข้อมูลด้านขวา (แทน popup) ──
+    const info = $('#info');
+    function showInfo(r) {
+      $('#infoTitle').textContent = r.name ?? '';
+      $('#infoBody').innerHTML = popup(r);
+      info.hidden = false; info.classList.remove('collapsed');
+      const pos = JSON.parse(localStorage.getItem('envi_info_pos') ?? 'null');
+      if (pos && !isMobile) { info.style.left = pos.left + 'px'; info.style.top = pos.top + 'px'; info.style.right = 'auto'; }
+    }
+    $('#infoClose').addEventListener('click', () => { info.hidden = true; });
+    $('#infoCollapse').addEventListener('click', () => { info.classList.toggle('collapsed'); $('#infoCollapse').textContent = info.classList.contains('collapsed') ? '▸' : '▾'; });
+    // ลากย้ายด้วยแถบหัว (pointer events) จำตำแหน่ง · ไม่ให้ลากหลุดออกนอกแผนที่
+    (() => {
+      const hd = $('#infoHd'); let drag = null;
+      hd.addEventListener('pointerdown', (e) => { if (e.target.tagName === 'BUTTON' || isMobile) return; const r = info.getBoundingClientRect(), w = info.parentElement.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, wl: w.left, wt: w.top, ww: w.width, wh: w.height, rw: r.width }; hd.setPointerCapture(e.pointerId); });
+      hd.addEventListener('pointermove', (e) => { if (!drag) return; const left = Math.min(Math.max(0, e.clientX - drag.dx - drag.wl), drag.ww - drag.rw), top = Math.min(Math.max(0, e.clientY - drag.dy - drag.wt), drag.wh - 40); info.style.left = left + 'px'; info.style.top = top + 'px'; info.style.right = 'auto'; });
+      hd.addEventListener('pointerup', () => { if (!drag) return; drag = null; localStorage.setItem('envi_info_pos', JSON.stringify({ left: parseFloat(info.style.left), top: parseFloat(info.style.top) })); });
+      hd.addEventListener('dblclick', () => { info.style.left = ''; info.style.top = ''; info.style.right = ''; localStorage.removeItem('envi_info_pos'); });   // ดับเบิลคลิกหัว = กลับตำแหน่งเดิม
+    })();
     $('#list').addEventListener('click', (e) => {
       const id = e.target.closest('.row')?.dataset.id; const m = markers.get(id); if (!m) return;
-      map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 12)); m.openPopup();
+      map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 12)); showInfo(all.find((r) => r.id === id));
       if (isMobile) $('#map').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     for (const id of ['fLayer', 'fZone', 'fStatus', 'fType']) $('#' + id).addEventListener('change', render);

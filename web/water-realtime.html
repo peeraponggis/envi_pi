@@ -122,8 +122,10 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script type="module">
-    import { getClient, fetchStationsLatest, ago } from './js/envi-core.js';
-    import { LV, lvOf, PARAM_INFO, ALIAS, infoKey, levelOf, pcdLevel, REGIONS, regionOf } from './js/param-info.js';
+    import { getClient, fetchStationsLatest, ago, canSeeFactoryNames, factoryLabel } from './js/envi-core.js';
+    import { LV, lvOf, PARAM_INFO, ALIAS, infoKey, levelOf, pcdLevel, REGIONS, regionOf, pomsLevelName, POMS_DISCLAIMER } from './js/param-info.js';
+    const SHOW_NAMES = await canSeeFactoryNames();   // โหมดสาธารณะ: ซ่อนชื่อโรงงาน POMS (config.PUBLIC_FACTORY_NAMES) · ผู้ล็อกอินเห็นชื่อ
+    const fname = (s) => factoryLabel(s, SHOW_NAMES);
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const fmt = (n, d = 2) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
@@ -187,7 +189,7 @@
       const ph = s.latest?.PH?.value; if (ph != null && (ph < 5.5 || ph > 9)) alerts.push({ at: s.latest.PH.at, lv: 'bad', title: 'แจ้งเตือนคุณภาพน้ำวิกฤต - PH', text: `${s.name_th} · ค่า PH อยู่นอกช่วงเกณฑ์ (${fmt(ph, 3)}) · ${s.source}`, sid: s.id, param: 'PH' });
     }
     for (const s of pw) for (const [k, v] of Object.entries(s.latest)) {
-      if (v.type && v.type !== 'CEMS' && (v.severity ?? 1) >= 2) alerts.push({ at: v.at, lv: 'bad', title: `น้ำทิ้งโรงงานเกินเกณฑ์ - ${k.split(':').pop()}`, text: `${s.name_th} · ${k} = ${fmt(v.value)} ${v.unit} (${v.name ?? v.type}) · ${s.province ?? ''}`, sid: s.id, param: k });
+      if (v.type && v.type !== 'CEMS' && (v.severity ?? 1) >= 2) alerts.push({ at: v.at, lv: 'bad', title: `ระบบ POMS แจ้งน้ำทิ้งเกินเกณฑ์ - ${k.split(':').pop()}`, text: `${fname(s)} · ${k.split(':').pop()} = ${fmt(v.value)} ${v.unit} (จุดวัด ${v.name ?? v.type}) · ${s.province ?? ''}`, sid: s.id, param: k });
     }
     alerts.sort((a, b) => order[a.lv] - order[b.lv] || String(b.at).localeCompare(String(a.at)));
     $('#alertSub').textContent = `${alerts.length} รายการ · สถานี IWIS ที่ DO < 4 mg/L หรือ pH นอกช่วง 5.5–9.0 · โรงงาน POMS ที่ระบบให้ระดับเกินเกณฑ์`;
@@ -239,7 +241,7 @@
     $('#pomsTb').innerHTML = `<thead><tr><th>จังหวัด</th>${shown.map((k) => `<th>${lvOf(k).name}</th>`).join('')}<th>ทั้งหมด</th></tr></thead><tbody>` +
       provs.map(({ p, rows }) => `<tr><td>${esc(p)}</td>${shown.map((k) => `<td>${rows.filter((r) => r.lv === k).length || ''}</td>`).join('')}<td style="font-weight:600">${rows.length}</td></tr>`).join('') + '</tbody>';
     const top = [...pomsRows].filter((r) => r.codV != null || r.bodV != null).sort((a, b) => (b.codV ?? 0) - (a.codV ?? 0)).slice(0, 12);
-    $('#pomsTop').innerHTML = top.length ? top.map((r) => `<div class="al" data-sid="${r.id}" data-param="${esc(r.codKey)}" style="cursor:pointer"><div class="ic" style="background:${lvOf(r.lv).color}">🏭</div><div><div class="d">${esc(r.province)} · ${r.observed_at ? ago(r.observed_at) : ''}</div><b>${esc(r.name_th)}</b>COD ${fmt(r.codV, 1)} mg/L${r.bodV != null ? ` · BOD ${fmt(r.bodV, 1)} mg/L` : ''}${r.exceed ? ' · <span style="color:var(--crit)">ระบบ POMS แจ้งเกินเกณฑ์</span>' : ''}</div><div class="t">${lvOf(r.lv).name}</div></div>`).join('') : '<div class="empty">ยังไม่มีค่าน้ำทิ้ง</div>';
+    $('#pomsTop').innerHTML = (top.length ? top.map((r) => `<div class="al" data-sid="${r.id}" data-param="${esc(r.codKey)}" style="cursor:pointer"><div class="ic" style="background:${lvOf(r.lv).color}">🏭</div><div><div class="d">${esc(r.province)} · วัดเมื่อ ${r.observed_at ? ago(r.observed_at) : '–'}</div><b>${esc(fname(r))}</b>COD ${fmt(r.codV, 1)} mg/L${r.bodV != null ? ` · BOD ${fmt(r.bodV, 1)} mg/L` : ''}${r.exceed ? ' · <span style="color:var(--crit)">ระบบ POMS แจ้งเกินเกณฑ์</span>' : ''}</div><div class="t">${pomsLevelName(r.lv)}</div></div>`).join('') : '<div class="empty">ยังไม่มีค่าน้ำทิ้ง</div>') + `<div class="empty" style="padding:8px;font-size:11.5px;text-align:left">${POMS_DISCLAIMER}${SHOW_NAMES ? '' : ' · ชื่อโรงงานแสดงเฉพาะผู้ล็อกอิน'}</div>`;
 
     // ── 5. กราฟย้อนหลัง ทุกแหล่งที่มี observations ──
     // แหล่ง: air4thai (รายชั่วโมง), gistda_pm25 (รายชั่วโมง รายจังหวัด), pcd_dspot (ผลแล็บปีละครั้ง), diw_poms (รายชั่วโมง), pcd_iwis (รายชั่วโมง)
@@ -289,7 +291,7 @@
     const paramLabel = (k, kind) => { const key = infoKey(k, kind); return key ? `${k} — ${PARAM_INFO[key].name}` : k; };
     function fillStations() {
       const src = $('#selSource').value;
-      $('#selStation').innerHTML = POOL[src].map((s) => `<option value="${s.id}">${esc(s.name_th)}${s.province ? ' · ' + esc(s.province) : ''}${s.lv && src === 'pcd_iwis' ? ' · ' + lvOf(s.lv).name : ''}</option>`).join('');
+      $('#selStation').innerHTML = POOL[src].map((s) => `<option value="${s.id}">${esc(src === 'diw_poms' ? fname(s) : s.name_th)}${s.province ? ' · ' + esc(s.province) : ''}${s.lv && src === 'pcd_iwis' ? ' · ' + lvOf(s.lv).name : ''}</option>`).join('');
     }
     function fillParams() {
       const s = byId.get($('#selStation').value); if (!s) return;
@@ -339,12 +341,14 @@
       const fmtT = (t) => mode === 'hourly' ? thTime(t) : new Date(t).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
       const series = group.map((s, i) => { const m = new Map(rows.filter((r) => r.sid === s.id).map((r) => [r.t, r.v])); return { s, color: PALETTE[i % PALETTE.length], data: times.map((t) => m.get(t) ?? null) }; }).filter((x) => x.data.some((v) => v != null));
       const scopeText = scope === 'station' ? 'รายสถานี' : scope === 'province' ? `สถานีในจังหวัด${s0.province ?? '–'} (${series.length} สถานีมีข้อมูล)` : `สถานีใน${s0.region} (${series.length} สถานีมีข้อมูล)`;
+      const nameOf = (s) => src === 'diw_poms' ? fname(s) : s.name_th;   // ซ่อนชื่อโรงงานในโหมดสาธารณะ
+      for (const x of series) x.label = nameOf(x.s);
       const range = times.length ? `${new Date(times[0]).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })} – ${new Date(times.at(-1)).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}` : 'ยังไม่มีข้อมูลย้อนหลัง';
-      $('#histSub').innerHTML = `<b>${esc(s0.name_th)}</b> · ${esc(info?.name ?? param)} ${esc(unit)} · ${scopeText} · ${mode === 'hourly' ? 'รายชั่วโมง (เก็บ 7 วัน)' : 'ค่าเฉลี่ยรายวัน (เก็บระยะยาว)'} · ${range} · ${rows.length} จุด${truncated ? ` · แสดง ${MAXS} สถานีแรก` : ''}`;
+      $('#histSub').innerHTML = `<b>${esc(nameOf(s0))}</b> · ${esc(info?.name ?? param)} ${esc(unit)} · ${scopeText} · ${mode === 'hourly' ? 'รายชั่วโมง (เก็บ 7 วัน)' : 'ค่าเฉลี่ยรายวัน (เก็บระยะยาว)'} · ${range} · ${rows.length} จุด${truncated ? ` · แสดง ${MAXS} สถานีแรก` : ''}`;
       $('#chartWrap').classList.toggle('tall', series.length > 3);
       chart?.destroy();
       const single = series.length <= 1;
-      const datasets = series.map((x) => ({ label: x.s.name_th, data: x.data, borderColor: single ? cssVar('--ink-3') : x.color, backgroundColor: x.color, borderWidth: single ? 1.2 : 1.5, tension: .25, spanGaps: true,
+      const datasets = series.map((x) => ({ label: x.label, data: x.data, borderColor: single ? cssVar('--ink-3') : x.color, backgroundColor: x.color, borderWidth: single ? 1.2 : 1.5, tension: .25, spanGaps: true,
         pointRadius: single ? (mode === 'hourly' ? 3.5 : 4) : 2.5, pointHoverRadius: 6,
         pointBackgroundColor: (c) => key ? lvOf(levelOf(key, c.raw)).color : x.color, pointBorderColor: (c) => key ? lvOf(levelOf(key, c.raw)).color : x.color,
         ...(single && key ? { segment: { borderColor: (ctx) => lvOf(levelOf(key, ctx.p1.parsed.y)).color } } : {}) }));
@@ -363,12 +367,12 @@
       $('#explain').innerHTML = info ? `<h4>${esc(info.name)} ${info.unit ? '(' + esc(info.unit) + ')' : ''}</h4><div>${esc(info.desc)}</div><div><b>เกณฑ์อ้างอิง:</b> ${esc(info.std)}${info.dir === 'high' ? ' · ยิ่งสูงยิ่งดี' : info.dir === 'low' ? ' · ยิ่งต่ำยิ่งดี' : info.dir === 'range' ? ' · ต้องอยู่ในช่วง' : ''}</div>` +
         (info.bands.length ? `<div class="th">${info.bands.map(([k, t]) => `<span style="background:${lvOf(k).color}">${lvOf(k).name}: ${esc(t)}</span>`).join('')}</div>` : '<div style="color:var(--ink-3)">พารามิเตอร์นี้ไม่มีเกณฑ์แบ่งระดับ จึงแสดงจุดสีเทาและใช้เส้นอ้างอิงประกอบ</div>') +
         `<div><b>เครื่องมือวัด:</b> ${esc(sensorText(s0, param, src))}</div>` +
-        `<div><b>สรุป ${esc(s0.name_th)}:</b> ค่าล่าสุด ${fmt(s0.latest?.[param]?.value, 3)} ${esc(unit)} (${s0.latest?.[param]?.at ? ago(s0.latest[param].at) : '–'}) อยู่ในระดับ <span style="color:${lvOf(latestLv).color};font-weight:600">${lvOf(latestLv).name}</span> · ช่วงที่แสดง: ${series.length} สถานี ${rows.length} จุด → ดี ${n.good} · พอใช้ ${n.fair} · เสื่อมโทรม ${n.poor} · เสื่อมโทรมมาก ${n.bad} · ไม่มีเกณฑ์/ไม่มีข้อมูล ${n.none}</div>`
+        `<div><b>สรุป ${esc(nameOf(s0))}:</b> ค่าล่าสุด ${fmt(s0.latest?.[param]?.value, 3)} ${esc(unit)} (${s0.latest?.[param]?.at ? ago(s0.latest[param].at) : '–'}) อยู่ในระดับ <span style="color:${lvOf(latestLv).color};font-weight:600">${lvOf(latestLv).name}</span> · ช่วงที่แสดง: ${series.length} สถานี ${rows.length} จุด → ดี ${n.good} · พอใช้ ${n.fair} · เสื่อมโทรม ${n.poor} · เสื่อมโทรมมาก ${n.bad} · ไม่มีเกณฑ์/ไม่มีข้อมูล ${n.none}</div>`
         : `<h4>${esc(param)}</h4><div style="color:var(--ink-3)">ยังไม่มีคำอธิบายและเกณฑ์สำหรับพารามิเตอร์นี้</div>`;
       // ตารางรายสถานีในขอบเขต
       const stat = (arr) => { const v = arr.filter((x) => x != null); return v.length ? { n: v.length, min: Math.min(...v), max: Math.max(...v), avg: v.reduce((a, b) => a + b, 0) / v.length, last: v.at(-1) } : null; };
       $('#seriesTb').innerHTML = series.length ? `<thead><tr><th>สถานี</th><th>จังหวัด</th><th>จุด</th><th>ต่ำสุด</th><th>เฉลี่ย</th><th>สูงสุด</th><th>ล่าสุดในช่วง</th><th>ระดับล่าสุด</th></tr></thead><tbody>` +
-        series.map((x) => { const st = stat(x.data); const lv = key ? levelOf(key, st?.last) : 'none'; return `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${x.color};margin-right:6px"></i>${esc(x.s.name_th)}</td><td>${esc(x.s.province ?? '')}</td><td>${st?.n ?? 0}</td><td>${fmt(st?.min, 2)}</td><td>${fmt(st?.avg, 2)}</td><td>${fmt(st?.max, 2)}</td><td>${fmt(st?.last, 2)}</td><td><span style="color:${lvOf(lv).color};font-weight:600">${lvOf(lv).name}</span></td></tr>`; }).join('') + '</tbody>' : '';
+        series.map((x) => { const st = stat(x.data); const lv = key ? levelOf(key, st?.last) : 'none'; return `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${x.color};margin-right:6px"></i>${esc(x.label)}</td><td>${esc(x.s.province ?? '')}</td><td>${st?.n ?? 0}</td><td>${fmt(st?.min, 2)}</td><td>${fmt(st?.avg, 2)}</td><td>${fmt(st?.max, 2)}</td><td>${fmt(st?.last, 2)}</td><td><span style="color:${lvOf(lv).color};font-weight:600">${lvOf(lv).name}</span></td></tr>`; }).join('') + '</tbody>' : '';
     }
     // ค่าเริ่มต้น: สถานีจากแจ้งเตือนแรก (IWIS) ถ้ามี
     const first = alerts.find((a) => byId.has(String(a.sid))) ?? null;
