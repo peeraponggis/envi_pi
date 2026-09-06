@@ -340,16 +340,16 @@
       } catch (e) { console.error(e); $('#status').textContent = 'สร้างไม่สำเร็จ: ' + (e.message ?? e); }
       $('#btnPreview').disabled = false;
     }
-    const fname = () => `envi_pi_report_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
+    const outName = () => `envi_pi_report_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
     $('#btnPreview').addEventListener('click', preview);
     $('#btnPrint').addEventListener('click', () => window.print());
-    $('#btnCsv').addEventListener('click', () => { const lines = []; for (const t of TABLES) { lines.push(`# ${t.title}`, t.cols.join(',')); for (const r of t.rows) lines.push(r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')); lines.push(''); } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })); a.download = fname() + '.csv'; a.click(); });
+    $('#btnCsv').addEventListener('click', () => { const lines = []; for (const t of TABLES) { lines.push(`# ${t.title}`, t.cols.join(',')); for (const r of t.rows) lines.push(r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')); lines.push(''); } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })); a.download = outName() + '.csv'; a.click(); });
     $('#btnXlsx').addEventListener('click', () => {
       const wb = XLSX.utils.book_new(); const used = new Set();
       wb.Props = { Title: 'envi_pi report', Author: $('#oOrg').value, CreatedDate: new Date() };
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['รายงาน envi_pi'], ['จัดทำ', thDT(new Date())], ['หน่วยงาน', $('#oOrg').value], ['ช่วงข้อมูล', rangeLabel()], ['ขอบเขต', $('#oScope').value === 'all' ? 'ทั้งประเทศ' : $('#oScopeVal').value], [], ['ชีต', 'แถว'], ...TABLES.map((t) => [t.title, t.rows.length])]), 'สรุป');
       for (const t of TABLES) { let name = t.title.replace(/[\\/?*[\]:]/g, ' ').slice(0, 28); let i = 2; while (used.has(name)) name = name.slice(0, 26) + ' ' + i++; used.add(name); const ws = XLSX.utils.aoa_to_sheet([t.cols, ...t.rows.map((r) => r.map((v) => { const n = Number(String(v).replace(/,/g, '')); return v !== '' && v !== '–' && !isNaN(n) && /^[\d.,-]+$/.test(String(v)) ? n : v; }))]); ws['!cols'] = t.cols.map((c, j) => ({ wch: Math.min(40, Math.max(c.length, ...t.rows.slice(0, 50).map((r) => String(r[j] ?? '').length)) + 2) })); XLSX.utils.book_append_sheet(wb, ws, name); }
-      XLSX.writeFile(wb, fname() + '.xlsx');
+      XLSX.writeFile(wb, outName() + '.xlsx');
     });
     $('#btnLink').addEventListener('click', async () => { const p = new URLSearchParams({ cards: [...document.querySelectorAll('#cards input:checked')].map((i) => i.value).join(','), range: $('#oRange').value, scope: $('#oScope').value, scopeVal: $('#oScopeVal').value ?? '', onlyBad: $('#oOnlyBad').checked ? 1 : 0, lat: $('#siteLat').value, lng: $('#siteLng').value }); const url = location.origin + location.pathname + '?' + p; try { await navigator.clipboard.writeText(url); $('#status').textContent = 'คัดลอกลิงก์แล้ว: ' + url; } catch { $('#status').textContent = url; } });
     const q = new URLSearchParams(location.search);
