@@ -36,7 +36,9 @@
     .bars { display: grid; gap: 4px; }
     .bar { display: grid; grid-template-columns: 110px 1fr 44px; gap: 8px; align-items: center; font-size: 12.5px; }
     .bar span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #chartType .bar { grid-template-columns: minmax(150px, 58%) 1fr 40px; font-size: 12px; }  /* ชื่อเต็มระบบบำบัดยาว ให้ที่มากกว่า */
+    #chartType .bar { grid-template-columns: minmax(140px, 52%) 1fr 40px; font-size: 12px; }  /* ชื่อเต็มระบบบำบัด: ไทยบรรทัดบน อังกฤษบรรทัดล่าง */
+    #chartType .bar span:first-child { white-space: normal; line-height: 1.25; }
+    #chartType .bar small { display: block; color: var(--ink-3); font-size: 10.5px; }
     .bar .track { height: 10px; background: var(--brand-soft); border-radius: 5px; overflow: hidden; }
     .bar .fill { height: 100%; background: var(--brand); }
     .bar .n { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -216,10 +218,13 @@
     fill($('#fZone'), uniq(all.map((r) => r.zone))); fill($('#fStatus'), uniq(all.map((r) => r.status)));
     uniq(all.map((r) => r.type)).forEach((v) => $('#fType').append(new Option(typeLabel(v), v)));
 
+    // entries: [label, value, sub?] — sub = บรรทัดเล็กใต้ป้าย (เช่นชื่ออังกฤษของระบบบำบัด)
     const bars = (el, entries, fmtN = (n) => fmt(n)) => {
       const max = Math.max(...entries.map((e) => e[1]), 1);
-      el.innerHTML = entries.map(([k, v]) => `<div class="bar"><span title="${esc(k)}">${esc(k)}</span><div class="track"><div class="fill" style="width:${(v / max * 100).toFixed(1)}%"></div></div><span class="n">${fmtN(v)}</span></div>`).join('');
+      el.innerHTML = entries.map(([k, v, sub]) => `<div class="bar"><span title="${esc(k)}${sub ? ' — ' + esc(sub) : ''}">${esc(k)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><div class="track"><div class="fill" style="width:${(v / max * 100).toFixed(1)}%"></div></div><span class="n">${fmtN(v)}</span></div>`).join('');
     };
+    /** ป้ายกราฟประเภทระบบ: บรรทัดบน "รหัส · ชื่อไทย" บรรทัดล่างชื่ออังกฤษ */
+    const typeParts = (k) => { if (k == null || k === 'ไม่ระบุ') return ['ไม่ระบุ', null]; const f = PLANT_TYPE[k]; if (!f) return [k, null]; const [en, th] = f.split(' · '); return [`${k} · ${th}`, en]; };
     const tally = (rows, key, val = () => 1) => Object.entries(rows.reduce((m, r) => { const k = r[key] ?? 'ไม่ระบุ'; m[k] = (m[k] ?? 0) + val(r); return m; }, {})).sort((a, b) => b[1] - a[1]);
 
     function popup(r) {
@@ -273,7 +278,7 @@
         [fmt(d.filter((r) => r.status === 'เดินระบบ').length) + '/' + fmt(d.length), 'คพ. เดินระบบอยู่'], [inflow.length ? fmt(inflow.reduce((s, r) => s + r.inflow_pct, 0) / inflow.length, 1) + '%' : '–', 'น้ำเสียเข้าเทียบความสามารถ (เฉลี่ย)'],
         [bodRem == null ? '–' : fmt(bodRem, 0) + '%', `กำจัด BOD เฉลี่ย (${withWq.length} ระบบมีผลตรวจ)`], [fmt(d.reduce((s, r) => s + (r.pop ?? 0), 0) / 1e6, 2) + ' ล้าน', 'ประชากรในพื้นที่ (คพ.)'],
       ].map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
-      bars($('#chartStatus'), tally(d, 'status')); bars($('#chartType'), tally(d, 'type').slice(0, 8).map(([k, v]) => [typeLabel(k), v])); bars($('#chartZone'), tally(d, 'zone', (r) => r.capacity ?? 0), (n) => fmt(n / 1000) + 'k');
+      bars($('#chartStatus'), tally(d, 'status')); bars($('#chartType'), tally(d, 'type').slice(0, 8).map(([k, v]) => [...typeParts(k).slice(0, 1), v, typeParts(k)[1]])); bars($('#chartZone'), tally(d, 'zone', (r) => r.capacity ?? 0), (n) => fmt(n / 1000) + 'k');
       $('#listCount').textContent = rows.length; $('#listCount2').textContent = `(${rows.length})`;
       $('#list').innerHTML = rows.sort((a, b) => (b.capacity ?? 0) - (a.capacity ?? 0)).slice(0, 400).map((r) =>
         `<div class="row" data-id="${esc(r.id)}"><i style="background:${colorOf(r)}"></i><span>${esc(r.name)} <span class="p">${esc(r.province)}</span></span><span class="c">${r.capacity ? fmt(r.capacity) : ''}</span></div>`).join('');
