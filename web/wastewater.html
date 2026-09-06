@@ -36,6 +36,7 @@
     .bars { display: grid; gap: 4px; }
     .bar { display: grid; grid-template-columns: 110px 1fr 44px; gap: 8px; align-items: center; font-size: 12.5px; }
     .bar span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #chartType .bar { grid-template-columns: minmax(150px, 58%) 1fr 40px; font-size: 12px; }  /* ชื่อเต็มระบบบำบัดยาว ให้ที่มากกว่า */
     .bar .track { height: 10px; background: var(--brand-soft); border-radius: 5px; overflow: hidden; }
     .bar .fill { height: 100%; background: var(--brand); }
     .bar .n { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -130,6 +131,14 @@
     const $ = (s) => document.querySelector(s);
     const fmt = (n, d = 0) => n == null ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    /** ชื่อเต็มของรหัสประเภทระบบบำบัด (ตามที่ คพ./สผ. ใช้) — แสดงในกราฟ ตัวกรอง และ popup */
+    const PLANT_TYPE = {
+      AS: 'Activated Sludge · ตะกอนเร่ง', SP: 'Stabilization Pond · บ่อปรับเสถียร', AL: 'Aerated Lagoon · สระเติมอากาศ', OD: 'Oxidation Ditch · คลองวนเวียน',
+      CW: 'Constructed Wetland · บึงประดิษฐ์', RBC: 'Rotating Biological Contactor · จานหมุนชีวภาพ', SBR: 'Sequencing Batch Reactor · ตะกอนเร่งแบบกะ',
+      Anaerobic: 'Anaerobic · ระบบไร้อากาศ', WL: 'Wetland · บึงประดิษฐ์', TF: 'Trickling Filter · โปรยกรอง', MBR: 'Membrane Bioreactor · เมมเบรน',
+      UASB: 'Upflow Anaerobic Sludge Blanket · ไร้อากาศแบบตะกอนลอย', DAF: 'Dissolved Air Flotation · ลอยตัวด้วยอากาศ',
+    };
+    const typeLabel = (k) => k == null || k === 'ไม่ระบุ' ? 'ไม่ระบุ' : PLANT_TYPE[k] ? `${k} (${PLANT_TYPE[k]})` : k;
     const STATUS_CLASS = { 'เดินระบบ': 'run', 'เปิดเดินระบบ': 'run', 'ไม่เดินระบบ': 'stop', 'ไม่เปิดเดินระบบ': 'stop', 'อยู่ระหว่างก่อสร้าง': 'build', 'ก่อสร้างไม่แล้วเสร็จ': 'build', 'ยกเลิกโครงการ': 'cancel' };
     const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
     const DO_COLOR = { 'ดีมาก': '--good', 'ดี': '--good', 'Normal': '--good', 'พอใช้': '--warn', 'เสื่อมโทรม': '--crit', 'เสื่อมโทรมมาก': '--crit' };
@@ -204,7 +213,8 @@
     ];
     const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
     const fill = (sel, vals) => vals.forEach((v) => sel.append(new Option(v, v)));
-    fill($('#fZone'), uniq(all.map((r) => r.zone))); fill($('#fStatus'), uniq(all.map((r) => r.status))); fill($('#fType'), uniq(all.map((r) => r.type)));
+    fill($('#fZone'), uniq(all.map((r) => r.zone))); fill($('#fStatus'), uniq(all.map((r) => r.status)));
+    uniq(all.map((r) => r.type)).forEach((v) => $('#fType').append(new Option(typeLabel(v), v)));
 
     const bars = (el, entries, fmtN = (n) => fmt(n)) => {
       const max = Math.max(...entries.map((e) => e[1]), 1);
@@ -233,7 +243,7 @@
       if (r.layer === 'onep') return `<b class="t">${esc(r.agency)}</b><br><span class="tag">สผ. เงินอุดหนุนแผนฯ จังหวัด</span> <span class="tag">พิกัดระดับ${r.geocode === 'tambon' ? 'ตำบล' : 'อำเภอ'}</span><table>${row('ระบบ', esc(r.type) + ' (' + esc(r.type_code) + ')')}${row('สถานภาพ', esc(r.status))}${row('รองรับ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('งบประมาณปี', r.year_budget)}${row('เปิดใช้ปี', r.year_op)}${row('ที่ตั้ง', esc(r.location))}${row('แหล่งงบ', esc(r.fund))}</table>`;
       const w = r.wq ?? {}, rem = (i, o) => i && o ? ((1 - o / i) * 100).toFixed(0) + '%' : '–';
       return `<b class="t">${esc(r.name)}</b><br><span class="tag">คพ. DSPOT ปี ${r.report_year ?? '–'}</span> <span class="tag">${esc(r.status)}</span>
-        <table>${row('ประเภท', esc(r.manage) + (r.type ? ' · ' + esc(r.type) : ''))}${row('ผู้เดินระบบ', esc(r.operator))}${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('น้ำเสียเข้าจริง', r.avg_inflow ? fmt(r.avg_inflow) + ' ลบ.ม./วัน (' + fmt(r.inflow_pct, 1) + '%)' : null)}
+        <table>${row('ประเภท', esc(r.manage) + (r.type ? ' · ' + esc(typeLabel(r.type)) : ''))}${row('ผู้เดินระบบ', esc(r.operator))}${row('ความสามารถ', fmt(r.capacity) + ' ลบ.ม./วัน')}${row('น้ำเสียเข้าจริง', r.avg_inflow ? fmt(r.avg_inflow) + ' ลบ.ม./วัน (' + fmt(r.inflow_pct, 1) + '%)' : null)}
         ${row('ประชากร/ครอบคลุม', r.pop ? fmt(r.pop) + ' คน · ' + fmt(r.service_pct, 1) + '%' : null)}${row('ลุ่มน้ำ/ปล่อยลง', [r.basin, r.discharge].filter(Boolean).map(esc).join(' → '))}${row('เปิดใช้ปี', r.year_op)}${row('ค่าก่อสร้าง', r.cost_mb ? fmt(r.cost_mb, 1) + ' ล้านบาท (' + esc(r.fund) + ')' : null)}${row('ค่าบริการ', esc(r.fee))}</table>
         ${w.bod_in ? `<div class="wq"><div>BOD เข้า→ออก<b>${fmt(w.bod_in, 1)} → ${fmt(w.bod_out, 1)}</b>กำจัด ${rem(w.bod_in, w.bod_out)}</div><div>TSS<b>${fmt(w.tss_in, 1)} → ${fmt(w.tss_out, 1)}</b>${rem(w.tss_in, w.tss_out)}</div><div>pH<b>${fmt(w.ph_in, 2)} → ${fmt(w.ph_out, 2)}</b>ตรวจ ${esc(r.date_quality ?? w.date)}</div></div>` : ''}
         ${r.remark ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-2)">${esc(r.remark).slice(0, 220)}</div>` : ''}`;
@@ -263,7 +273,7 @@
         [fmt(d.filter((r) => r.status === 'เดินระบบ').length) + '/' + fmt(d.length), 'คพ. เดินระบบอยู่'], [inflow.length ? fmt(inflow.reduce((s, r) => s + r.inflow_pct, 0) / inflow.length, 1) + '%' : '–', 'น้ำเสียเข้าเทียบความสามารถ (เฉลี่ย)'],
         [bodRem == null ? '–' : fmt(bodRem, 0) + '%', `กำจัด BOD เฉลี่ย (${withWq.length} ระบบมีผลตรวจ)`], [fmt(d.reduce((s, r) => s + (r.pop ?? 0), 0) / 1e6, 2) + ' ล้าน', 'ประชากรในพื้นที่ (คพ.)'],
       ].map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
-      bars($('#chartStatus'), tally(d, 'status')); bars($('#chartType'), tally(d, 'type').slice(0, 8)); bars($('#chartZone'), tally(d, 'zone', (r) => r.capacity ?? 0), (n) => fmt(n / 1000) + 'k');
+      bars($('#chartStatus'), tally(d, 'status')); bars($('#chartType'), tally(d, 'type').slice(0, 8).map(([k, v]) => [typeLabel(k), v])); bars($('#chartZone'), tally(d, 'zone', (r) => r.capacity ?? 0), (n) => fmt(n / 1000) + 'k');
       $('#listCount').textContent = rows.length; $('#listCount2').textContent = `(${rows.length})`;
       $('#list').innerHTML = rows.sort((a, b) => (b.capacity ?? 0) - (a.capacity ?? 0)).slice(0, 400).map((r) =>
         `<div class="row" data-id="${esc(r.id)}"><i style="background:${colorOf(r)}"></i><span>${esc(r.name)} <span class="p">${esc(r.province)}</span></span><span class="c">${r.capacity ? fmt(r.capacity) : ''}</span></div>`).join('');
