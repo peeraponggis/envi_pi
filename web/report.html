@@ -125,7 +125,7 @@
     const CARDS = [
       { id: 'iwis', ic: '🌊', name: 'คุณภาพน้ำแม่น้ำ (คพ. IWIS)', desc: 'สถานีอัตโนมัติ 64 แห่ง · DO/pH/EC/อุณหภูมิ/ความเค็ม · ระดับตามเกณฑ์ คพ. · สรุปรายภาค · กราฟ · สถิติช่วงเวลา' },
       { id: 'poms', ic: '🏭', name: 'น้ำทิ้งโรงงาน (กรมโรงงานฯ POMS)', desc: 'โรงงานที่มีเซนเซอร์น้ำทิ้ง · COD/BOD/Flow ล่าสุด · รายการเกินเกณฑ์ · สรุปรายจังหวัด · กราฟ' },
-      { id: 'dspot', ic: '🚰', name: 'ระบบบำบัดน้ำเสียชุมชน (คพ. DSPOT)', desc: 'สถานะเดินระบบ 216 แห่ง · ความสามารถ vs น้ำเข้าจริง · BOD เข้า/ออก · กราฟประเภทระบบ' },
+      { id: 'dspot', ic: '🚰', name: 'ระบบบำบัดน้ำเสียชุมชน (คพ. DSPOT)', desc: 'DSPOT = Database System for Publicly Owned Treatment Works ฐานข้อมูลระบบบำบัดน้ำเสียรวมชุมชนของ คพ. · สถานะเดินระบบ 216 แห่ง · ความสามารถ vs น้ำเข้าจริง · BOD เข้า/ออก · กราฟประเภทระบบ' },
       { id: 'air', ic: '🌫️', name: 'คุณภาพอากาศ (คพ. Air4Thai)', desc: 'PM2.5 / PM10 / AQI รายสถานี 173 แห่ง · สถานีเกินมาตรฐาน · สรุปรายภาค · กราฟ · สถิติช่วงเวลา' },
       { id: 'site', ic: '📍', name: 'รายงานจุดที่เลือก', desc: 'พิกัดที่กำหนด → ทุกหมวดในรัศมี 5–20 กม. (อากาศ ระบบบำบัด เซนเซอร์โรงงาน สถานีแม่น้ำ โรงงาน EIA ป่า/ลุ่มน้ำที่จุดตก)', sub: `<div class="sub2"><input id="siteLat" placeholder="ละติจูด" value="14.018952"><input id="siteLng" placeholder="ลองจิจูด" value="100.557728"><input id="siteName" placeholder="ชื่อจุด (ไม่บังคับ)"></div>` },
       { id: 'history', ic: '📈', name: 'ประวัติรายสถานี', desc: 'สถานี + พารามิเตอร์ที่เลือก · กราฟจุดสีตามระดับ + เส้นเกณฑ์ · สถิติ · ตารางค่าทุกจุด', sub: `<div class="sub2"><select id="hSource"></select><select id="hStation"></select><select id="hParam"></select></div>` },
@@ -135,7 +135,7 @@
     $('#cards').innerHTML = CARDS.map((c) => `<div><label class="cardsel"><input type="checkbox" value="${c.id}" ${['iwis', 'poms'].includes(c.id) ? 'checked' : ''}><span class="ic">${c.ic}</span><span><b>${esc(c.name)}</b><small>${esc(c.desc)}</small></span></label>${c.sub ?? ''}</div>`).join('');
 
     // ── ข้อมูล ──
-    const SRC = { pcd_iwis: { name: 'คพ. IWIS สถานีแม่น้ำ', kind: 'water' }, diw_poms: { name: 'กรมโรงงานฯ POMS น้ำทิ้ง', kind: 'effluent' }, pcd_dspot: { name: 'คพ. DSPOT ระบบบำบัดชุมชน', kind: 'effluent' }, air4thai: { name: 'คพ. Air4Thai อากาศ', kind: 'air' }, gistda_pm25: { name: 'GISTDA PM2.5 ดาวเทียม', kind: 'air' } };
+    const SRC = { pcd_iwis: { name: 'คพ. IWIS สถานีแม่น้ำ', kind: 'water' }, diw_poms: { name: 'กรมโรงงานฯ POMS น้ำทิ้ง', kind: 'effluent' }, pcd_dspot: { name: 'คพ. DSPOT (Database System for Publicly Owned Treatment Works) ระบบบำบัดชุมชน', kind: 'effluent' }, air4thai: { name: 'คพ. Air4Thai อากาศ', kind: 'air' }, gistda_pm25: { name: 'GISTDA PM2.5 ดาวเทียม', kind: 'air' } };
     let D = null;
     async function load() {
       if (D) return D;
@@ -223,7 +223,7 @@
         const run_ = rows.filter((r) => r.meta?.status === 'เดินระบบ'), cap = rows.reduce((a, r) => a + (r.meta?.capacity ?? 0), 0);
         const types = [...new Set(rows.map((r) => r.meta?.plant_type ?? 'ไม่ระบุ'))].map((t) => [t, rows.filter((r) => (r.meta?.plant_type ?? 'ไม่ระบุ') === t).length]).sort((a, b) => b[1] - a[1]).slice(0, 8);
         const statuses = [...new Set(rows.map((r) => r.meta?.status ?? 'ไม่ระบุ'))].map((t) => [t, rows.filter((r) => (r.meta?.status ?? 'ไม่ระบุ') === t).length]);
-        return ['รายงานระบบบำบัดน้ำเสียรวมชุมชน (คพ. DSPOT)',
+        return ['รายงานระบบบำบัดน้ำเสียรวมชุมชน (คพ. DSPOT — Database System for Publicly Owned Treatment Works)',
           kp([[rows.length, 'ระบบ'], [run_.length, 'เดินระบบ'], [fmt(cap / 1e6, 2) + ' ล้าน', 'ลบ.ม./วัน ความสามารถรวม'], [rows.filter((r) => r.lv === 'poor' || r.lv === 'bad').length, 'BOD ออก > 40 mg/L']]) +
           `<div class="two">${chart({ type: 'doughnut', data: { labels: statuses.map((s) => s[0]), datasets: [{ data: statuses.map((s) => s[1]), backgroundColor: ['#15803d', '#be123c', '#7b8783', '#e0b400', '#ef7d1a'] }] }, options: { responsive: false, animation: false, plugins: { title: { display: true, text: 'สถานะการเดินระบบ', font: { family: 'Sarabun', size: 12 } }, legend: { position: 'right', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 10 } } } } } }, 320, 210)}${chart({ type: 'bar', data: { labels: types.map((t) => t[0]), datasets: [{ label: 'ระบบ', data: types.map((t) => t[1]), backgroundColor: '#2e7d32' }] }, options: { indexAxis: 'y', responsive: false, animation: false, plugins: { title: { display: true, text: 'ประเภทระบบบำบัด', font: { family: 'Sarabun', size: 12 } }, legend: { display: false } }, scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { family: 'Sarabun', size: 10 } } } } } }, 320, 210)}</div>` +
           '<h3>สรุปตามภูมิภาค (ระดับ BOD น้ำออก เฉพาะที่เดินระบบ)</h3>' + byRegion(run_) +
