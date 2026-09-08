@@ -113,7 +113,7 @@
     import { LV, lvOf, LV_ORDER, PARAM_INFO, infoKey, levelOf, pcdLevel, PLANT_TYPE, regionOf, pomsLevelName, POMS_DISCLAIMER } from './js/param-info.js';
     const SHOW_NAMES = await canSeeFactoryNames();   // โหมดสาธารณะซ่อนชื่อโรงงาน POMS
     const fname = (s) => factoryLabel(s, SHOW_NAMES);
-    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, ALL_PARAM_INFO, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, solarSizing, batterySizing, pshFromDede, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
+    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, ALL_PARAM_INFO, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, solarSizing, batterySizing, pshFromDede, designFromURL, CATALOG_VERSION, billEnergy, plantEnergyResolved, solarOption, epcOffer, ppaOffer, epcVsPpa, MOUNTS, FIN_DEFAULTS } from './js/sensor-catalog.js';
     import { nearestStations, fetchStationMeta } from './js/envi-core.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -136,6 +136,7 @@
       { id: 'history', ic: '📈', name: 'ประวัติรายสถานี', desc: 'สถานี + พารามิเตอร์ที่เลือก · กราฟจุดสีตามระดับ + เส้นเกณฑ์ · สถิติ · ตารางค่าทุกจุด', sub: `<div class="sub2"><select id="hSource"></select><select id="hStation"></select><select id="hParam"></select></div>` },
       { id: 'exec', ic: '🧭', name: 'สรุปผู้บริหาร', desc: 'KPI ทุกแหล่งในหน้าเดียว · 10 จุดที่ต้องจับตา · แนวโน้มรายวัน DO และ PM2.5' },
       { id: 'sensor', ic: '🧩', name: 'แบบระบบเซนเซอร์และพลังงาน', desc: 'จากหน้าออกแบบเซนเซอร์: ผังจุดวัด BOQ มาตรฐาน/แบรนด์ตัวอย่าง งบพลังงาน โซลาร์ (เซนเซอร์/โรงบำบัด/รวม) · ค่าประมาณ', sub: `<div class="sub2"><select id="snType"></select><input id="snCap" type="number" placeholder="ความสามารถ m³/d" value="5000"><input id="snLatLng" placeholder="lat, lng (สำหรับ PSH พพ.)" value="14.0190, 100.5577"></div>` },
+      { id: 'sensor_finance', ic: '☀️', name: 'ข้อเสนอราคาระบบโซลาร์', desc: 'เปรียบเทียบทางเลือกหลังคา/พื้นดิน/ทุ่นลอยน้ำ และออนกริด/ไฮบริด พร้อมข้อเสนอลงทุนเองเทียบมีผู้ลงทุน และวิธีคิดทุกบรรทัด' },
     ];
     $('#cards').innerHTML = CARDS.map((c) => `<div><label class="cardsel"><input type="checkbox" value="${c.id}" ${['iwis', 'poms'].includes(c.id) ? 'checked' : ''}><span class="ic">${c.ic}</span><span><b>${esc(c.name)}</b><small>${esc(c.desc)}</small></span></label>${c.sub ?? ''}</div>`).join('');
 
@@ -329,6 +330,74 @@
       return [`แบบระบบเซนเซอร์และพลังงาน — ${P.name}`, body, 'ฐานความรู้ envi_pi (sensor-catalog) · พพ. แผนที่รังสีอาทิตย์ · ค่าประมาณเพื่อวางแผนเบื้องต้น'];
     };
 
+    /** การ์ดข้อเสนอราคาโซลาร์ — แยกหน้าจากการ์ดแบบระบบ เพราะหนึ่งการ์ดคือหนึ่งหน้า A4 */
+    BUILD.sensor_finance = async () => {
+      const o = designFromURL(new URLSearchParams(location.search).get('design') ?? '');
+      const code = PROCESS_CODES.includes(o.type) ? o.type : 'AS';
+      const cap = +o.cap || 5000;
+      const design = designSystem(code, cap, { comms: o.comms });
+      const budget = powerBudget(design);
+      const bill = billEnergy({ kwh_month: +o.bkwh || 0, baht_month: +o.bbaht || 0, months: +o.bmonths || 1 });
+      const tariff = bill?.tariff ?? (+o.tariff || 4.2);
+      const plantRes = plantEnergyResolved(code, { capacity: cap, avg_inflow: +o.inflow || null, kwh_m3: +o.kwh || null, bill });
+      let psh = +o.psh || null, pshSrc = 'กรอกเอง';
+      if (!psh && o.lat && o.lng) { try { const near = await nearestStations(+o.lat, +o.lng, 15000, 'dede_solar', 1); if (near?.length) { psh = pshFromDede(await fetchStationMeta(near[0].station_id)); pshSrc = `พพ. ตำบล ${near[0].name_th}`; } } catch {} }
+      if (!psh) { psh = 4.8; pshSrc = 'ค่ากลางประเทศไทย'; }
+      const fo = { years: +o.life || FIN_DEFAULTS.years, discount: (+o.disc || 7) / 100, escalation: (+o.esc || 3) / 100, om_rate: (+o.om || 1.2) / 100, tariff };
+      const scope = o.scope === 'total' ? 'total' : 'plant';
+      const kwhDay = scope === 'total' ? budget.kwh_day + plantRes.kwh_day : plantRes.kwh_day;
+      const mounts = String(o.mounts || 'roof,ground,floating').split(',').filter((m) => MOUNTS[m]);
+      const modes = String(o.hybrid ?? '1') === '1' ? [false, true] : [false];
+      const base = { kwh_day: kwhDay, psh, pr0: +o.pr || 0.8, sizing_margin: +o.margin || 1.1, capex_override: +o.cost || null, night_fraction: +o.night || 0.35, battery: { cost_per_kwh: +o.battcost || 15000 } };
+      const ref = kwhDay > 0 ? solarOption({ ...base, mount: 'roof' }) : null;
+      if (!ref) return ['ข้อเสนอราคาระบบโซลาร์', '<div class="note">ยังไม่มีปริมาณไฟฟ้าของโรงบำบัด จึงคำนวณข้อเสนอไม่ได้</div>', 'envi_pi'];
+      const load = kwhDay * 365;
+      const offers = mounts.flatMap((mt) => modes.map((hy) => solarOption({ ...base, mount: mt, hybrid: hy, kwp: ref.kwp }))).filter(Boolean)
+        .map((x) => ({ o: x, epc: epcOffer(x, { ...fo, load_kwh_year: load }) }));
+      const best = offers.reduce((a, b) => (b.epc.npv > a.epc.npv ? b : a));
+      const chosen = offers.find((x) => x.o.key === o.opt) ?? best;
+      const ppa = ppaOffer({ kwh_year0: chosen.o.kwh_year0, load_kwh_year: load, tariff, term_years: +o.pterm || 15, discount_pct: (+o.pdisc || 20) / 100, ppa_escalator: (+o.pesc || 1) / 100, grid_escalation: fo.escalation, discount: fo.discount });
+      const cmp = epcVsPpa({ epc: chosen.epc, ppa, horizon: ppa.term_years, discount: fo.discount });
+      const stepRows = (steps) => table('วิธีคิด', [['รายการ', (r) => esc(r.label)], ['สูตรและตัวเลขที่แทนแล้ว', (r) => esc(r.formula)], ['ผลลัพธ์', (r) => (r.value == null ? '–' : fmt(r.value, Math.abs(r.value) < 10 ? 3 : 0)) + ' ' + esc(r.unit)]], steps);
+      const body = kp([
+        [fmt(chosen.o.kwp, 1) + ' kWp', esc(chosen.o.name)],
+        [fmt(chosen.epc.capex / 1e6, 2) + ' ล.', 'เงินลงทุน (บาท)'],
+        [chosen.epc.payback_simple ? fmt(chosen.epc.payback_simple, 1) + ' ปี' : '–', 'ระยะคืนทุน'],
+        [chosen.epc.irr == null ? '–' : fmt(chosen.epc.irr * 100, 1) + '%', 'ผลตอบแทนภายใน'],
+      ]) +
+        `<div class="note"><b>ที่มาของปริมาณไฟฟ้า:</b> ${plantRes.basis === 'bill' ? 'ใบแจ้งหนี้ค่าไฟจริง' : (plantRes.basis === 'actual' ? 'น้ำเข้าจริง × ค่าอ้างอิงของประเภทระบบ' : 'ความสามารถออกแบบ × ค่าอ้างอิงของประเภทระบบ')} = ${fmt(plantRes.kwh_day, 0)} kWh/วัน · อัตราค่าไฟ ${fmt(tariff, 2)} บาท/kWh · ชั่วโมงแดดเต็มที่ ${psh.toFixed(2)} ชม./วัน จาก ${esc(pshSrc)}${plantRes.in_band === false ? ' · <b>หน่วยไฟต่อลูกบาศก์เมตรอยู่นอกช่วงอ้างอิง</b>' : ''}</div>` +
+        '<h3>เปรียบเทียบทางเลือกโซลาร์ (คิดที่ขนาดเดียวกัน)</h3>' +
+        table('เปรียบเทียบทางเลือกโซลาร์', [
+          ['ทางเลือก', (r) => esc(r.o.name) + (r.o.key === best.o.key ? ' *' : '')],
+          ['kWp', (r) => fmt(r.o.kwp, 1)], ['พื้นที่ m²', (r) => fmt(r.o.area_m2, 0)],
+          ['ผลผลิตปีที่ 1 kWh', (r) => fmt(r.o.kwh_year0, 0)],
+          ['เงินลงทุน บาท', (r) => fmt(r.o.capex.total.mid, 0)],
+          ['ประหยัดปีที่ 1', (r) => fmt(r.epc.rows[0]?.saving, 0)],
+          ['คืนทุน ปี', (r) => r.epc.payback_simple ? fmt(r.epc.payback_simple, 1) : 'ไม่คืนทุน'],
+          ['NPV บาท', (r) => fmt(r.epc.npv, 0)],
+          ['IRR', (r) => r.epc.irr == null ? '–' : fmt(r.epc.irr * 100, 1) + '%'],
+          ['LCOE บาท/kWh', (r) => fmt(r.epc.lcoe, 2)],
+        ], offers) +
+        chart({ type: 'bar', data: { labels: offers.map((r) => r.o.name), datasets: [{ label: 'NPV', data: offers.map((r) => r.epc.npv), backgroundColor: offers.map((r) => r.o.key === best.o.key ? '#1b5e20' : '#a5d6a7') }] }, options: { indexAxis: 'y', responsive: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'มูลค่าปัจจุบันสุทธิของแต่ละทางเลือก (บาท)', font: { family: 'Sarabun' } } } } }, 660, 200) +
+        chart({ type: 'line', data: { labels: ['0', ...chosen.epc.rows.map((r) => String(r.y))], datasets: [{ label: esc(chosen.o.name), data: [-chosen.epc.capex, ...chosen.epc.rows.map((r) => r.cum)], borderColor: '#1d4ed8', pointRadius: 0, borderWidth: 2 }] }, options: { responsive: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'กระแสเงินสดสะสม จุดตัดศูนย์คือปีที่คืนทุน (บาท)', font: { family: 'Sarabun' } } } } }, 660, 200) +
+        '<h3>ข้อเสนอ ลงทุนเอง เทียบ มีผู้ลงทุน</h3>' +
+        table('EPC เทียบ PPA', [['หัวข้อ', (r) => esc(r[0])], ['ลงทุนเอง (EPC)', (r) => esc(r[1])], [`มีผู้ลงทุน (PPA) ${ppa.term_years} ปี`, (r) => esc(r[2])]], [
+          ['เงินลงทุนของเจ้าของโครงการ', fmt(chosen.epc.capex, 0) + ' บาท', '0 บาท'],
+          ['ค่าไฟที่จ่ายปีแรก', 'ไม่มี (ผลิตใช้เอง)', fmt(ppa.ppa_tariff_1, 2) + ' บาท/kWh (ลด ' + fmt(ppa.discount_pct * 100, 0) + '%)'],
+          ['ประหยัดปีแรก', fmt(chosen.epc.rows[0]?.saving, 0) + ' บาท', fmt(ppa.first_year_saving, 0) + ' บาท'],
+          [`มูลค่าปัจจุบันสุทธิ ${ppa.term_years} ปี`, fmt(cmp.epc.npv_h, 0) + ' บาท', fmt(ppa.npv, 0) + ' บาท'],
+          ['ผลตอบแทนภายใน', chosen.epc.irr == null ? '–' : fmt(chosen.epc.irr * 100, 1) + '%', 'ไม่มี เพราะไม่ได้ลงทุน'],
+          ['ระยะคืนทุน', chosen.epc.payback_simple ? fmt(chosen.epc.payback_simple, 1) + ' ปี' : 'ไม่คืนทุน', 'ไม่ต้องคืนทุน'],
+          ['กรรมสิทธิ์', 'เป็นเจ้าของตั้งแต่วันรับมอบ', `ผู้ลงทุนถือครอง ซื้อคืนได้ปีที่ ${ppa.buyout_year} และโอนให้เมื่อครบสัญญา`],
+        ]) +
+        chart({ type: 'line', data: { labels: ppa.rows.map((r) => String(r.y)), datasets: [
+          { label: 'ค่าไฟการไฟฟ้า', data: ppa.rows.map((r) => r.grid_tariff_y), borderColor: '#be123c', pointRadius: 0, borderWidth: 2 },
+          { label: 'ค่าไฟตามสัญญา PPA', data: ppa.rows.map((r) => r.ppa_tariff_y), borderColor: '#1b5e20', pointRadius: 0, borderWidth: 2 }] },
+          options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 10 } } }, title: { display: true, text: 'ค่าไฟต่อหน่วยตลอดอายุสัญญา (บาท/kWh)', font: { family: 'Sarabun' } } } } }, 660, 200) +
+        '<h3>วิธีคิด</h3>' + stepRows([...chosen.o.steps, ...chosen.epc.steps, ...ppa.steps]) +
+        crit(`${cmp.winner === 'tie' ? 'ที่กรอบเวลาเท่ากัน สองแบบให้ผลใกล้เคียงกัน' : 'ที่กรอบเวลาเท่ากัน แบบ' + (cmp.winner === 'epc' ? 'ลงทุนเอง' : 'มีผู้ลงทุน') + 'ให้มูลค่าปัจจุบันสูงกว่า ' + fmt(Math.abs(cmp.delta_npv), 0) + ' บาท'} · ${esc(cmp.residual_note)} · ราคาติดตั้ง ค่าดูแลรักษา อัตราแผงเสื่อม และเงื่อนไขสัญญา เป็นค่าประมาณจากแหล่งเชิงพาณิชย์ปี 2569 ไม่ใช่ราคากลางของราชการ · ตัวคูณราคาและผลผลิตของระบบทุ่นลอยน้ำเป็นค่าอ้างอิงสากล ไม่ใช่ตัวเลขจากโครงการในไทย · ส่วนลดค่าไฟ ${fmt(ppa.discount_pct * 100, 0)}% ของสัญญาเป็นคนละตัวกับอัตราคิดลดทางการเงิน ${fmt(fo.discount * 100, 1)}% ที่ใช้คิดมูลค่าปัจจุบัน`);
+      return [`ข้อเสนอราคาระบบโซลาร์ — ${PROCESS_TYPES[code].name}`, body, 'ฐานความรู้ envi_pi · ค่าประมาณเพื่อวางแผนเบื้องต้น'];
+    };
     async function preview() {
       const sel = [...document.querySelectorAll('#cards input:checked')].map((i) => i.value);
       if (!sel.length) { $('#status').textContent = 'ยังไม่ได้เลือกการ์ด'; return; }

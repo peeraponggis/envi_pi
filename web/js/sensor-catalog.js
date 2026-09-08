@@ -679,9 +679,11 @@ export function designToURL(state) {
   if (state.qty) p.set('qty', Object.entries(state.qty).map(([k, v]) => `${k}=${v}`).join(','));
   return p.toString();
 }
+/** คีย์ที่ต้องแปลงเป็นตัวเลข — เพิ่มคีย์ตัวเลขใหม่ที่นี่ทุกครั้ง ไม่งั้นหน้ารายงานจะได้สตริง */
+export const NUM_KEYS = ['cap', 'lat', 'lng', 'seed', 'psh', 'tariff', 'inflow', 'station', 'cost', 'pr', 'margin', 'duty', 'bkwh', 'bbaht', 'bmonths', 'night', 'battcost', 'life', 'disc', 'esc', 'om', 'pterm', 'pdisc', 'pesc'];
 export function designFromURL(qs) {
   const p = new URLSearchParams(qs); const o = {};
-  for (const [k, v] of p.entries()) o[k] = ['cap', 'lat', 'lng', 'seed', 'psh', 'tariff', 'inflow', 'station'].includes(k) ? Number(v) : v;
+  for (const [k, v] of p.entries()) o[k] = NUM_KEYS.includes(k) ? Number(v) : v;
   if (o.qty) o.qty = Object.fromEntries(String(o.qty).split(',').filter(Boolean).map((s) => { const [k, v] = s.split('='); return [k, Number(v)]; }));
   return o;
 }
@@ -982,4 +984,321 @@ export function wrapLabel(name, w, maxLines = 3) {
   }
   if (out.length > maxLines) { const keep = out.slice(0, maxLines); keep[maxLines - 1] = keep[maxLines - 1].slice(0, max - 1) + '…'; return keep; }
   return out;
+}
+
+// ─────────────────────────────────────────────────────────── โซลาร์เชิงพาณิชย์และการเงิน
+/**
+ * ⚠️ ตัวเลขอ้างอิงทั้งหมดในส่วนนี้เป็น **ค่าประมาณจากแหล่งเชิงพาณิชย์ ปี 2569** ไม่ใช่ราคากลางของราชการ
+ * ทุกฟังก์ชันคืน steps[] ที่แสดงสูตรพร้อมตัวเลขที่แทนแล้ว เพื่อให้ตรวจย้อนได้ว่าคิดมาอย่างไร
+ * กติกา: ห้ามใส่อักขระ < หรือ > ใน formula เพราะตารางฝั่งหน้าเว็บถอดแท็กด้วย /<[^>]+>/g แล้วข้อความจะหาย
+ */
+const n$ = (x, d = 0) => (x == null || !isFinite(x)) ? '–' : Number(x).toLocaleString('th-TH', { maximumFractionDigits: d });
+/** หนึ่งขั้นของการคำนวณ · ref บอกที่มาของตัวเลข: กรอกเอง / ค่าอ้างอิง / วัดจริง / บิลค่าไฟ */
+export const STEP = (label, formula, value, unit, ref = null) => ({ label, formula, value, unit, ref });
+
+/** ราคาติดตั้งออนกริดตามขนาดระบบ (บาทต่อ kWp ติดตั้งบนหลังคาเป็นฐาน) */
+export const CAPEX_TIERS = [
+  { max: 100, lo: 25000, hi: 30000, name: 'ต่ำกว่า 100 kWp' },
+  { max: 1000, lo: 20000, hi: 25000, name: '100–1,000 kWp' },
+  { max: 3000, lo: 18000, hi: 22000, name: '1–3 MWp' },
+  { max: 5000, lo: 16000, hi: 20000, name: '3–5 MWp' },
+  { max: Infinity, lo: 14000, hi: 18000, name: 'มากกว่า 5 MWp' },
+];
+export const CAPEX_SOURCE = 'ช่วงราคาติดตั้งออนกริดในตลาดไทย 2569 (ค่าประมาณจากผู้รับเหมา ไม่ใช่ราคากลางราชการ)';
+/** วิธีติดตั้ง: ตัวคูณราคา ตัวคูณผลผลิต และพื้นที่ต่อ kWp */
+export const MOUNTS = {
+  roof: { key: 'roof', name: 'บนหลังคา', cost: [1, 1, 1], yield: [1, 1, 1], area_per_kwp: 6.5, note: 'ไม่ใช้ที่ดินเพิ่ม ต้องตรวจกำลังรับน้ำหนักโครงหลังคาก่อน', source: CAPEX_SOURCE },
+  ground: { key: 'ground', name: 'บนพื้นดิน', cost: [1.05, 1.10, 1.15], yield: [1, 1, 1], area_per_kwp: 12, note: 'ราคารวมฐานราก รั้ว และงานถนน แต่ไม่รวมค่าที่ดิน · ล้างแผงและตัดหญ้าง่ายกว่าบนหลังคา', source: CAPEX_SOURCE },
+  floating: { key: 'floating', name: 'ทุ่นลอยน้ำในบ่อ', cost: [1.20, 1.275, 1.35], yield: [1.05, 1.075, 1.10], area_per_kwp: 9, note: 'ใช้ผิวน้ำของบ่อบำบัดที่มีอยู่แล้ว แผงเย็นกว่าจึงได้ผลผลิตเพิ่ม แต่ต้องมีทุ่น สมอยึด และงานไฟฟ้ากันน้ำ · **ตัวคูณเป็นค่าอ้างอิงสากล ไม่ใช่ตัวเลขของตลาดไทยโดยตรง**', source: 'ส่วนต่างราคาและผลผลิตของระบบทุ่นลอยน้ำอ้างอิงรายงานสากล ไม่ใช่ค่าที่เก็บจากโครงการในไทย (ค่าประมาณ)' },
+};
+/** แบตเตอรี่สำหรับระบบไฮบริด */
+export const BATTERY_BENCH = { cost_per_kwh: [12000, 15000, 18000], rte: 0.90, dod: 0.9, cycles: 6000, source: 'แบตเตอรี่ลิเทียมไอออนฟอสเฟตพร้อมส่วนต่างอินเวอร์เตอร์ไฮบริด ราคาตลาด 2569 (ค่าประมาณ)' };
+/** ค่าตั้งต้นทางการเงิน */
+export const FIN_DEFAULTS = {
+  years: 25, discount: 0.07, escalation: 0.03, om_rate: 0.012, om_escalation: 0.03,
+  degradation_first: 0.02, degradation: 0.004, inverter_year: 11, inverter_per_kwp: 2500,
+  source: 'อัตราคิดลด 7% · ค่าไฟขึ้นปีละ 3% · ค่าดูแลรักษา 1.2% ของเงินลงทุนต่อปี (แหล่งอ้างอิงขัดกันระหว่าง 80–150 กับ 1,500–3,000 บาท/kWp/ปี จึงตั้งเป็นสัดส่วนของเงินลงทุนแทน) · แผงเสื่อมปีแรก 2% จากนั้นปีละ 0.4% · เปลี่ยนอินเวอร์เตอร์ปีที่ 11 ที่ 2,500 บาท/kWp',
+};
+/** สัญญาซื้อขายไฟฟ้ากับผู้ลงทุนภายนอก */
+export const PPA_DEFAULTS = { term_years: 15, discount_pct: 0.20, ppa_escalator: 0.01, buyout_year: 8, source: 'เงื่อนไขสัญญาซื้อขายไฟฟ้าเอกชนในไทย อายุ 15–25 ปี ส่วนลดค่าไฟ 10–30% ปรับขึ้นปีละ 1–3% ซื้อคืนได้ปีที่ 7–10 และโอนทรัพย์สินเมื่อครบสัญญา (ค่าประมาณ)' };
+
+/** หน่วยไฟและอัตราค่าไฟจริงจากใบแจ้งหนี้ — คืน null เมื่อไม่มีข้อมูลพอ */
+export function billEnergy({ kwh_month = 0, baht_month = 0, months = 1 } = {}) {
+  const k = Number(kwh_month) / (Number(months) || 1), b = Number(baht_month) / (Number(months) || 1);
+  if (!(k > 0)) return null;
+  const kwh_day = k * 12 / 365, tariff = b > 0 ? b / k : null;
+  return {
+    kwh_month: k, baht_month: b, kwh_day, kwh_year: k * 12, tariff, baht_year: b * 12,
+    estimate: false, source: 'คำนวณจากใบแจ้งหนี้ค่าไฟฟ้าจริงที่ผู้ใช้กรอก ไม่ใช่ค่าประมาณ',
+    steps: [
+      STEP('หน่วยไฟต่อวัน', `หน่วยต่อเดือน × 12 ÷ 365 = ${n$(k)} × 12 ÷ 365`, kwh_day, 'kWh/วัน', 'bill'),
+      ...(tariff ? [STEP('อัตราค่าไฟใช้จริง', `ค่าไฟต่อเดือน ÷ หน่วยต่อเดือน = ${n$(b)} ÷ ${n$(k)}`, tariff, 'บาท/kWh', 'bill')] : []),
+    ],
+  };
+}
+
+/** ไฟฟ้าของโรงบำบัด โดยให้บิลค่าไฟมาก่อนน้ำเข้าจริง และน้ำเข้าจริงมาก่อนความสามารถออกแบบ */
+export function plantEnergyResolved(code, { capacity = 0, avg_inflow = null, kwh_m3 = null, bill = null } = {}) {
+  const bench = plantEnergy(code, { capacity, avg_inflow, kwh_m3 });
+  const q = avg_inflow || capacity || 0;
+  const b = bill && bill.kwh_day > 0 ? bill : null;
+  const basis = b ? 'bill' : (bench.actual ? 'actual' : 'design');
+  // plantEnergy คืนหน่วยไฟต่อวันในคีย์ mid (lo/mid/hi ตามช่วง benchmark) ไม่ใช่ kwh_day
+  const kwh_day = b ? b.kwh_day : ((bench.actual ?? bench.design)?.mid ?? 0);
+  const implied = q > 0 ? kwh_day / q : null;
+  const in_band = implied == null ? null : (implied >= bench.kwh_m3.lo && implied <= bench.kwh_m3.hi);
+  const steps = [];
+  if (b) {
+    steps.push(...b.steps);
+    if (implied != null) steps.push(STEP('หน่วยไฟต่อลูกบาศก์เมตร (คิดย้อนกลับ)', `หน่วยไฟต่อวัน ÷ ปริมาณน้ำต่อวัน = ${n$(kwh_day)} ÷ ${n$(q)}`, implied, 'kWh/m³', 'bill'));
+    steps.push(STEP('เทียบช่วงอ้างอิงของประเภทระบบ', `ช่วงอ้างอิง ${bench.kwh_m3.lo}–${bench.kwh_m3.hi} kWh/m³ · ค่าที่คิดได้ ${n$(implied, 3)}`, implied, 'kWh/m³', 'benchmark'));
+  } else {
+    steps.push(STEP('ปริมาณน้ำที่ใช้คิด', `${bench.actual ? 'น้ำเข้าจริง' : 'ความสามารถออกแบบ'} = ${n$(q)}`, q, 'm³/วัน', bench.actual ? 'input' : 'input'));
+    steps.push(STEP('หน่วยไฟต่อวัน', `ปริมาณน้ำ × ค่ากลางของช่วงอ้างอิง = ${n$(q)} × ${bench.kwh_m3.mid}`, kwh_day, 'kWh/วัน', 'benchmark'));
+  }
+  return {
+    basis, kwh_day, kwh_year: kwh_day * 365, tariff: b?.tariff ?? null,
+    kwh_m3_implied: implied, in_band, benchmark: bench, q,
+    estimate: !b, source: b ? b.source : bench.source, steps,
+  };
+}
+
+/** ชั้นราคาตามขนาดระบบ */
+export function capexTier(kwp) {
+  const i = CAPEX_TIERS.findIndex((t) => Number(kwp) <= t.max);
+  const idx = i < 0 ? CAPEX_TIERS.length - 1 : i;
+  const t = CAPEX_TIERS[idx];
+  return { lo: t.lo, hi: t.hi, mid: (t.lo + t.hi) / 2, name: t.name, index: idx };
+}
+/** ราคาติดตั้งต่อ kWp และรวม ตามขนาดและวิธีติดตั้ง */
+export function capexPerKwp({ kwp = 0, mount = 'roof', override = null } = {}) {
+  const m = MOUNTS[mount] ?? MOUNTS.roof;
+  const tier = capexTier(kwp);
+  const base = override ? { lo: override, mid: override, hi: override } : tier;
+  const per = { lo: base.lo * m.cost[0], mid: base.mid * m.cost[1], hi: base.hi * m.cost[2] };
+  const total = { lo: per.lo * kwp, mid: per.mid * kwp, hi: per.hi * kwp };
+  return {
+    tier, mount: m.key, mount_name: m.name,
+    mount_mult: { lo: m.cost[0], mid: m.cost[1], hi: m.cost[2] },
+    yield_mult: { lo: m.yield[0], mid: m.yield[1], hi: m.yield[2] },
+    per_kwp: per, total, area_m2: kwp * m.area_per_kwp,
+    estimate: true, source: `${override ? 'ผู้ใช้กรอกราคาต่อ kWp เอง' : CAPEX_SOURCE} · ${m.source}`,
+    steps: [
+      STEP('ชั้นราคาตามขนาด', override ? `ผู้ใช้กรอกเอง ${n$(override)} บาท/kWp` : `${tier.name} = ${n$(base.lo)}–${n$(base.hi)} บาท/kWp`, base.mid, 'บาท/kWp', override ? 'input' : 'benchmark'),
+      STEP('ตัวคูณวิธีติดตั้ง', `${m.name} × ${m.cost[1]} ของราคาบนหลังคา`, m.cost[1], 'เท่า', 'benchmark'),
+      STEP('ราคาต่อ kWp หลังคูณ', `${n$(base.mid)} × ${m.cost[1]}`, per.mid, 'บาท/kWp', 'benchmark'),
+      STEP('เงินลงทุนรวม', `ขนาด × ราคาต่อ kWp = ${n$(kwp, 1)} × ${n$(per.mid)}`, total.mid, 'บาท', 'benchmark'),
+      STEP('พื้นที่ที่ต้องใช้', `ขนาด × ${m.area_per_kwp} ตร.ม./kWp = ${n$(kwp, 1)} × ${m.area_per_kwp}`, kwp * m.area_per_kwp, 'm²', 'benchmark'),
+    ],
+  };
+}
+
+/** ขนาดแบตเตอรี่ระดับ kWh สำหรับระบบไฮบริด (แยกจาก batterySizing ของระบบเซนเซอร์ซึ่งเป็นหน่วย Wh) */
+export function batteryBankSizing({ kwh_cycle = 0, dod = BATTERY_BENCH.dod, rte = BATTERY_BENCH.rte, cost_per_kwh = BATTERY_BENCH.cost_per_kwh[1], cycles = BATTERY_BENCH.cycles, cycles_per_year = 365 } = {}) {
+  if (!(kwh_cycle > 0)) return null;
+  const kwh_nominal = kwh_cycle / (dod * rte);
+  const life_years = cycles / cycles_per_year;
+  return {
+    kwh_cycle, kwh_nominal, dod, rte, cycles, life_years, replace_year: Math.ceil(life_years),
+    cost: { lo: kwh_nominal * BATTERY_BENCH.cost_per_kwh[0], mid: kwh_nominal * cost_per_kwh, hi: kwh_nominal * BATTERY_BENCH.cost_per_kwh[2] },
+    estimate: true, source: BATTERY_BENCH.source,
+    steps: [
+      STEP('พลังงานที่ต้องเก็บต่อรอบ', `หน่วยไฟต่อวัน × สัดส่วนที่ใช้ตอนไม่มีแดด = ${n$(kwh_cycle, 1)}`, kwh_cycle, 'kWh', 'input'),
+      STEP('ความจุที่ต้องติดตั้ง', `พลังงานต่อรอบ ÷ (ความลึกการคายประจุ × ประสิทธิภาพไปกลับ) = ${n$(kwh_cycle, 1)} ÷ (${dod} × ${rte})`, kwh_nominal, 'kWh', 'benchmark'),
+      STEP('ราคาแบตเตอรี่', `ความจุ × ${n$(cost_per_kwh)} บาท/kWh`, kwh_nominal * cost_per_kwh, 'บาท', 'benchmark'),
+      STEP('อายุใช้งาน', `${n$(cycles)} รอบ ÷ ${cycles_per_year} รอบต่อปี`, life_years, 'ปี', 'benchmark'),
+    ],
+  };
+}
+
+/** หนึ่งทางเลือกของระบบโซลาร์ (วิธีติดตั้ง × ออนกริดหรือไฮบริด) */
+export function solarOption({ key, name, kwh_day = 0, kwp = null, mount = 'roof', hybrid = false, night_fraction = 0.35, psh = 4.8, airTemp = 30, windSpeed = 1.5, pr0 = 0.80, tempCoef = 0.004, sizing_margin = 1.1, capex_override = null, battery = {} } = {}) {
+  const m = MOUNTS[mount] ?? MOUNTS.roof;
+  const sz = solarSizing({ kwh_day, psh, airTemp, windSpeed, pr0, tempCoef, sizing_margin, area_per_kwp: m.area_per_kwp });
+  if (!sz) return null;
+  const size = kwp ?? sz.kwp;
+  const pr_eff = sz.pr * m.yield[1];
+  const kwh_year0 = size * psh * pr_eff * 365;
+  const cap = capexPerKwp({ kwp: size, mount, override: capex_override });
+  const bank = hybrid ? batteryBankSizing({ kwh_cycle: kwh_day * night_fraction, ...battery }) : null;
+  const total = { lo: cap.total.lo + (bank?.cost.lo ?? 0), mid: cap.total.mid + (bank?.cost.mid ?? 0), hi: cap.total.hi + (bank?.cost.hi ?? 0) };
+  return {
+    key: key ?? `${mount}_${hybrid ? 'hybrid' : 'ongrid'}`,
+    name: name ?? `${m.name} · ${hybrid ? 'ไฮบริด + แบตเตอรี่' : 'ออนกริด'}`,
+    mount, mount_name: m.name, hybrid, sizing: sz, kwp: size, area_m2: size * m.area_per_kwp,
+    pr: sz.pr, pr_eff, tmod: sz.tmod, psh, kwh_year0,
+    capex: { base: cap.total, battery: bank?.cost ?? null, total }, capex_detail: cap, battery: bank,
+    estimate: true, source: cap.source + (bank ? ' · ' + bank.source : ''),
+    steps: [
+      STEP('ขนาดติดตั้ง', kwp ? `ใช้ขนาดเดียวกับทางเลือกอ้างอิงเพื่อเทียบกันตรง ๆ = ${n$(size, 1)}` : `หน่วยไฟต่อวัน × เผื่อขนาด ÷ (ชั่วโมงแดดเต็มที่ × ค่าประสิทธิภาพรวม) = ${n$(kwh_day, 1)} × ${sizing_margin} ÷ (${n$(psh, 2)} × ${n$(sz.pr, 2)})`, size, 'kWp', 'benchmark'),
+      STEP('ค่าประสิทธิภาพรวมหลังคิดวิธีติดตั้ง', `${n$(sz.pr, 3)} × ตัวคูณผลผลิต ${m.yield[1]} (อุณหภูมิแผงราว ${n$(sz.tmod, 0)} °C ตามสูตร King/Sandia)`, pr_eff, '', 'benchmark'),
+      STEP('ผลผลิตปีที่ 1', `ขนาด × ชั่วโมงแดด × ประสิทธิภาพ × 365 = ${n$(size, 1)} × ${n$(psh, 2)} × ${n$(pr_eff, 3)} × 365`, kwh_year0, 'kWh/ปี', 'benchmark'),
+      ...cap.steps,
+      ...(bank ? bank.steps : []),
+      ...(bank ? [STEP('เงินลงทุนรวมทั้งระบบ', `แผงและงานติดตั้ง ${n$(cap.total.mid)} + แบตเตอรี่ ${n$(bank.cost.mid)}`, total.mid, 'บาท', 'benchmark')] : []),
+    ],
+  };
+}
+
+/** กระแสเงินสดรายปีตลอดอายุโครงการ */
+export function cashflow({ capex = 0, kwp = 0, kwh_year0 = 0, tariff = 4.2, load_kwh_year = Infinity, years = FIN_DEFAULTS.years,
+  degradation_first = FIN_DEFAULTS.degradation_first, degradation = FIN_DEFAULTS.degradation, escalation = FIN_DEFAULTS.escalation,
+  om_rate = FIN_DEFAULTS.om_rate, om_escalation = FIN_DEFAULTS.om_escalation, inverter_year = FIN_DEFAULTS.inverter_year,
+  inverter_per_kwp = FIN_DEFAULTS.inverter_per_kwp, battery_replace_year = null, battery_cost = 0,
+  self_consumption = 1, export_tariff = 0, discount = FIN_DEFAULTS.discount } = {}) {
+  const rows = [];
+  for (let y = 1; y <= years; y++) {
+    const kwh = y === 1 ? kwh_year0 : kwh_year0 * (1 - degradation_first) * Math.pow(1 - degradation, y - 2);
+    const tariff_y = tariff * Math.pow(1 + escalation, y - 1);
+    const cap_use = Math.min(kwh, load_kwh_year * self_consumption);
+    const kwh_used = isFinite(cap_use) ? cap_use : kwh;
+    const kwh_export = Math.max(0, kwh - kwh_used);
+    const saving = kwh_used * tariff_y + kwh_export * export_tariff;
+    const om = capex * om_rate * Math.pow(1 + om_escalation, y - 1);
+    const capexOut = (y === inverter_year ? inverter_per_kwp * kwp : 0) + (battery_replace_year && y === battery_replace_year ? battery_cost : 0);
+    const net = saving - om - capexOut;
+    const df = Math.pow(1 + discount, y);
+    const prev = rows[rows.length - 1];
+    rows.push({ y, kwh, kwh_used, kwh_export, tariff_y, saving, om, capexOut, net, cum: (prev?.cum ?? -capex) + net, df, pv: net / df, cumPv: (prev?.cumPv ?? -capex) + net / df });
+  }
+  const flows = [-capex, ...rows.map((r) => r.net)];
+  const total_saving = rows.reduce((a, r) => a + r.saving, 0);
+  const total_om = rows.reduce((a, r) => a + r.om, 0);
+  const total_net = rows.reduce((a, r) => a + r.net, 0);
+  const _npv = npv(discount, flows), _irr = irr(flows);
+  const _lcoe = lcoe({ capex, om_by_year: rows.map((r) => r.om + r.capexOut), kwh_by_year: rows.map((r) => r.kwh), discount });
+  return {
+    rows, capex, years, discount, flows, total_saving, total_om, total_net,
+    npv: _npv, irr: _irr, lcoe: _lcoe, roi: capex > 0 ? total_net / capex : null,
+    payback_simple: paybackYears(flows), payback_discounted: paybackYears(flows, { rate: discount }),
+    estimate: true, source: FIN_DEFAULTS.source,
+    steps: [
+      STEP('ผลผลิตปีที่ 2 หลังแผงเสื่อม', `ผลผลิตปีแรก × (1 − ${degradation_first}) = ${n$(kwh_year0)} × ${1 - degradation_first}`, rows[1]?.kwh ?? null, 'kWh', 'benchmark'),
+      STEP('ค่าไฟปีที่ 2', `อัตราปีแรก × (1 + ${escalation}) = ${n$(tariff, 2)} × ${(1 + escalation).toFixed(2)}`, rows[1]?.tariff_y ?? null, 'บาท/kWh', 'benchmark'),
+      STEP('ค่าดูแลรักษาปีแรก', `เงินลงทุน × ${om_rate} = ${n$(capex)} × ${om_rate}`, rows[0]?.om ?? null, 'บาท/ปี', 'benchmark'),
+      STEP('เปลี่ยนอินเวอร์เตอร์', `ปีที่ ${inverter_year} · ขนาด × ${n$(inverter_per_kwp)} บาท/kWp = ${n$(kwp, 1)} × ${n$(inverter_per_kwp)}`, inverter_per_kwp * kwp, 'บาท', 'benchmark'),
+      STEP('มูลค่าปัจจุบันสุทธิ', `รวมกระแสเงินสดคิดลดที่อัตรา ${(discount * 100).toFixed(1)}% ตลอด ${years} ปี`, _npv, 'บาท', 'benchmark'),
+      STEP('อัตราผลตอบแทนภายใน', _irr == null ? 'กระแสเงินสดไม่เปลี่ยนเครื่องหมาย จึงคำนวณไม่ได้' : `อัตราคิดลดที่ทำให้มูลค่าปัจจุบันสุทธิเป็นศูนย์ = ${(_irr * 100).toFixed(2)}%`, _irr, '', 'benchmark'),
+      STEP('ระยะคืนทุนแบบง่าย', `ปีที่กระแสเงินสดสะสมกลับเป็นบวก จากเงินลงทุน ${n$(capex)} บาท`, paybackYears(flows), 'ปี', 'benchmark'),
+      STEP('ต้นทุนไฟฟ้าต่อหน่วยตลอดอายุ', `(เงินลงทุน ${n$(capex)} + ค่าดูแลคิดลด) ÷ ผลผลิตคิดลดตลอด ${years} ปี`, _lcoe, 'บาท/kWh', 'benchmark'),
+    ],
+  };
+}
+
+/** มูลค่าปัจจุบันสุทธิ — flows[0] อยู่ที่เวลา 0 */
+export function npv(rate, flows) {
+  return (flows ?? []).reduce((a, f, t) => a + f / Math.pow(1 + rate, t), 0);
+}
+/** อัตราผลตอบแทนภายใน ด้วยวิธีแบ่งครึ่งช่วง — คืน null เมื่อกระแสเงินสดไม่เปลี่ยนเครื่องหมาย */
+export function irr(flows, { lo = -0.99, hi = 1.0, tol = 1e-12, maxIter = 200 } = {}) {
+  if (!flows || flows.length < 2) return null;
+  let a = lo, b = hi, fa = npv(a, flows), fb = npv(b, flows);
+  let grow = 0;
+  while (fa * fb > 0 && grow < 12) { b *= 2; fb = npv(b, flows); grow++; }
+  if (!isFinite(fa) || !isFinite(fb) || fa * fb > 0) return null;
+  for (let i = 0; i < maxIter; i++) {
+    const m = (a + b) / 2, fm = npv(m, flows);
+    if (Math.abs(fm) < tol || (b - a) / 2 < tol) return m;
+    if (fa * fm <= 0) { b = m; fb = fm; } else { a = m; fa = fm; }
+  }
+  return (a + b) / 2;
+}
+/** ปีที่กระแสเงินสดสะสมกลับมาเป็นบวก (เทียบเชิงเส้นภายในปีที่ตัดศูนย์) */
+export function paybackYears(flows, { rate = 0 } = {}) {
+  if (!flows || !flows.length) return null;
+  let cum = flows[0];
+  for (let t = 1; t < flows.length; t++) {
+    const f = flows[t] / Math.pow(1 + rate, t);
+    const next = cum + f;
+    if (cum < 0 && next >= 0) return (t - 1) + (-cum / f);
+    cum = next;
+  }
+  return null;
+}
+/** ต้นทุนไฟฟ้าต่อหน่วยตลอดอายุโครงการ */
+export function lcoe({ capex = 0, om_by_year = [], kwh_by_year = [], discount = FIN_DEFAULTS.discount } = {}) {
+  const pvCost = capex + om_by_year.reduce((a, c, i) => a + c / Math.pow(1 + discount, i + 1), 0);
+  const pvKwh = kwh_by_year.reduce((a, k, i) => a + k / Math.pow(1 + discount, i + 1), 0);
+  return pvKwh > 0 ? pvCost / pvKwh : null;
+}
+/** ผลตอบแทนอย่างง่าย */
+export function simpleRoi({ total_net = 0, capex = 0 } = {}) { return capex > 0 ? total_net / capex : null; }
+
+/** ข้อเสนอแบบลงทุนเอง (EPC) */
+export function epcOffer(option, fin = {}) {
+  if (!option) return null;
+  const capex = option.capex.total.mid;
+  const cf = cashflow({
+    capex, kwp: option.kwp, kwh_year0: option.kwh_year0,
+    battery_replace_year: option.battery?.replace_year ?? null, battery_cost: option.battery?.cost.mid ?? 0,
+    ...fin,
+  });
+  return {
+    kind: 'epc', name: 'ลงทุนเอง (EPC)', option: option.key, capex,
+    ...cf,
+    ownership: 'เป็นเจ้าของทรัพย์สินตั้งแต่วันรับมอบ ได้สิทธิประโยชน์ทางภาษีและค่าเสื่อมเอง',
+    estimate: true,
+  };
+}
+
+/** ข้อเสนอแบบมีผู้ลงทุน (PPA) — เจ้าของโครงการไม่ลงทุน จ่ายเฉพาะค่าไฟตามหน่วยที่ผลิตได้ในอัตราที่ลดจากค่าไฟการไฟฟ้า */
+export function ppaOffer({ kwh_year0 = 0, load_kwh_year = Infinity, tariff = 4.2, term_years = PPA_DEFAULTS.term_years,
+  discount_pct = PPA_DEFAULTS.discount_pct, ppa_escalator = PPA_DEFAULTS.ppa_escalator, grid_escalation = FIN_DEFAULTS.escalation,
+  degradation_first = FIN_DEFAULTS.degradation_first, degradation = FIN_DEFAULTS.degradation,
+  self_consumption = 1, discount = FIN_DEFAULTS.discount, buyout_year = PPA_DEFAULTS.buyout_year } = {}) {
+  const rows = []; let crossover = null;
+  const ppa1 = tariff * (1 - discount_pct);
+  for (let y = 1; y <= term_years; y++) {
+    const kwh = y === 1 ? kwh_year0 : kwh_year0 * (1 - degradation_first) * Math.pow(1 - degradation, y - 2);
+    const cap_use = Math.min(kwh, load_kwh_year * self_consumption);
+    const kwh_used = isFinite(cap_use) ? cap_use : kwh;
+    const grid_tariff_y = tariff * Math.pow(1 + grid_escalation, y - 1);
+    const ppa_tariff_y = ppa1 * Math.pow(1 + ppa_escalator, y - 1);
+    const delta = grid_tariff_y - ppa_tariff_y;
+    const saving = kwh_used * delta;
+    if (crossover == null && ppa_tariff_y > grid_tariff_y) crossover = y;
+    const prev = rows[rows.length - 1];
+    rows.push({ y, kwh, kwh_used, grid_tariff_y, ppa_tariff_y, delta, ppa_cost: kwh_used * ppa_tariff_y, saving, cum: (prev?.cum ?? 0) + saving, pv: saving / Math.pow(1 + discount, y) });
+  }
+  const total_saving = rows.reduce((a, r) => a + r.saving, 0);
+  const _npv = npv(discount, [0, ...rows.map((r) => r.saving)]);
+  const avg_saving_pct = rows.length ? rows.reduce((a, r) => a + r.delta / r.grid_tariff_y, 0) / rows.length : 0;
+  return {
+    kind: 'ppa', name: `มีผู้ลงทุน (PPA) ${term_years} ปี`, rows, term_years, capex: 0, irr: null,
+    total_saving, npv: _npv, first_year_saving: rows[0]?.saving ?? 0, avg_saving_pct,
+    crossover_year: crossover, buyout_year, ppa_tariff_1: ppa1, discount_pct,
+    ownership: `ผู้ลงทุนเป็นเจ้าของระบบระหว่างสัญญา ซื้อคืนได้ตั้งแต่ปีที่ ${buyout_year} และโอนทรัพย์สินให้เจ้าของโครงการเมื่อครบ ${term_years} ปี`,
+    estimate: true, source: PPA_DEFAULTS.source,
+    steps: [
+      STEP('ค่าไฟตามสัญญาปีแรก', `อัตราค่าไฟการไฟฟ้า × (1 − ส่วนลด ${(discount_pct * 100).toFixed(0)}%) = ${n$(tariff, 2)} × ${(1 - discount_pct).toFixed(2)}`, ppa1, 'บาท/kWh', 'input'),
+      STEP('ส่วนต่างต่อหน่วยปีแรก', `ค่าไฟการไฟฟ้า − ค่าไฟตามสัญญา = ${n$(tariff, 2)} − ${n$(ppa1, 2)}`, tariff - ppa1, 'บาท/kWh', 'benchmark'),
+      STEP('ประหยัดปีแรก', `หน่วยที่ใช้ × ส่วนต่าง = ${n$(rows[0]?.kwh_used ?? 0)} × ${n$(tariff - ppa1, 2)}`, rows[0]?.saving ?? 0, 'บาท', 'benchmark'),
+      STEP('ประหยัดรวมตลอดสัญญา', `รวมทุกปี ${term_years} ปี · ค่าไฟการไฟฟ้าขึ้นปีละ ${(grid_escalation * 100).toFixed(0)}% ค่าไฟตามสัญญาขึ้นปีละ ${(ppa_escalator * 100).toFixed(0)}%`, total_saving, 'บาท', 'benchmark'),
+      STEP('มูลค่าปัจจุบันของผลประหยัด', `คิดลดที่อัตรา ${(discount * 100).toFixed(1)}%`, _npv, 'บาท', 'benchmark'),
+      STEP('เงินลงทุนของเจ้าของโครงการ', 'เท่ากับ 0 บาท จึงไม่มีอัตราผลตอบแทนภายในให้คำนวณ', 0, 'บาท', 'input'),
+    ],
+  };
+}
+
+/** เทียบข้อเสนอลงทุนเองกับข้อเสนอมีผู้ลงทุน ที่กรอบเวลาเดียวกัน */
+export function epcVsPpa({ epc, ppa, horizon = PPA_DEFAULTS.term_years, discount = FIN_DEFAULTS.discount, tol = 0.02 } = {}) {
+  if (!epc || !ppa) return null;
+  const cut = epc.rows.slice(0, horizon);
+  const epcNpvH = npv(discount, [-epc.capex, ...cut.map((r) => r.net)]);
+  const epcNetH = cut.reduce((a, r) => a + r.net, 0) - epc.capex;
+  const d = epcNpvH - ppa.npv;
+  const scale = Math.max(Math.abs(epcNpvH), Math.abs(ppa.npv), 1);
+  const winner = Math.abs(d) / scale < tol ? 'tie' : (d > 0 ? 'epc' : 'ppa');
+  return {
+    horizon, discount, delta_npv: d, winner,
+    epc: { capex: epc.capex, npv_h: epcNpvH, total_net_h: epcNetH, payback: epc.payback_simple, irr: epc.irr, lcoe: epc.lcoe },
+    ppa: { capex: 0, npv_h: ppa.npv, total_saving_h: ppa.total_saving, effective_tariff_avg: ppa.rows.length ? ppa.rows.reduce((a, r) => a + r.ppa_tariff_y, 0) / ppa.rows.length : null },
+    residual_note: `เทียบที่ ${horizon} ปีเท่ากัน · แบบลงทุนเองยังเป็นเจ้าของระบบและได้ผลผลิตต่อจนครบอายุโครงการ ${epc.years} ปี ส่วนแบบมีผู้ลงทุนจะโอนทรัพย์สินให้เมื่อครบสัญญา`,
+    estimate: true, source: 'เทียบมูลค่าปัจจุบันสุทธิที่กรอบเวลาเดียวกัน โดยตัดกระแสเงินสดของแบบลงทุนเองที่ปีเดียวกับอายุสัญญา',
+    steps: [
+      STEP('มูลค่าปัจจุบันสุทธิ แบบลงทุนเอง', `คิดที่ ${horizon} ปี อัตราคิดลด ${(discount * 100).toFixed(1)}%`, epcNpvH, 'บาท', 'benchmark'),
+      STEP('มูลค่าปัจจุบันของผลประหยัด แบบมีผู้ลงทุน', `คิดที่ ${horizon} ปี อัตราคิดลดเดียวกัน`, ppa.npv, 'บาท', 'benchmark'),
+      STEP('ส่วนต่าง', `${n$(epcNpvH)} − ${n$(ppa.npv)}`, d, 'บาท', 'benchmark'),
+    ],
+  };
 }

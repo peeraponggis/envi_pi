@@ -31,6 +31,12 @@
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
     .card h2 { font-size: 16px; color: var(--brand-dark); margin-bottom: 4px; }
     .card .sub { font-size: 12px; color: var(--ink-3); margin-bottom: 8px; }
+    .meas { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 4px; background: var(--brand-soft); color: var(--brand-dark); vertical-align: middle; }
+    .chk { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; }
+    .chk label { display: flex; align-items: center; gap: 4px; grid-template-columns: none; }
+    tr.best td { background: var(--brand-soft); }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+    .steps td:first-child { width: 34%; } .steps td:nth-child(2) { color: var(--ink-2); }
     .est { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); vertical-align: middle; }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 6px 0 10px; }
     .kpi { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
@@ -114,18 +120,37 @@
           <div class="warn" id="diwWarn" hidden></div>
         </div>
       </div>
-      <div class="step"><h3><span class="no">2</span>ตัวเลือกพลังงาน/โซลาร์ <span class="est">ค่าประมาณ</span></h3>
+      <div class="step"><h3><span class="no">2</span>ค่าไฟจริงจากบิล <span class="meas">วัดจริง</span></h3>
         <div class="opts">
+          <label>หน่วย/เดือน <input id="bKwh" type="number" min="0" step="10" placeholder="kWh จากใบแจ้งหนี้"></label>
+          <label>ค่าไฟ/เดือน <input id="bBaht" type="number" min="0" step="100" placeholder="บาท จากใบแจ้งหนี้"></label>
+          <label>เฉลี่ยกี่เดือน <input id="bMonths" type="number" min="1" step="1" value="1"></label>
+        </div>
+        <div class="hint" id="bOut" style="margin-top:6px">กรอกทั้งหน่วยและค่าไฟ แล้วระบบจะใช้ค่าจริงแทนค่าประมาณ และคิดอัตราค่าไฟให้เอง</div>
+      </div>
+      <div class="step"><h3><span class="no">3</span>ตัวเลือกพลังงาน/โซลาร์ <span class="est">ค่าประมาณ</span></h3>
+        <div class="opts">
+          <label>วิธีติดตั้ง <span class="chk"><label><input type="checkbox" id="mRoof" checked>หลังคา</label><label><input type="checkbox" id="mGround" checked>พื้นดิน</label><label><input type="checkbox" id="mFloat" checked>ทุ่นลอยน้ำ</label></span></label>
+          <label>ไฮบริด+แบต <span class="chk"><label><input type="checkbox" id="oHybrid" checked>คิดทางเลือกไฮบริดด้วย</label></span></label>
+          <label>สัดส่วนกลางคืน <input id="oNight" type="number" step="0.05" min="0.05" max="1" value="0.35"></label>
+          <label>บาท/kWh แบต <input id="oBattCost" type="number" step="500" value="15000"></label>
+          <label>อายุโครงการ <input id="fLife" type="number" step="1" min="5" max="30" value="25"></label>
+          <label>อัตราคิดลด % <input id="fDisc" type="number" step="0.5" value="7"></label>
+          <label>ค่าไฟขึ้น %/ปี <input id="fEsc" type="number" step="0.5" value="3"></label>
+          <label>ดูแลรักษา %/ปี <input id="fOm" type="number" step="0.1" value="1.2"></label>
+          <label>PPA กี่ปี <input id="pTerm" type="number" step="1" min="5" max="25" value="15"></label>
+          <label>ส่วนลดค่าไฟ % <input id="pDisc" type="number" step="1" min="0" max="60" value="20"></label>
+          <label>PPA ขึ้น %/ปี <input id="pEsc" type="number" step="0.5" value="1"></label>
           <label>kWh/m³ <input id="eKwh" type="number" step="0.01" placeholder="ว่าง = ใช้ค่ากลาง benchmark"></label>
           <label>PSH <input id="ePsh" type="number" step="0.1" placeholder="ชม.แดด/วัน (ดึงจาก พพ. อัตโนมัติ)"></label>
           <label>PR เริ่มต้น <input id="ePr" type="number" step="0.01" value="0.80"></label>
-          <label>บาท/kWp <input id="eCost" type="number" step="1000" value="35000"></label>
+          <label>บาท/kWp <input id="eCost" type="number" step="1000" placeholder="ว่าง = ใช้ราคาตามขนาดระบบ"></label>
           <label>ค่าไฟ บาท/kWh <input id="eTariff" type="number" step="0.1" value="4.2"></label>
           <label>เผื่อขนาด <input id="eMargin" type="number" step="0.05" value="1.10"></label>
           <label>duty เซนเซอร์ <input id="eDuty" type="number" step="0.1" min="0.05" max="1" value="1.0"></label>
         </div>
       </div>
-      <div class="step"><h3><span class="no">3</span>สร้าง / ส่งออก</h3>
+      <div class="step"><h3><span class="no">4</span>สร้าง / ส่งออก</h3>
         <div class="actions">
           <button class="btn primary" id="btnBuild">ออกแบบและคำนวณ</button>
           <button class="btn" id="btnSim">🔁 จำลองใหม่ (seed)</button>
@@ -149,7 +174,7 @@
   <script type="module">
     import { getClient, isConfigured, fetchStationsLatest, nearestStations, fetchStationMeta, fetchNasaPower, summarizeNasaPower, withCache, cacheKey, currentSession, onAuthChange, ago } from './js/envi-core.js';
     import { LV, lvOf, PLANT_TYPE } from './js/param-info.js';
-    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
+    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION, billEnergy, plantEnergyResolved, solarOption, epcOffer, ppaOffer, epcVsPpa, MOUNTS, FIN_DEFAULTS } from './js/sensor-catalog.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const fmt = (n, d = 0) => n == null || isNaN(n) ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
@@ -176,7 +201,7 @@
     })();
 
     // ── สถานะผลลัพธ์ ──
-    let state = { seed: 42, qty: {} }, design, budget, energy, solar, series = {}, charts = [], TABLES = [];
+    let state = { seed: 42, qty: {} }, design, budget, energy, solar, fin = null, series = {}, charts = [], TABLES = [];
     const chartMake = (canvas, spec) => { const c = new Chart(canvas, spec); charts.push(c); return c; };
     const tbl = (title, cols, rows, cls = '') => { TABLES.push({ title, cols: cols.map((c) => c[0]), rows: rows.map((r) => cols.map((c) => String(c[2] ? c[2](r) : (c[1](r) ?? '')).replace(/<[^>]+>/g, ''))) }); return `<table class="tb ${cls}"><thead><tr>${cols.map((c) => `<th class="${c[3] ?? ''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c[3] ?? ''}">${c[1](r) ?? '–'}</td>`).join('')}</tr>`).join('')}</tbody></table>`; };
 
@@ -198,6 +223,33 @@
       const solarOpts = { psh, airTemp, windSpeed, pr0: +$('#ePr').value || .8, cost_per_kwp: +$('#eCost').value || 35000, tariff: +$('#eTariff').value || 4.2, sizing_margin: +$('#eMargin').value || 1.1 };
       const plantKwhDay = (energy.actual ?? energy.design)?.mid ?? 0;
       solar = { sensors: solarSizing({ kwh_day: budget.kwh_day, ...solarOpts }), plant: plantKwhDay ? solarSizing({ kwh_day: plantKwhDay, ...solarOpts }) : null, total: plantKwhDay ? solarSizing({ kwh_day: budget.kwh_day + plantKwhDay, ...solarOpts }) : null, psh, pshSrc, battery: batterySizing({ w_avg: budget.w_avg }) };
+      // ── บิลค่าไฟจริง ทางเลือกโซลาร์ และข้อเสนอเชิงพาณิชย์ ──
+      const bill = billEnergy({ kwh_month: +$('#bKwh').value || 0, baht_month: +$('#bBaht').value || 0, months: +$('#bMonths').value || 1 });
+      const tariff = bill?.tariff ?? (+$('#eTariff').value || 4.2);
+      const plantRes = plantEnergyResolved(code, { capacity: cap, avg_inflow: inflow, kwh_m3: +$('#eKwh').value || null, bill });
+      billHint(bill, plantRes);
+      const finOpt = {
+        years: +$('#fLife').value || FIN_DEFAULTS.years,
+        discount: (+$('#fDisc').value || 7) / 100,
+        escalation: (+$('#fEsc').value || 3) / 100,
+        om_rate: (+$('#fOm').value || 1.2) / 100,
+        tariff,
+      };
+      const mounts = [['roof', $('#mRoof').checked], ['ground', $('#mGround').checked], ['floating', $('#mFloat').checked]].filter((m) => m[1]).map((m) => m[0]);
+      const modes = $('#oHybrid').checked ? [false, true] : [false];
+      const scope = state.scope ?? 'plant';
+      const scopeKwhDay = scope === 'total' ? budget.kwh_day + plantRes.kwh_day : plantRes.kwh_day;
+      const optBase = { kwh_day: scopeKwhDay, psh, airTemp, windSpeed, pr0: solarOpts.pr0, sizing_margin: solarOpts.sizing_margin, capex_override: +$('#eCost').value || null, night_fraction: +$('#oNight').value || 0.35, battery: { cost_per_kwh: +$('#oBattCost').value || 15000 } };
+      // คิดทุกทางเลือกที่ขนาดเดียวกัน (ยึดขนาดของแบบบนหลังคา) เพื่อให้เทียบราคาและผลผลิตกันได้ตรง ๆ
+      const ref = scopeKwhDay > 0 ? solarOption({ ...optBase, mount: 'roof' }) : null;
+      const options = ref ? mounts.flatMap((mt) => modes.map((hy) => solarOption({ ...optBase, mount: mt, hybrid: hy, kwp: ref.kwp }))).filter(Boolean) : [];
+      const loadKwhYear = scopeKwhDay * 365;
+      const offers = options.map((o) => ({ o, epc: epcOffer(o, { ...finOpt, load_kwh_year: loadKwhYear }) }));
+      const best = offers.length ? offers.reduce((a, b) => (b.epc.npv > a.epc.npv ? b : a)) : null;
+      const chosen = offers.find((x) => x.o.key === state.opt) ?? best;
+      const ppa = chosen ? ppaOffer({ kwh_year0: chosen.o.kwh_year0, load_kwh_year: loadKwhYear, tariff, term_years: +$('#pTerm').value || 15, discount_pct: (+$('#pDisc').value || 20) / 100, ppa_escalator: (+$('#pEsc').value || 1) / 100, grid_escalation: finOpt.escalation, discount: finOpt.discount }) : null;
+      const cmp = chosen && ppa ? epcVsPpa({ epc: chosen.epc, ppa, horizon: ppa.term_years, discount: finOpt.discount }) : null;
+      fin = { bill, tariff, plantRes, finOpt, options, offers, best, chosen, ppa, cmp, scope, scopeKwhDay };
       // POMS วัดจริง (เฉพาะโรงงาน)
       let measured = null;
       if (code === 'IND' && poms.length) { const rows = poms.map((s) => { const w = Object.entries(s.latest ?? {}).filter(([k, v]) => v.type && v.type !== 'CEMS'); const kw = w.filter(([k]) => k.endsWith(':Watt')).map(([, v]) => v.value).filter((x) => x > 0); const fl = w.filter(([k]) => k.endsWith(':Flow')).map(([, v]) => v.value).filter((x) => x > 0); return kw.length && fl.length ? measuredIntensity(kw[0], fl[0]) : null; }).filter(Boolean); if (rows.length) { const v = rows.map((r) => r.kwh_m3).sort((a, b) => a - b); measured = { n: rows.length, median: v[Math.floor(v.length / 2)], p25: v[Math.floor(v.length * .25)], p75: v[Math.floor(v.length * .75)] }; } }
@@ -223,6 +275,16 @@
       L.control.layers({ 'ESRI ภาพดาวเทียม': esriImagery, 'Google ดาวเทียม+ถนน': googleHybrid, 'ESRI ถนน': esriStreet }, null, { position: 'topright', collapsed: true }).addTo(miniMap);
       addEventListener('resize', () => miniMap && miniMap.invalidateSize());
       return miniMap;
+    }
+    /** สรุปบิลค่าไฟใต้ช่องกรอก และเตือนเมื่อหน่วยไฟต่อลูกบาศก์เมตรออกนอกช่วงอ้างอิง */
+    function billHint(bill, res) {
+      const el = $('#bOut'); if (!el) return;
+      if (!bill) { el.innerHTML = 'กรอกทั้งหน่วยและค่าไฟ แล้วระบบจะใช้ค่าจริงแทนค่าประมาณ และคิดอัตราค่าไฟให้เอง'; $('#eTariff').disabled = false; return; }
+      $('#eTariff').disabled = !!bill.tariff;
+      const band = res && res.kwh_m3_implied != null
+        ? ` · หน่วยไฟต่อ ลบ.ม. ที่คิดย้อนกลับ ${fmt(res.kwh_m3_implied, 3)} (ช่วงอ้างอิง ${res.benchmark.kwh_m3.lo}–${res.benchmark.kwh_m3.hi})${res.in_band === false ? ' <b style="color:var(--warn)">อยู่นอกช่วงอ้างอิง ตรวจว่ามิเตอร์รวมโหลดอื่นด้วยหรือไม่</b>' : ''}`
+        : '';
+      el.innerHTML = `<span class="meas">วัดจริง</span> ${bill.tariff ? 'อัตราค่าไฟ ' + fmt(bill.tariff, 2) + ' บาท/kWh · ' : ''}${fmt(bill.kwh_day, 0)} kWh/วัน${band}`;
     }
     /** ย้ายกล่องแผนที่ออกจาก #out ก่อนเขียนทับการ์ด ไม่งั้นแผนที่จะถูกลบไปพร้อมกัน */
     function parkMap() {
@@ -303,6 +365,77 @@
       const firstOut = design.items.find((i) => i.param === 'eff:COD') ?? design.items.find((i) => i.param && series[i.param]);
       const sampleVal = firstOut && series[firstOut.param]?.at(-1)?.v;
       const pl = firstOut ? payloadFor(design, firstOut, sampleVal, new Date().toISOString(), ($('#sName').value || 'WWTP01').replace(/\s+/g, '').slice(0, 10)) : null;
+      // ตารางวิธีคิด ใช้ทั้งบนหน้าเว็บและส่งออก XLSX
+      const stepTbl = (title, steps) => tbl(title, [
+        ['รายการ', (r) => esc(r.label)],
+        ['สูตรและตัวเลขที่แทนแล้ว', (r) => esc(r.formula)],
+        ['ผลลัพธ์', (r) => (r.value == null ? '–' : fmt(r.value, Math.abs(r.value) < 10 ? 3 : 0)) + (r.unit ? ' ' + esc(r.unit) : ''), null, 'n'],
+      ], steps, 'steps');
+      const how = (title, steps) => steps && steps.length ? `<details><summary><span class="est">ค่าประมาณ</span> วิธีคิด ${esc(title)}</summary><div style="overflow-x:auto">${stepTbl('วิธีคิด ' + title, steps)}</div></details>` : '';
+      // ── ตารางเปรียบเทียบทางเลือกโซลาร์ ──
+      const F = fin ?? {};
+      const offs = F.offers ?? [];
+      const bestKey = F.best?.o.key ?? null;
+      const optTbl = offs.length ? tbl('เปรียบเทียบทางเลือกโซลาร์', [
+        ['ทางเลือก', (r) => `${esc(r.o.name)}${r.o.key === bestKey ? ' <span class="est" style="background:var(--brand-soft);color:var(--brand-dark)">ดีที่สุด</span>' : ''}`, (r) => r.o.name],
+        ['kWp', (r) => fmt(r.o.kwp, 1), null, 'n'],
+        ['พื้นที่ m²', (r) => fmt(r.o.area_m2), null, 'n'],
+        ['ผลผลิตปีที่ 1 kWh', (r) => fmt(r.o.kwh_year0), null, 'n'],
+        ['เงินลงทุน บาท', (r) => `${fmt(r.o.capex.total.lo)}–${fmt(r.o.capex.total.hi)}<small>ค่ากลาง ${fmt(r.o.capex.total.mid)}</small>`, (r) => Math.round(r.o.capex.total.mid), 'n'],
+        ['ประหยัดปีที่ 1', (r) => fmt(r.epc.rows[0]?.saving), null, 'n'],
+        ['คืนทุน ปี', (r) => r.epc.payback_simple ? fmt(r.epc.payback_simple, 1) : 'ไม่คืนทุน', null, 'n'],
+        ['คืนทุนคิดลด ปี', (r) => r.epc.payback_discounted ? fmt(r.epc.payback_discounted, 1) : 'ไม่คืนทุน', null, 'n'],
+        ['NPV บาท', (r) => fmt(r.epc.npv), null, 'n'],
+        ['IRR', (r) => r.epc.irr == null ? '–' : fmt(r.epc.irr * 100, 1) + '%', null, 'n'],
+        ['LCOE บาท/kWh', (r) => fmt(r.epc.lcoe, 2), null, 'n'],
+        ['ROI ตลอดอายุ', (r) => r.epc.roi == null ? '–' : fmt(r.epc.roi * 100, 0) + '%', null, 'n'],
+      ], offs) : '<div class="hint">ยังไม่มีทางเลือกโซลาร์ ต้องมีปริมาณไฟฟ้าของโรงบำบัดก่อน</div>';
+      const chosen = F.chosen ?? null;
+      const optSel = offs.length ? `<div class="opts" style="margin:8px 0"><label>ขอบเขต <select id="solScope"><option value="plant"${F.scope === 'plant' ? ' selected' : ''}>เฉพาะโรงบำบัด</option><option value="total"${F.scope === 'total' ? ' selected' : ''}>รวมทั้งโครงการ (โรงบำบัด + เซนเซอร์)</option></select></label><label>ดูรายละเอียด <select id="solOpt">${offs.map((r) => `<option value="${esc(r.o.key)}"${chosen && r.o.key === chosen.o.key ? ' selected' : ''}>${esc(r.o.name)}</option>`).join('')}</select></label></div>` : '';
+      // ── ข้อเสนอลงทุนเอง เทียบ มีผู้ลงทุน ──
+      const ppa = F.ppa, cmp = F.cmp;
+      const winTxt = !cmp ? '' : (cmp.winner === 'tie'
+        ? `ที่กรอบเวลา ${cmp.horizon} ปีเท่ากัน สองแบบให้ผลใกล้เคียงกันมาก`
+        : `ที่กรอบเวลา ${cmp.horizon} ปีเท่ากัน แบบ${cmp.winner === 'epc' ? 'ลงทุนเอง' : 'มีผู้ลงทุน'}ให้มูลค่าปัจจุบันสูงกว่า ${fmt(Math.abs(cmp.delta_npv))} บาท`);
+      const offerHtml = chosen && ppa && cmp ? `<h3 style="font-size:14px;margin:12px 0 4px;color:var(--brand-dark)">ข้อเสนอราคาและผลตอบแทน</h3><div class="two">
+        <div class="box"><h4>ลงทุนเอง (EPC) <span class="est">ค่าประมาณ</span></h4>
+          <div class="big">${fmt(chosen.epc.capex)} <span style="font-size:13px">บาท</span></div>
+          <div class="l">เงินลงทุนครั้งเดียว · มูลค่าปัจจุบันสุทธิ ${ppa.term_years} ปี ${fmt(cmp.epc.npv_h)} บาท · ผลตอบแทนภายใน ${chosen.epc.irr == null ? '–' : fmt(chosen.epc.irr * 100, 1) + '%'} · คืนทุน ${chosen.epc.payback_simple ? fmt(chosen.epc.payback_simple, 1) + ' ปี' : 'ไม่คืนทุน'}</div>
+          <div class="l" style="margin-top:4px">ต้นทุนไฟฟ้าตลอดอายุ ${fmt(chosen.epc.lcoe, 2)} บาท/kWh · ${esc(chosen.epc.ownership)}</div></div>
+        <div class="box"><h4>มีผู้ลงทุน (PPA) ${ppa.term_years} ปี <span class="est">ค่าประมาณ</span></h4>
+          <div class="big">0 <span style="font-size:13px">บาท</span></div>
+          <div class="l">ไม่ต้องลงทุน จ่ายค่าไฟตามหน่วยที่ผลิตได้ในอัตราลด ${fmt(ppa.discount_pct * 100, 0)}% เหลือ ${fmt(ppa.ppa_tariff_1, 2)} บาท/kWh ในปีแรก</div>
+          <div class="l" style="margin-top:4px">ประหยัดปีแรก ${fmt(ppa.first_year_saving)} บาท · รวมตลอดสัญญา ${fmt(ppa.total_saving)} บาท · มูลค่าปัจจุบัน ${fmt(ppa.npv)} บาท</div>
+          <div class="l" style="margin-top:4px">${esc(ppa.ownership)}${ppa.crossover_year ? ` · <b style="color:var(--warn)">ปีที่ ${ppa.crossover_year} ค่าไฟตามสัญญาจะแซงค่าไฟการไฟฟ้า</b>` : ''}</div></div>
+      </div>
+      <div class="warn" style="margin-top:8px">${esc(winTxt)} · ${esc(cmp.residual_note)}</div>
+      <div class="chart" style="height:220px;margin-top:8px"><canvas id="cTariff"></canvas></div>
+      <details><summary>ตารางค่าไฟรายปีตามสัญญา ${ppa.term_years} ปี</summary><div style="overflow-x:auto">${tbl('เทียบค่าไฟ EPC กับ PPA', [
+        ['ปี', (r) => r.y, null, 'n'],
+        ['หน่วยที่ใช้ kWh', (r) => fmt(r.kwh_used), null, 'n'],
+        ['ค่าไฟการไฟฟ้า', (r) => fmt(r.grid_tariff_y, 2), null, 'n'],
+        ['ค่าไฟตามสัญญา', (r) => fmt(r.ppa_tariff_y, 2), null, 'n'],
+        ['ส่วนต่าง บาท/kWh', (r) => fmt(r.delta, 2), null, 'n'],
+        ['ประหยัดต่อปี บาท', (r) => fmt(r.saving), null, 'n'],
+        ['ประหยัดสะสม บาท', (r) => fmt(r.cum), null, 'n'],
+      ], ppa.rows)}</div></details>
+      ${how('ข้อเสนอมีผู้ลงทุน', ppa.steps)}` : '';
+      const cashTbl = chosen ? tbl('กระแสเงินสดรายปี', [
+        ['ปี', (r) => r.y, null, 'n'],
+        ['ผลผลิต kWh', (r) => fmt(r.kwh), null, 'n'],
+        ['ค่าไฟ บาท/kWh', (r) => fmt(r.tariff_y, 2), null, 'n'],
+        ['ประหยัด บาท', (r) => fmt(r.saving), null, 'n'],
+        ['ดูแลรักษา บาท', (r) => fmt(r.om), null, 'n'],
+        ['ลงทุนเพิ่ม บาท', (r) => fmt(r.capexOut), null, 'n'],
+        ['สุทธิ บาท', (r) => fmt(r.net), null, 'n'],
+        ['สะสม บาท', (r) => fmt(r.cum), null, 'n'],
+        ['สะสมคิดลด บาท', (r) => fmt(r.cumPv), null, 'n'],
+      ], chosen.epc.rows) : '';
+      const finHtml = offs.length ? `${optSel}<div style="overflow-x:auto">${optTbl}</div>
+        <div class="two" style="margin-top:8px"><div class="chart" style="height:220px"><canvas id="cCapex"></canvas></div><div class="chart" style="height:220px"><canvas id="cNpv"></canvas></div></div>
+        <div class="chart" style="height:240px;margin-top:8px"><canvas id="cCash"></canvas></div>
+        ${chosen ? `<details><summary>กระแสเงินสดรายปีของ ${esc(chosen.o.name)}</summary><div style="overflow-x:auto">${cashTbl}</div></details>${how(chosen.o.name, [...chosen.o.steps, ...chosen.epc.steps])}` : ''}
+        ${offerHtml}` : optTbl;
       const simHtml = `<div class="pipe" id="pipe">${[['📟', 'เซนเซอร์', 'sensor'], ['🗄️', 'ดาต้าล็อกเกอร์/RTU', 'logger'], ['📡', 'เกตเวย์ ' + esc($('#sComms').value), 'mqtt'], ['☁️', 'Cloud (Supabase)', 'cloud'], ['📊', 'แดชบอร์ด/แจ้งเตือน', 'dashboard']].map(([ic, nm, k], i) => `<div class="node" data-k="${k}"><div class="ic">${ic}</div>${nm}</div>`).join('')}</div>
         <div class="hint">ค่าตัวอย่างวิ่งทีละช่วงทุก 1.2 วินาที (${firstOut ? esc(ALL_PARAM_INFO[firstOut.param]?.name) : ''} = ${fmt(sampleVal, 2)})</div>
         <pre class="pl" id="payload">${pl ? esc(JSON.stringify(pl.sensor, null, 1)) : ''}</pre>
@@ -313,11 +446,36 @@
           <div class="kpis"><div class="kpi"><b>${design.items.filter((i) => i.param).reduce((a, i) => a + i.qty, 0)}</b><span>หัววัด (จุดวัด ${design.items.filter((i) => i.param).length})</span></div><div class="kpi"><b>${design.items.filter((i) => i.required && i.param).length}</b><span>จุดวัดบังคับ</span></div><div class="kpi"><b>${fmt(budget.price_lo / 1e6, 2)}–${fmt(budget.price_hi / 1e6, 2)} ล.</b><span>ราคาอุปกรณ์ (บาท) ${EST}</span></div><div class="kpi"><b>${fmt(budget.w_avg)} W</b><span>ไฟระบบเซนเซอร์เฉลี่ย</span></div><div class="kpi"><b>${plantE ? fmt(plantE.mid) : '–'}</b><span>kWh/วัน โรงบำบัด ${EST}</span></div><div class="kpi"><b>${s.total ? fmt(s.total.kwp, 1) : fmt(s.sensors.kwp, 2)} kWp</b><span>โซลาร์รวม ${EST}</span></div></div>
           ${design.diw_rule ? `<div class="warn">${esc(design.diw_rule)}</div>` : ''}</div><div id="mapslot"></div></div></div>
         <div class="card"><h2>2. ผังกระบวนการและตำแหน่งเซนเซอร์</h2><div class="sub">จุดเขียว = บังคับ · เทา = แนะนำ · แก้จำนวนในตารางแล้วกด "ออกแบบและคำนวณ" ใหม่</div>${p.desc ? `<p style="font-size:12.5px;margin:6px 0 0">${esc(p.desc)}</p>` : ''}${p.design_note ? `<div class="sub" style="margin-top:4px">เกณฑ์ออกแบบอ้างอิง: ${esc(p.design_note)}</div>` : ''}${flow}<details open><summary>รายการอุปกรณ์ (BOQ) ${design.items.length} รายการ</summary><div style="overflow-x:auto">${boq}</div></details><details><summary>เกณฑ์การเลือกและบำรุงรักษา</summary><ul style="font-size:12.5px;margin:6px 0 0 18px">${selectTips}</ul></details><div class="disclaimer">แบรนด์/รุ่นเป็นตัวอย่างข้อมูลสาธารณะ ณ ${CATALOG_VERSION} ไม่ใช่การรับรอง ต้องตรวจเอกสารรับรองรุ่นจริง (MCERTS/ISO/ATEX/NBTC) กับผู้จำหน่าย · ราคาเป็นช่วงตลาดโดยประมาณ ไม่รวมติดตั้ง/งานโยธา</div></div>
-        <div class="card"><h2>3. พลังงานไฟฟ้าและโซลาร์เซลล์ <span class="est">ทุกตัวเลขเป็นค่าประมาณ</span></h2>${energyHtml}<details><summary>งบพลังงานรายอุปกรณ์</summary><div style="overflow-x:auto">${budgetTbl}</div></details></div>
+        <div class="card"><h2>3. พลังงานไฟฟ้าและโซลาร์เซลล์</h2><div class="sub">ตัวเลขที่ติดป้าย <span class="est">ค่าประมาณ</span> กดดู "วิธีคิด" เพื่อเห็นสูตรและตัวเลขที่แทนแล้วทุกบรรทัด · ตัวเลขที่ติดป้าย <span class="meas">วัดจริง</span> มาจากใบแจ้งหนี้ค่าไฟที่กรอก</div>${energyHtml}
+          <details><summary>งบพลังงานรายอุปกรณ์</summary><div style="overflow-x:auto">${budgetTbl}</div></details>
+          ${how('ปริมาณไฟฟ้าของโรงบำบัด', fin?.plantRes?.steps ?? [])}
+          <h3 style="font-size:14px;margin:12px 0 4px;color:var(--brand-dark)">ทางเลือกออกแบบระบบโซลาร์</h3>
+          <div class="sub">คิดทุกทางเลือกที่ขนาดเดียวกันเพื่อให้เทียบราคาและผลผลิตได้ตรง ๆ · จัดอันดับด้วยมูลค่าปัจจุบันสุทธิ ไม่ใช้อัตราผลตอบแทนภายในเพราะบางกรณีคำนวณไม่ได้</div>
+          ${finHtml}
+          <div class="disclaimer">ราคาติดตั้ง ค่าดูแลรักษา อัตราแผงเสื่อม อัตราค่าไฟที่ขึ้นในอนาคต และเงื่อนไขสัญญาซื้อขายไฟฟ้า เป็นค่าประมาณจากแหล่งเชิงพาณิชย์ปี 2569 ไม่ใช่ราคากลางของราชการ · ตัวคูณราคาและผลผลิตของระบบทุ่นลอยน้ำเป็นค่าอ้างอิงสากล ไม่ใช่ตัวเลขที่เก็บจากโครงการในประเทศไทย · ส่วนลดค่าไฟ 20% ของสัญญาซื้อขายไฟฟ้าเป็นคนละตัวกับอัตราคิดลดทางการเงินที่ใช้คำนวณมูลค่าปัจจุบัน · ตัวเลขทั้งหมดใช้เพื่อวางแผนเบื้องต้น ต้องยืนยันกับผู้รับเหมาและการไฟฟ้าก่อนตัดสินใจ</div></div>
         <div class="card"><h2>4. จำลองการส่งข้อมูล การแปลผล และการรายงาน</h2><div class="sub">อนุกรมเวลาจำลอง 7 วัน รายชั่วโมง (seed ${state.seed}) จากรูปแบบรายวันของระบบ ${esc(code)} · แปลผลด้วยเกณฑ์เดียวกับแดชบอร์ด · ไม่บันทึกลงฐานข้อมูล</div>${simHtml}</div>`;
       syncMap(lat, lng);
       // กราฟพลังงาน
       chartMake($('#cEnergy'),{ type: 'bar', data: { labels: ['เซนเซอร์+สื่อสาร', 'โรงบำบัด (ต่ำ)', 'โรงบำบัด (กลาง)', 'โรงบำบัด (สูง)'], datasets: [{ label: 'kWh/วัน', data: [budget.kwh_day, plantE?.lo ?? 0, plantE?.mid ?? 0, plantE?.hi ?? 0], backgroundColor: ['#1d4ed8', '#a5d6a7', '#2e7d32', '#1b5e20'] }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'ไฟฟ้าต่อวัน (kWh) — โรงบำบัดตามช่วง benchmark', font: { family: 'Sarabun' } } }, scales: { y: { type: plantE && plantE.hi / Math.max(budget.kwh_day, .01) > 200 ? 'logarithmic' : 'linear' } } } });
+      // ── แผนภูมิและตัวควบคุมของการ์ด 3 (ต้องผูกใหม่ทุกครั้ง เพราะ #out ถูกเขียนทับทั้งก้อน) ──
+      const CC = ['#1d4ed8', '#2e7d32', '#1b5e20', '#a5d6a7', '#a16207', '#be123c'];
+      const axBaht = { ticks: { callback: (v) => fmt(v / 1e6, 1) + ' ล.', font: { family: 'Sarabun', size: 10 } } };
+      if (offs.length && $('#cCapex')) {
+        chartMake($('#cCapex'), { type: 'bar', data: { labels: offs.map((r) => r.o.name), datasets: [{ label: 'เงินลงทุน (ช่วง)', data: offs.map((r) => [r.o.capex.total.lo, r.o.capex.total.hi]), backgroundColor: offs.map((_, i) => CC[i % CC.length]) }] },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'เงินลงทุน (บาท) — ช่วงต่ำถึงสูง', font: { family: 'Sarabun' } }, tooltip: { callbacks: { label: (c) => fmt(c.raw[0]) + ' – ' + fmt(c.raw[1]) + ' บาท' } } }, scales: { x: axBaht, y: { ticks: { font: { family: 'Sarabun', size: 10 } } } } } });
+        chartMake($('#cNpv'), { type: 'bar', data: { labels: offs.map((r) => r.o.name), datasets: [{ label: 'NPV', data: offs.map((r) => r.epc.npv), backgroundColor: offs.map((r) => r.o.key === bestKey ? '#1b5e20' : '#a5d6a7') }] },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'มูลค่าปัจจุบันสุทธิตลอดอายุโครงการ (บาท)', font: { family: 'Sarabun' } } }, scales: { x: axBaht, y: { ticks: { font: { family: 'Sarabun', size: 10 } } } } } });
+        chartMake($('#cCash'), { type: 'line', data: { labels: ['0', ...(offs[0]?.epc.rows.map((r) => String(r.y)) ?? [])], datasets: offs.map((r, i) => ({ label: r.o.name, data: [-r.epc.capex, ...r.epc.rows.map((x) => x.cum)], borderColor: CC[i % CC.length], backgroundColor: CC[i % CC.length], pointRadius: 0, borderWidth: 2, tension: .1 })) },
+          options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 } } }, title: { display: true, text: 'กระแสเงินสดสะสม — จุดที่เส้นตัดศูนย์คือปีที่คืนทุน', font: { family: 'Sarabun' } } }, scales: { y: axBaht, x: { title: { display: true, text: 'ปี', font: { family: 'Sarabun', size: 10 } }, ticks: { font: { family: 'Sarabun', size: 10 } } } } } });
+      }
+      if (ppa && $('#cTariff')) {
+        chartMake($('#cTariff'), { type: 'line', data: { labels: ppa.rows.map((r) => String(r.y)), datasets: [
+          { label: 'ค่าไฟการไฟฟ้า', data: ppa.rows.map((r) => r.grid_tariff_y), borderColor: '#be123c', pointRadius: 0, borderWidth: 2 },
+          { label: 'ค่าไฟตามสัญญา PPA', data: ppa.rows.map((r) => r.ppa_tariff_y), borderColor: '#1b5e20', pointRadius: 0, borderWidth: 2 }] },
+          options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 } } }, title: { display: true, text: 'ค่าไฟต่อหน่วยตลอดอายุสัญญา (บาท/kWh)', font: { family: 'Sarabun' } } }, scales: { y: { ticks: { font: { family: 'Sarabun', size: 10 } } }, x: { title: { display: true, text: 'ปี', font: { family: 'Sarabun', size: 10 } }, ticks: { font: { family: 'Sarabun', size: 10 } } } } } });
+      }
+      if ($('#solScope')) $('#solScope').addEventListener('change', () => { state.scope = $('#solScope').value; state.opt = null; build().catch(() => {}); });
+      if ($('#solOpt')) $('#solOpt').addEventListener('change', () => { state.opt = $('#solOpt').value; build().catch(() => {}); });
       // กราฟจำลอง + timeline
       const drawSim = () => { const k = $('#simParam').value; const ser = series[k]; const key = sums[k].key; const colors = ser.map((p) => lvOf(levelFor(key, p.v)).color); charts.filter((c) => c.canvas.id === 'cSim').forEach((c) => { c.destroy(); charts.splice(charts.indexOf(c), 1); }); const info = ALL_PARAM_INFO[k];
         chartMake($('#cSim'), { type: 'line', data: { labels: ser.map((p) => new Date(p.t).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit' })), datasets: [{ label: info?.name ?? k, data: ser.map((p) => p.v), borderColor: '#7b8783', borderWidth: 1, pointRadius: 2.5, pointBackgroundColor: colors, pointBorderColor: colors, tension: .25 }, ...(info?.lines ?? []).map((ln) => ({ label: ln.l, data: ser.map(() => ln.v), borderColor: '#4a5450', borderDash: [6, 4], borderWidth: 1, pointRadius: 0 }))] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 } } } }, scales: { x: { ticks: { maxTicksLimit: 8, font: { family: 'Sarabun', size: 10 } } }, y: { title: { display: !!info?.unit, text: info?.unit ?? '' } } } } }); };
@@ -330,10 +488,21 @@
     // ── ปุ่ม ──
     $('#btnBuild').addEventListener('click', () => build().catch((e) => { console.error(e); $('#status').textContent = 'ผิดพลาด: ' + (e.message ?? e); }));
     $('#btnSim').addEventListener('click', () => { state.seed = Math.floor(Math.random() * 1e6); build(); });
-    $('#btnXlsx').addEventListener('click', () => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['ออกแบบเซนเซอร์ envi_pi'], ['ระบบ', PROCESS_TYPES[design.code].name], ['ความสามารถ m³/d', design.capacity], ['เซนเซอร์ W เฉลี่ย', budget.w_avg], ['เซนเซอร์ kWh/วัน', budget.kwh_day], ['โรงบำบัด kWh/วัน (กลาง)', (energy.actual ?? energy.design)?.mid ?? ''], ['PSH', solar.psh, solar.pshSrc], ['kWp เซนเซอร์', solar.sensors.kwp], ['kWp โรงบำบัด', solar.plant?.kwp ?? ''], ['kWp รวม', solar.total?.kwp ?? ''], ['หมายเหตุ', 'ทุกค่าเป็นค่าประมาณ · แบรนด์เป็นตัวอย่าง ไม่ใช่การรับรอง']]), 'สรุป'); const used = new Set(); for (const t of TABLES) { let n = t.title.slice(0, 28); while (used.has(n)) n += '_'; used.add(n); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([t.cols, ...t.rows]), n); } XLSX.writeFile(wb, `envi_pi_sensor_design_${design.code}_${new Date().toISOString().slice(0, 10)}.xlsx`); });
-    const currentQS = () => designToURL({ type: $('#sType').value, cap: +$('#sCap').value, inflow: +$('#sInflow').value || null, lat: +$('#sLat').value, lng: +$('#sLng').value, comms: $('#sComms').value, name: $('#sName').value, seed: state.seed, psh: +$('#ePsh').value || null, kwh: +$('#eKwh').value || null, tariff: +$('#eTariff').value, cost: +$('#eCost').value, qty: state.qty });
+    $('#btnXlsx').addEventListener('click', () => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['ออกแบบเซนเซอร์ envi_pi'], ['ระบบ', PROCESS_TYPES[design.code].name], ['ความสามารถ m³/d', design.capacity], ['เซนเซอร์ W เฉลี่ย', budget.w_avg], ['— ข้อเสนอโซลาร์ —', ''],
+      ['ทางเลือกที่เลือก', fin?.chosen?.o.name ?? '–'], ['ขนาด kWp', fin?.chosen?.o.kwp ?? null], ['เงินลงทุน บาท (ค่ากลาง)', fin?.chosen?.o.capex.total.mid ?? null],
+      ['NPV บาท', fin?.chosen?.epc.npv ?? null], ['IRR', fin?.chosen?.epc.irr ?? null], ['คืนทุน ปี', fin?.chosen?.epc.payback_simple ?? null], ['LCOE บาท/kWh', fin?.chosen?.epc.lcoe ?? null],
+      ['ค่าไฟ PPA ปีแรก บาท/kWh', fin?.ppa?.ppa_tariff_1 ?? null], ['ประหยัดรวมตลอดสัญญา PPA บาท', fin?.ppa?.total_saving ?? null],
+      ['ที่มาของค่าไฟที่ใช้คิด', fin?.plantRes?.basis === 'bill' ? 'ใบแจ้งหนี้ค่าไฟจริง' : (fin?.plantRes?.basis === 'actual' ? 'น้ำเข้าจริง × ค่าอ้างอิง' : 'ความสามารถออกแบบ × ค่าอ้างอิง')],
+      ['อัตราค่าไฟที่ใช้ บาท/kWh', fin?.tariff ?? null], ['เซนเซอร์ kWh/วัน', budget.kwh_day], ['โรงบำบัด kWh/วัน (กลาง)', (energy.actual ?? energy.design)?.mid ?? ''], ['PSH', solar.psh, solar.pshSrc], ['kWp เซนเซอร์', solar.sensors.kwp], ['kWp โรงบำบัด', solar.plant?.kwp ?? ''], ['kWp รวม', solar.total?.kwp ?? ''], ['หมายเหตุ', 'ทุกค่าเป็นค่าประมาณ · แบรนด์เป็นตัวอย่าง ไม่ใช่การรับรอง']]), 'สรุป'); const used = new Set(); for (const t of TABLES) { let n = t.title.slice(0, 28); while (used.has(n)) n += '_'; used.add(n); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([t.cols, ...t.rows]), n); } XLSX.writeFile(wb, `envi_pi_sensor_design_${design.code}_${new Date().toISOString().slice(0, 10)}.xlsx`); });
+    const currentQS = () => designToURL({ type: $('#sType').value, cap: +$('#sCap').value, inflow: +$('#sInflow').value || null, lat: +$('#sLat').value, lng: +$('#sLng').value, comms: $('#sComms').value, name: $('#sName').value, seed: state.seed, psh: +$('#ePsh').value || null, kwh: +$('#eKwh').value || null, tariff: +$('#eTariff').value, cost: +$('#eCost').value || null, pr: +$('#ePr').value, margin: +$('#eMargin').value, duty: +$('#eDuty').value,
+      bkwh: +$('#bKwh').value || null, bbaht: +$('#bBaht').value || null, bmonths: +$('#bMonths').value || null,
+      mounts: [['roof', $('#mRoof').checked], ['ground', $('#mGround').checked], ['floating', $('#mFloat').checked]].filter((m) => m[1]).map((m) => m[0]).join(','),
+      hybrid: $('#oHybrid').checked ? 1 : 0, night: +$('#oNight').value, battcost: +$('#oBattCost').value,
+      life: +$('#fLife').value, disc: +$('#fDisc').value, esc: +$('#fEsc').value, om: +$('#fOm').value,
+      pterm: +$('#pTerm').value, pdisc: +$('#pDisc').value, pesc: +$('#pEsc').value, scope: state.scope ?? 'plant', opt: state.opt ?? '',
+      qty: state.qty });
     $('#btnLink').addEventListener('click', async () => { const url = location.origin + location.pathname + '?' + currentQS(); try { await navigator.clipboard.writeText(url); $('#status').textContent = 'คัดลอกลิงก์แล้ว'; } catch { $('#status').textContent = url; } });
-    $('#btnReport').addEventListener('click', () => { window.open('report.html?cards=sensor&design=' + encodeURIComponent(currentQS()), '_blank'); });
+    $('#btnReport').addEventListener('click', () => { window.open('report.html?cards=sensor,sensor_finance&design=' + encodeURIComponent(currentQS()), '_blank'); });
     // ── บันทึก (ต้องล็อกอิน) — ตาราง sensor_designs (migration 1400) ──
     let session = null;
     async function refreshSaved() { if (!session) { $('#saved').innerHTML = '<span class="hint">ล็อกอินที่หน้าหลัก (index.html) เพื่อบันทึกแบบ</span>'; return; } try { const sb = await getClient(); const { data, error } = await sb.from('sensor_designs').select('id, name, process_code, capacity_m3d, updated_at').order('updated_at', { ascending: false }).limit(20); if (error) throw error; $('#saved').innerHTML = data.length ? '<div class="hint">แบบที่บันทึก:</div>' + data.map((d) => `<div style="font-size:12.5px;display:flex;gap:6px;align-items:center"><a href="#" data-load="${d.id}">${esc(d.name)}</a><span class="hint">${esc(d.process_code)} ${fmt(d.capacity_m3d)} m³/d · ${ago(d.updated_at)}</span><a href="#" data-del="${d.id}" style="color:var(--crit)">ลบ</a></div>`).join('') : '<span class="hint">ยังไม่มีแบบที่บันทึก</span>'; } catch (e) { $('#saved').innerHTML = `<span class="hint">อ่านแบบที่บันทึกไม่ได้: ${esc(e.message ?? e)} (ต้องรัน migration 1400 ก่อน)</span>`; } }
@@ -341,7 +510,15 @@
     $('#btnSave').addEventListener('click', async () => { if (!session || !design) return; const name = prompt('ชื่อแบบ', $('#sName').value || `${design.code} ${fmt(design.capacity)} m³/d`); if (!name) return; try { const sb = await getClient(); const { error } = await sb.rpc('save_sensor_design', { p_id: null, p_name: name, p_process_code: design.code, p_capacity: design.capacity, p_lat: +$('#sLat').value, p_lng: +$('#sLng').value, p_station_id: +$('#sPlant').value || null, p_design: { qs: currentQS(), summary: { w_avg: budget.w_avg, kwh_day_sensors: budget.kwh_day, kwh_day_plant: (energy.actual ?? energy.design)?.mid ?? null, kwp_total: solar.total?.kwp ?? solar.sensors.kwp, psh: solar.psh }, items: design.items }, p_catalog_version: CATALOG_VERSION }); if (error) throw error; $('#status').textContent = 'บันทึกแล้ว'; refreshSaved(); } catch (e) { $('#status').textContent = 'บันทึกไม่สำเร็จ: ' + (e.message ?? e); } });
     if (isConfigured()) { currentSession().then((s) => { session = s; $('#btnSave').disabled = !session || !design; refreshSaved(); }); onAuthChange((s) => { session = s; $('#btnSave').disabled = !session || !design; refreshSaved(); }); }
     // ── เปิดจากลิงก์ ──
-    function applyQS(qs) { const o = designFromURL(qs); if (o.type && PROCESS_TYPES[o.type]) $('#sType').value = o.type; if (o.cap) $('#sCap').value = o.cap; if (o.inflow) $('#sInflow').value = o.inflow; if (o.lat) $('#sLat').value = o.lat; if (o.lng) $('#sLng').value = o.lng; if (o.comms) $('#sComms').value = o.comms; if (o.name) $('#sName').value = o.name; if (o.seed) state.seed = o.seed; if (o.psh) $('#ePsh').value = o.psh; if (o.kwh) $('#eKwh').value = o.kwh; if (o.tariff) $('#eTariff').value = o.tariff; if (o.cost) $('#eCost').value = o.cost; if (o.qty) state.qty = o.qty; typeHint(); }
+    function applyQS(qs) { const o = designFromURL(qs); if (o.type && PROCESS_TYPES[o.type]) $('#sType').value = o.type; if (o.cap) $('#sCap').value = o.cap; if (o.inflow) $('#sInflow').value = o.inflow; if (o.lat) $('#sLat').value = o.lat; if (o.lng) $('#sLng').value = o.lng; if (o.comms) $('#sComms').value = o.comms; if (o.name) $('#sName').value = o.name; if (o.seed) state.seed = o.seed; if (o.psh) $('#ePsh').value = o.psh; if (o.kwh) $('#eKwh').value = o.kwh; if (o.tariff) $('#eTariff').value = o.tariff; if (o.cost) $('#eCost').value = o.cost; if (o.pr) $('#ePr').value = o.pr; if (o.margin) $('#eMargin').value = o.margin; if (o.duty) $('#eDuty').value = o.duty;
+      if (o.bkwh) $('#bKwh').value = o.bkwh; if (o.bbaht) $('#bBaht').value = o.bbaht; if (o.bmonths) $('#bMonths').value = o.bmonths;
+      if (o.mounts != null) { const set = String(o.mounts).split(','); $('#mRoof').checked = set.includes('roof'); $('#mGround').checked = set.includes('ground'); $('#mFloat').checked = set.includes('floating'); }
+      if (o.hybrid != null) $('#oHybrid').checked = String(o.hybrid) === '1';
+      if (o.night) $('#oNight').value = o.night; if (o.battcost) $('#oBattCost').value = o.battcost;
+      if (o.life) $('#fLife').value = o.life; if (o.disc) $('#fDisc').value = o.disc; if (o.esc) $('#fEsc').value = o.esc; if (o.om) $('#fOm').value = o.om;
+      if (o.pterm) $('#pTerm').value = o.pterm; if (o.pdisc) $('#pDisc').value = o.pdisc; if (o.pesc) $('#pEsc').value = o.pesc;
+      if (o.scope) state.scope = o.scope; if (o.opt) state.opt = o.opt;
+      if (o.qty) state.qty = o.qty; typeHint(); }
     if (location.search.length > 1) { applyQS(location.search.slice(1)); build(); }
   </script>
 </body>
