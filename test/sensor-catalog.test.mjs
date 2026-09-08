@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, BRAND_EXAMPLES, ALL_PARAM_INFO, STAGES, sensorFor, designSystem, powerBudget, plantEnergy,
-  measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, designToURL, designFromURL, levelFor,
+  measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, designToURL, designFromURL, levelFor, allStagesOf,
 } from '../web/js/sensor-catalog.js';
 
 test('ทุกชนิดระบบมี stage/monitor ครบ และพารามิเตอร์ทุกตัวมีคำอธิบาย + เซนเซอร์รองรับ', () => {
@@ -13,9 +13,21 @@ test('ทุกชนิดระบบมี stage/monitor ครบ และ�
     assert.ok(p.monitor.some((m) => m.required), code + ' ต้องมีจุดวัดบังคับ');
     for (const m of p.monitor) {
       assert.ok(ALL_PARAM_INFO[m.param], `${code}: ไม่มีคำอธิบาย ${m.param}`);
-      assert.ok(p.stages.includes(m.stage) || m.stage === 'plant', `${code}: stage ${m.stage} ไม่อยู่ในกระบวนการ`);
-      assert.ok(sensorFor(m.param, m.stage), `${code}: ไม่มีเซนเซอร์สำหรับ ${m.param}`);
+      assert.ok(allStagesOf(code).includes(m.stage), `${code}: stage ${m.stage} ไม่อยู่ในกระบวนการ`);
+      assert.ok(m.sensor ?? sensorFor(m.param, m.stage), `${code}: ไม่มีเซนเซอร์สำหรับ ${m.param}`);
     }
+    // ลำดับการไหลของน้ำต้องเริ่มที่น้ำเข้า ผ่านหน่วยเตรียมน้ำ และจบที่น้ำทิ้งออก
+    assert.equal(p.stages[0], 'inlet', code + ' ต้องเริ่มที่น้ำเข้า');
+    assert.ok(p.stages.includes('screen'), code + ' ต้องมีตะแกรงดักขยะ');
+    assert.ok(p.desc && p.design_note, code + ' ต้องมีคำอธิบายกระบวนการและเกณฑ์ออกแบบ');
+    for (const r of p.recycles ?? []) {
+      assert.ok(STAGES[r.id]?.kind === 'return', `${code}: สายวนกลับ ${r.id} ต้องนิยามใน STAGES เป็น return`);
+      assert.ok(p.stages.includes(r.from) || r.from === 'plant', `${code}: สายวนกลับออกจาก ${r.from} ที่ไม่มีในกระบวนการ`);
+      assert.ok(p.stages.includes(r.to) || ['plant', 'sludge'].includes(r.to), `${code}: สายวนกลับเข้า ${r.to} ที่ไม่มีในกระบวนการ`);
+    }
+    // จัดการตะกอนและก๊าซเป็นสายแยก ไม่ใช่ปลายทางของสายน้ำ
+    assert.ok(!p.stages.includes('sludge'), code + ': จัดการตะกอนต้องไม่อยู่ในลำดับการไหลของน้ำ');
+    assert.equal(p.stages[p.stages.length - 1], 'outlet', code + ': ลำดับการไหลต้องจบที่น้ำทิ้งออก');
     assert.ok(p.energy.kwh_m3[0] <= p.energy.kwh_m3[1] && p.energy.estimate === true && p.energy.source, code + ' energy');
     for (const [k] of Object.entries(p.sim)) assert.ok(ALL_PARAM_INFO[k], `${code}: sim ${k} ไม่มีคำอธิบาย`);
   }
@@ -96,4 +108,53 @@ test('payloadFor และ designToURL/FromURL', () => {
   const qs = designToURL({ type: 'AS', cap: 5000, lat: 18.7, lng: 98.9, seed: 42, qty: { 'aeration:DO': 2 } });
   const back = designFromURL(qs);
   assert.equal(back.type, 'AS'); assert.equal(back.cap, 5000); assert.equal(back.lat, 18.7); assert.equal(back.qty['aeration:DO'], 2);
+});
+
+test('ผังกระบวนการตรงตามหลักวิชาการของแต่ละระบบ', () => {
+  const st = (c) => PROCESS_TYPES[c].stages;
+  const rec = (c) => (PROCESS_TYPES[c].recycles ?? []).map((r) => r.id);
+  // ระบบตะกอนเร่งทุกแบบที่แยกตะกอนในถังต่างหาก ต้องมีสายตะกอนสูบกลับ มิฉะนั้นไม่ใช่ตะกอนเร่ง
+  for (const c of ['AS', 'OD', 'MBR', 'IND']) assert.ok(rec(c).includes('ras'), c + ' ต้องมีตะกอนสูบกลับ (RAS)');
+  // ทุกระบบชีวภาพที่ผลิตตะกอนต้องมีสายตะกอนส่วนเกินเพื่อคุมอายุตะกอน
+  for (const c of ['AS', 'OD', 'SBR', 'MBR', 'RBC', 'IND']) assert.ok(rec(c).includes('was'), c + ' ต้องมีตะกอนส่วนเกิน (WAS)');
+  // เอสบีอาร์ทำปฏิกิริยาและตกตะกอนในถังเดียว จึงไม่มีถังตกตะกอนขั้นสองและไม่มีตะกอนสูบกลับ
+  assert.ok(!st('SBR').includes('clarifier') && !rec('SBR').includes('ras'), 'SBR ต้องไม่มีถังตกตะกอนขั้นสอง/RAS');
+  assert.ok(st('SBR').includes('eq'), 'SBR ต้องมีบ่อปรับสมดุลรับน้ำระหว่างรอบ');
+  // คลองวนเวียนเป็นการเติมอากาศยืดเวลา จึงไม่มีถังตกตะกอนขั้นต้น
+  assert.ok(!st('OD').includes('primary'), 'OD ต้องไม่มีตกตะกอนขั้นต้น');
+  // บ่อเติมอากาศไหลผ่าน ไม่มีการสูบตะกอนกลับ และต้องมีบ่อตกตะกอนตามท้าย
+  assert.ok(!rec('AL').includes('ras') && st('AL').includes('pondS'), 'AL ไหลผ่าน + บ่อตกตะกอน');
+  // บ่อปรับเสถียรมาตรฐานคือชุดสามบ่อ แอนแอโรบิก แฟคัลเททีฟ บ่อบ่ม
+  assert.deepEqual(st('SP').filter((s) => s.startsWith('pond')), ['pondA', 'pondF', 'pondM'], 'SP ต้องเป็นชุดสามบ่อ');
+  // แผ่นจานหมุนชีวภาพเป็นฟิล์มติดที่ ต้องมีตกตะกอนทั้งขั้นต้นและขั้นสอง แต่ไม่มีตะกอนสูบกลับ
+  assert.ok(st('RBC').includes('primary') && st('RBC').includes('clarifier') && !rec('RBC').includes('ras'), 'RBC ฟิล์มติดที่');
+  // เอ็มบีอาร์ต้องมีตะแกรงละเอียดก่อนถัง และใช้เมมเบรนแทนถังตกตะกอนขั้นสอง จึงไม่ต้องเติมคลอรีน
+  assert.ok(st('MBR').includes('finescreen'), 'MBR ต้องมีตะแกรงละเอียด');
+  assert.ok(!st('MBR').includes('clarifier') && !st('MBR').includes('disinfect'), 'MBR ไม่มีถังตกตะกอนขั้นสอง/ฆ่าเชื้อ');
+  // ระบบไร้อากาศต้องเก็บก๊าซชีวภาพและต้องมีหน่วยหลังบำบัดเสมอ
+  for (const c of ['UASB', 'Anaerobic']) {
+    assert.ok(rec(c).includes('gas'), c + ' ต้องมีสายก๊าซชีวภาพ');
+    assert.ok(st(c).includes('post'), c + ' ต้องมีหน่วยหลังบำบัด');
+  }
+  // น้ำเสียโรงงานผันผวน บ่อปรับสมดุลและการปรับกรด-ด่างเป็นหน่วยบังคับ
+  assert.ok(st('IND').includes('eq') && st('IND').includes('neutral'), 'IND ต้องมีปรับสมดุล + ปรับกรด-ด่าง');
+});
+
+test('จุดวัดบังคับตรงตามหลักการควบคุมของแต่ละระบบ', () => {
+  const has = (code, stage, param) => PROCESS_TYPES[code].monitor.some((m) => m.stage === stage && m.param === param);
+  assert.ok(has('AS', 'aeration', 'DO') && has('AS', 'aeration', 'MLSS'), 'AS ต้องวัด DO และ MLSS ในถังเติมอากาศ');
+  assert.ok(has('AS', 'clarifier', 'SBlanket'), 'AS ต้องวัดชั้นตะกอนในถังตกตะกอนขั้นสอง');
+  assert.ok(has('AS', 'ras', 'Flow') && has('AS', 'was', 'Flow'), 'AS ต้องวัดอัตราตะกอนสูบกลับและตะกอนทิ้ง');
+  assert.ok(has('AS', 'disinfect', 'Cl2'), 'AS ต้องวัดคลอรีนคงเหลือที่ถังฆ่าเชื้อ');
+  assert.ok(has('SBR', 'sbr', 'ORP') && has('SBR', 'sbr', 'Level'), 'SBR ต้องวัด ORP และระดับน้ำเพื่อคุมรอบ');
+  assert.ok(has('MBR', 'membrane', 'TMP') && has('MBR', 'membrane', 'Tur'), 'MBR ต้องวัดความดันคร่อมเมมเบรนและความขุ่นน้ำกรอง');
+  assert.ok(has('UASB', 'uasb', 'PH') && has('UASB', 'uasb', 'Temp') && has('UASB', 'gas', 'Biogas'), 'UASB ต้องวัด pH อุณหภูมิ และอัตราก๊าซ');
+  assert.ok(has('CW', 'wetland', 'Level'), 'CW ต้องวัดระดับน้ำในชั้นตัวกลางเพื่อจับการอุดตัน');
+  assert.ok(has('IND', 'neutral', 'PH'), 'IND ต้องวัด pH ที่จุดปรับกรด-ด่าง');
+  // จุดวัดที่ระบบนั้นไม่มีทางมี
+  assert.ok(!PROCESS_TYPES.RBC.monitor.some((m) => m.param === 'MLSS'), 'RBC เป็นฟิล์มติดที่ ไม่ต้องวัด MLSS');
+  // เอสบีอาร์ระบายเป็นกะ ต้องใช้มาตรวัดในท่อ ไม่ใช่รางเปิด
+  const q = PROCESS_TYPES.SBR.monitor.find((m) => m.stage === 'outlet' && m.param === 'Flow');
+  assert.equal(q.sensor, 'Flow_em', 'SBR ต้องวัดน้ำออกด้วยมาตรแม่เหล็กไฟฟ้า');
+  assert.equal(PROCESS_TYPES.SBR.monitor.filter((m) => m.stage === 'outlet' && m.param === 'Flow').length, 1, 'ต้องไม่มีจุดวัดน้ำออกซ้ำ');
 });

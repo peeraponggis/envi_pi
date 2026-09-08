@@ -85,10 +85,10 @@ export const POMS_DISCLAIMER = 'ค่าจากเซนเซอร์ออ
 
 /** ชื่อเต็มรหัสประเภทระบบบำบัด (คพ./สผ.) */
 export const PLANT_TYPE = {
-  AS: 'Activated Sludge · ตะกอนเร่ง', SP: 'Stabilization Pond · บ่อปรับเสถียร', AL: 'Aerated Lagoon · สระเติมอากาศ', OD: 'Oxidation Ditch · คลองวนเวียน',
-  CW: 'Constructed Wetland · บึงประดิษฐ์', RBC: 'Rotating Biological Contactor · จานหมุนชีวภาพ', SBR: 'Sequencing Batch Reactor · ตะกอนเร่งแบบกะ',
-  Anaerobic: 'Anaerobic · ระบบไร้อากาศ', WL: 'Wetland · บึงประดิษฐ์', TF: 'Trickling Filter · โปรยกรอง', MBR: 'Membrane Bioreactor · เมมเบรน',
-  UASB: 'Upflow Anaerobic Sludge Blanket · ไร้อากาศแบบตะกอนลอย', DAF: 'Dissolved Air Flotation · ลอยตัวด้วยอากาศ',
+  AS: 'Activated Sludge · ตะกอนเร่ง', SP: 'Stabilization Pond · บ่อปรับเสถียร', AL: 'Aerated Lagoon · บ่อเติมอากาศ', OD: 'Oxidation Ditch · คลองวนเวียน',
+  CW: 'Constructed Wetland · บึงประดิษฐ์', RBC: 'Rotating Biological Contactor · แผ่นจานหมุนชีวภาพ', SBR: 'Sequencing Batch Reactor · ตะกอนเร่งแบบเป็นกะ',
+  Anaerobic: 'Anaerobic · ระบบไร้อากาศ', WL: 'Wetland · บึงประดิษฐ์', TF: 'Trickling Filter · โปรยกรอง', MBR: 'Membrane Bioreactor · ถังปฏิกรณ์ชีวภาพเมมเบรน',
+  UASB: 'Upflow Anaerobic Sludge Blanket · ไร้อากาศแบบไหลขึ้นผ่านชั้นตะกอนจุลินทรีย์', DAF: 'Dissolved Air Flotation · ลอยตะกอนด้วยอากาศละลาย',
 };
 
 /** จังหวัด → ภาค (77 จังหวัด ตามการแบ่ง 6 ภาคของ คพ.) */
