@@ -202,3 +202,33 @@ test('plantEnergyResolved คืนหน่วยไฟต่อวันจร
   near(a.kwh_m3_implied, 0.45, 1e-9);
   assert.equal(a.in_band, true);
 });
+
+test('พลังงานเติมอากาศคิดจากเกณฑ์ออกแบบไทย ไม่ใช่ตัวเลขวรรณกรรมต่างประเทศ', async () => {
+  const { aerationEnergy, AERATOR_SAE, THAI_SEWAGE, PCD_AERATION } = await import('../web/js/sensor-catalog.js');
+  const r = aerationEnergy('AS', { q_m3d: 10000 });
+  // บีโอดีน้ำเข้าใช้ค่าแนะนำของท่อระบายรวมตามตารางที่ 2.2
+  assert.equal(r.bod_in, 80);
+  near(r.removed_kg, 10000 * (80 - 20) / 1000, 1e-9);
+  near(r.o2_kg, r.removed_kg * 1.5, 1e-9);
+  assert.ok(r.kwh_day > 0 && r.kwh_m3 > 0);
+  assert.equal(r.governing, 'oxygen', 'ระบบเติมอากาศยืดเวลาไม่มีเกณฑ์กำลังกวน จึงคุมด้วยความต้องการออกซิเจน');
+  // สระเติมอากาศมีเกณฑ์กำลังกวน 1.5–3.0 กิโลวัตต์ต่อ 1,000 ลบ.ม. ซึ่งมักเป็นตัวควบคุม
+  const al = aerationEnergy('AL', { q_m3d: 10000 });
+  assert.equal(al.governing, 'mixing');
+  near(al.kwh_mix, 10000 * 1 * 24 / 24 / 1000 * 2.25 * 24, 1e-6);
+  // น้ำเสียเข้มข้นขึ้น ใช้ไฟมากขึ้นเสมอ
+  assert.ok(aerationEnergy('AS', { q_m3d: 10000, bod_in: 160 }).kwh_day > r.kwh_day);
+  // ปริมาณน้ำเป็นสัดส่วนตรง หน่วยไฟต่อลูกบาศก์เมตรจึงคงที่
+  near(aerationEnergy('AS', { q_m3d: 20000 }).kwh_m3, r.kwh_m3, 1e-9);
+  assert.equal(aerationEnergy('AS', { q_m3d: 0 }), null);
+  assert.equal(aerationEnergy('CW', { q_m3d: 1000 }), null, 'บึงประดิษฐ์ไม่มีเครื่องเติมอากาศ');
+  // ต้องบอกชัดว่าเป็นเฉพาะไฟเครื่องเติมอากาศ และตัวปรับในสนามเป็นข้อสมมติของเราเอง
+  assert.ok(/เฉพาะไฟของเครื่องเติมอากาศ/.test(r.source) && /ข้อสมมติของเรา/.test(r.source));
+  assert.ok(r.steps.length >= 6 && r.steps.every((x) => !/[<>]/.test(x.formula)));
+  // ค่าประสิทธิภาพเครื่องเติมอากาศตรงตามตารางที่ 7.5
+  assert.deepEqual(AERATOR_SAE.porous.sae, [1.9, 6.6]);
+  assert.deepEqual(AERATOR_SAE.horizontal.sae, [1.5, 2.1]);
+  assert.deepEqual(THAI_SEWAGE.combined.bod_range, [65, 110]);
+  assert.deepEqual(PCD_AERATION.AL.o2_per_bod, [0.7, 1.0]);
+  assert.deepEqual(PCD_AERATION.AS.o2_per_bod, [1.4, 1.6]);
+});

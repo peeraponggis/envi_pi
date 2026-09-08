@@ -125,6 +125,7 @@
           <label>หน่วย/เดือน <input id="bKwh" type="number" min="0" step="10" placeholder="kWh จากใบแจ้งหนี้"></label>
           <label>ค่าไฟ/เดือน <input id="bBaht" type="number" min="0" step="100" placeholder="บาท จากใบแจ้งหนี้"></label>
           <label>เฉลี่ยกี่เดือน <input id="bMonths" type="number" min="1" step="1" value="1"></label>
+          <label>ท่อรวบรวม <select id="bSewer"><option value="combined">ท่อระบายรวม (บีโอดี 80 mg/L)</option><option value="separate">ท่อระบายแยก (บีโอดี 160 mg/L)</option></select></label>
         </div>
         <div class="hint" id="bOut" style="margin-top:6px">กรอกทั้งหน่วยและค่าไฟ แล้วระบบจะใช้ค่าจริงแทนค่าประมาณ และคิดอัตราค่าไฟให้เอง</div>
       </div>
@@ -174,7 +175,7 @@
   <script type="module">
     import { getClient, isConfigured, fetchStationsLatest, nearestStations, fetchStationMeta, fetchNasaPower, summarizeNasaPower, withCache, cacheKey, currentSession, onAuthChange, ago } from './js/envi-core.js';
     import { LV, lvOf, PLANT_TYPE } from './js/param-info.js';
-    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION, billEnergy, plantEnergyResolved, solarOption, epcOffer, ppaOffer, epcVsPpa, MOUNTS, FIN_DEFAULTS } from './js/sensor-catalog.js';
+    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION, billEnergy, plantEnergyResolved, solarOption, epcOffer, ppaOffer, epcVsPpa, MOUNTS, FIN_DEFAULTS, aerationEnergy, THAI_SEWAGE } from './js/sensor-catalog.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const fmt = (n, d = 0) => n == null || isNaN(n) ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
@@ -228,6 +229,7 @@
       const tariff = bill?.tariff ?? (+$('#eTariff').value || 4.2);
       const plantRes = plantEnergyResolved(code, { capacity: cap, avg_inflow: inflow, kwh_m3: +$('#eKwh').value || null, bill });
       billHint(bill, plantRes);
+      const aer = aerationEnergy(code, { q_m3d: inflow || cap, sewer: $('#bSewer').value || 'combined' });
       const finOpt = {
         years: +$('#fLife').value || FIN_DEFAULTS.years,
         discount: (+$('#fDisc').value || 7) / 100,
@@ -249,7 +251,7 @@
       const chosen = offers.find((x) => x.o.key === state.opt) ?? best;
       const ppa = chosen ? ppaOffer({ kwh_year0: chosen.o.kwh_year0, load_kwh_year: loadKwhYear, tariff, term_years: +$('#pTerm').value || 15, discount_pct: (+$('#pDisc').value || 20) / 100, ppa_escalator: (+$('#pEsc').value || 1) / 100, grid_escalation: finOpt.escalation, discount: finOpt.discount }) : null;
       const cmp = chosen && ppa ? epcVsPpa({ epc: chosen.epc, ppa, horizon: ppa.term_years, discount: finOpt.discount }) : null;
-      fin = { bill, tariff, plantRes, finOpt, options, offers, best, chosen, ppa, cmp, scope, scopeKwhDay };
+      fin = { bill, tariff, plantRes, aer, finOpt, options, offers, best, chosen, ppa, cmp, scope, scopeKwhDay };
       // POMS วัดจริง (เฉพาะโรงงาน)
       let measured = null;
       if (code === 'IND' && poms.length) { const rows = poms.map((s) => { const w = Object.entries(s.latest ?? {}).filter(([k, v]) => v.type && v.type !== 'CEMS'); const kw = w.filter(([k]) => k.endsWith(':Watt')).map(([, v]) => v.value).filter((x) => x > 0); const fl = w.filter(([k]) => k.endsWith(':Flow')).map(([, v]) => v.value).filter((x) => x > 0); return kw.length && fl.length ? measuredIntensity(kw[0], fl[0]) : null; }).filter(Boolean); if (rows.length) { const v = rows.map((r) => r.kwh_m3).sort((a, b) => a - b); measured = { n: rows.length, median: v[Math.floor(v.length / 2)], p25: v[Math.floor(v.length * .25)], p75: v[Math.floor(v.length * .75)] }; } }
@@ -431,6 +433,13 @@
         ['สะสม บาท', (r) => fmt(r.cum), null, 'n'],
         ['สะสมคิดลด บาท', (r) => fmt(r.cumPv), null, 'n'],
       ], chosen.epc.rows) : '';
+      const A = F.aer;
+      const aerHtml = A ? `<div class="box" style="margin-top:8px"><h4>หน่วยไฟเครื่องเติมอากาศ คิดจากเกณฑ์ออกแบบของไทย <span class="est">ค่าประมาณ</span></h4>
+        <div class="big">${fmt(A.kwh_day)} <span style="font-size:13px">kWh/วัน</span> <span style="font-size:14px;color:var(--ink-2)">= ${fmt(A.kwh_m3, 3)} kWh/m³</span></div>
+        <div class="l">คิดจากบีโอดีน้ำเสียชุมชนไทยจริง ${fmt(A.bod_in)} mg/L · ${esc(A.aerator)} · ตัวควบคุมการออกแบบคือ${A.governing === 'mixing' ? 'การผสม' : 'ความต้องการออกซิเจน'}</div>
+        <div class="l" style="margin-top:4px">เทียบช่วงอ้างอิงสากลที่ใช้คิดในกล่องด้านบน ${A.benchmark[0]}–${A.benchmark[1]} kWh/m³ → <b>${esc(A.vs_benchmark)}</b></div>
+        <div class="l" style="margin-top:4px">เกณฑ์แนะนำการออกแบบฯ ของ คพ. ระบุว่าน้ำเสียชุมชนไทยเจือจางกว่าค่าอ้างอิงต่างประเทศมาก ระบบในอดีตจึงถูกออกแบบใหญ่เกินจริง ตัวเลขนี้จึงต่ำกว่าค่าอ้างอิงสากล · <b>เป็นเฉพาะไฟของเครื่องเติมอากาศ</b> ยังไม่รวมสถานีสูบน้ำเสีย ปั๊มสลัดจ์ และระบบจัดการสลัดจ์ ซึ่งทำให้ไฟรวมทั้งโรงสูงกว่านี้</div>
+        ${how('หน่วยไฟเครื่องเติมอากาศตามเกณฑ์ไทย', A.steps)}</div>` : '';
       const finHtml = offs.length ? `${optSel}<div style="overflow-x:auto">${optTbl}</div>
         <div class="two" style="margin-top:8px"><div class="chart" style="height:220px"><canvas id="cCapex"></canvas></div><div class="chart" style="height:220px"><canvas id="cNpv"></canvas></div></div>
         <div class="chart" style="height:240px;margin-top:8px"><canvas id="cCash"></canvas></div>
@@ -449,6 +458,7 @@
         <div class="card"><h2>3. พลังงานไฟฟ้าและโซลาร์เซลล์</h2><div class="sub">ตัวเลขที่ติดป้าย <span class="est">ค่าประมาณ</span> กดดู "วิธีคิด" เพื่อเห็นสูตรและตัวเลขที่แทนแล้วทุกบรรทัด · ตัวเลขที่ติดป้าย <span class="meas">วัดจริง</span> มาจากใบแจ้งหนี้ค่าไฟที่กรอก</div>${energyHtml}
           <details><summary>งบพลังงานรายอุปกรณ์</summary><div style="overflow-x:auto">${budgetTbl}</div></details>
           ${how('ปริมาณไฟฟ้าของโรงบำบัด', fin?.plantRes?.steps ?? [])}
+          ${aerHtml}
           <h3 style="font-size:14px;margin:12px 0 4px;color:var(--brand-dark)">ทางเลือกออกแบบระบบโซลาร์</h3>
           <div class="sub">คิดทุกทางเลือกที่ขนาดเดียวกันเพื่อให้เทียบราคาและผลผลิตได้ตรง ๆ · จัดอันดับด้วยมูลค่าปัจจุบันสุทธิ ไม่ใช้อัตราผลตอบแทนภายในเพราะบางกรณีคำนวณไม่ได้</div>
           ${finHtml}

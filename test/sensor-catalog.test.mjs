@@ -119,10 +119,13 @@ test('ผังกระบวนการตรงตามคู่มือ�
     assert.ok(st(c).includes('screen'), c + ' ต้องมีตะแกรงดักขยะ');
   }
   // บ่อปรับเสถียร: ชุดบ่ออนุกรม และคู่มือระบุว่าไม่จำเป็นต้องมีระบบฆ่าเชื้อโรค
-  assert.deepEqual(st('SP').filter((x) => x.startsWith('pond')), ['pondA', 'pondF', 'pondAe', 'pondM'], 'SP ต้องเป็นชุดบ่อ 4 แบบตามคู่มือ');
+  // เกณฑ์ออกแบบไทย 2546 แนะนำบ่อแฟคัลเททีฟอนุกรม 2 บ่อ แล้วตามด้วยบ่อบ่ม ส่วนบ่อแอนแอโรบิกไม่แนะนำสำหรับน้ำเสียชุมชน
+  assert.deepEqual(st('SP').filter((x) => x.startsWith('pond')), ['pondA', 'pondF', 'pondF2', 'pondM'], 'SP ต้องมีบ่อแฟคัลเททีฟสองบ่ออนุกรม');
+  assert.ok(PROCESS_TYPES.SP.optional.includes('pondA'), 'บ่อแอนแอโรบิกต้องเป็นหน่วยทางเลือก ไม่ใช่หน่วยบังคับ');
+  assert.ok(st('AL').includes('pondPolish'), 'AL ต้องมีบ่อขัดแต่งตามเกณฑ์ออกแบบไทย');
   assert.ok(!st('SP').includes('chlorine') && !st('SP').includes('contact'), 'SP ต้องไม่มีบ่อเติมคลอรีน');
   // สระเติมอากาศ: บ่อเติมอากาศ บ่อบ่ม บ่อเติมคลอรีน และไม่มีการสูบสลัดจ์กลับ
-  assert.deepEqual(st('AL').slice(-4), ['lagoon', 'pondM', 'chlorine', 'outlet'], 'AL ต้องจบด้วยบ่อเติมอากาศ บ่อบ่ม บ่อเติมคลอรีน');
+  assert.deepEqual(st('AL').slice(-4), ['lagoon', 'pondPolish', 'chlorine', 'outlet'], 'AL ต้องจบด้วยสระเติมอากาศ บ่อขัดแต่ง บ่อเติมคลอรีน');
   assert.ok(!rec('AL').includes('ras'), 'AL เป็นระบบไหลผ่าน ไม่มีการสูบสลัดจ์กลับ');
   // ตะกอนเร่งทุกแบบที่แยกสลัดจ์ในถังต่างหาก ต้องมีสายสูบสลัดจ์กลับ
   for (const c of ['AS', 'OD', 'MBR', 'IND']) assert.ok(rec(c).includes('ras'), c + ' ต้องมีสายสูบสลัดจ์กลับ');
@@ -154,15 +157,19 @@ test('ผังกระบวนการตรงตามคู่มือ�
     assert.equal((PROCESS_TYPES[c].sludge ?? []).length, 0, c + ' ไม่มีหน่วยจัดการตะกอน');
     assert.ok(rec(c).includes('dredge'), c + ' ใช้การขุดลอกตะกอนก้นบ่อ');
   }
+  // สายสลัดจ์ตามรูปที่ 9.1 ของเกณฑ์ออกแบบไทย: ทำข้น แยกน้ำ แล้วพักกากตะกอน
+  for (const c of ['AS', 'OD', 'IND']) {
+    assert.deepEqual(PROCESS_TYPES[c].sludge, ['thicken', 'press', 'cake'], c + ' สายสลัดจ์ต้องเป็น ทำข้น แยกน้ำ พักกาก');
+  }
 });
 
 test('จุดวัดบังคับตรงตามหลักการควบคุมและเกณฑ์ของ คพ.', () => {
   const has = (code, stage, param) => PROCESS_TYPES[code].monitor.some((m) => m.stage === stage && m.param === param);
   const pt = (code, stage, param) => PROCESS_TYPES[code].monitor.find((m) => m.stage === stage && m.param === param);
   assert.ok(has('AS', 'aeration', 'DO') && has('AS', 'aeration', 'MLSS'), 'AS ต้องวัด DO และ MLSS ในถังเติมอากาศ');
-  assert.deepEqual(pt('AS', 'aeration', 'MLSS').target, [2500, 4000], 'MLSS ของ AS ตามเกณฑ์ คพ.');
+  assert.deepEqual(pt('AS', 'aeration', 'MLSS').target, [3000, 6000], 'MLSS ของ AS แบบเติมอากาศยืดเวลาตามเกณฑ์ออกแบบไทย 2546');
   assert.deepEqual(pt('OD', 'ditch', 'MLSS').target, [3000, 6000], 'MLSS ของคลองวนเวียนตามเกณฑ์ คพ.');
-  assert.deepEqual(pt('SBR', 'sbr', 'MLSS').target, [1500, 6000], 'MLSS ของเอสบีอาร์ตามเกณฑ์ คพ.');
+  assert.deepEqual(pt('SBR', 'sbr', 'MLSS').target, [1500, 3000], 'MLSS ของเอสบีอาร์ตามเกณฑ์ออกแบบไทย 2546');
   assert.ok(has('AS', 'clarifier', 'SBlanket'), 'AS ต้องวัดชั้นสลัดจ์ในถังตกตะกอน');
   assert.ok(has('AS', 'ras', 'Flow') && has('AS', 'was', 'Flow'), 'AS ต้องวัดอัตราสลัดจ์สูบกลับและสลัดจ์ส่วนเกิน');
   // คลอรีนคงเหลือตามเกณฑ์ คพ. 0.5 ถึง 1 มก./ล.
