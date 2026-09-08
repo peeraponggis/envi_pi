@@ -42,66 +42,87 @@ export function levelFor(key, v) {
   return 'none';
 }
 
-/** ขั้นตอนของกระบวนการ (ใช้วาดแผนภาพ) · kind:'return' = สายวนกลับ/สายแยก ไม่ใช่ลำดับหลักของน้ำ */
+/**
+ * หน่วยบำบัด (ใช้วาดผัง) · ชื่อไทยตามคู่มือระบบบำบัดน้ำเสียชุมชน กรมควบคุมมลพิษ 2563
+ * kind:'return' = สายวนกลับ/สายแยก ไม่ใช่ลำดับหลักของน้ำ · shape = รูปทรงที่ใช้วาดใน schematicSVG()
+ */
 export const STAGES = {
-  inlet: { name: 'น้ำเข้า', icon: '⬇️' },
-  screen: { name: 'ตะแกรงดักขยะ', icon: '🧱' },
-  grit: { name: 'ถังดักกรวดทราย/ไขมัน', icon: '⛏️' },
-  finescreen: { name: 'ตะแกรงละเอียด 1–3 มม.', icon: '🕸️' },
-  eq: { name: 'บ่อปรับสมดุล', icon: '🫧' },
-  neutral: { name: 'ปรับกรด-ด่าง/เติมสารเคมี', icon: '⚗️' },
-  primary: { name: 'ตกตะกอนขั้นต้น', icon: '🔻' },
-  aeration: { name: 'ถังเติมอากาศ', icon: '💨' },
-  anoxic: { name: 'ถังแอนอกซิก', icon: '🌀' },
-  anaerobic: { name: 'ถังไร้อากาศ', icon: '🛢️' },
-  uasb: { name: 'ถังยูเอเอสบี', icon: '🛢️' },
-  pondA: { name: 'บ่อแอนแอโรบิก', icon: '🟤' },
-  pondF: { name: 'บ่อแฟคัลเททีฟ', icon: '🟡' },
-  pondM: { name: 'บ่อบ่ม (แมทูเรชัน)', icon: '🟢' },
-  pondS: { name: 'บ่อตกตะกอน', icon: '🔷' },
-  lagoon: { name: 'สระเติมอากาศ', icon: '🌊' },
-  ditch: { name: 'คลองวนเวียน', icon: '🔁' },
-  wetland: { name: 'บึงประดิษฐ์', icon: '🌿' },
-  rbc: { name: 'ชุดแผ่นจานหมุนชีวภาพ', icon: '⚪' },
-  sbr: { name: 'ถังเอสบีอาร์', icon: '⏱️' },
-  membrane: { name: 'ถังเมมเบรน', icon: '🧫' },
-  clarifier: { name: 'ตกตะกอนขั้นสอง', icon: '🔽' },
-  post: { name: 'หน่วยหลังบำบัด', icon: '🌱' },
-  disinfect: { name: 'ฆ่าเชื้อโรค', icon: '🧪' },
-  outlet: { name: 'น้ำทิ้งออก', icon: '⬆️' },
-  sludge: { name: 'จัดการตะกอน', icon: '🪣' },
-  ras: { name: 'ตะกอนเร่งสูบกลับ (RAS)', icon: '↩️', kind: 'return' },
-  was: { name: 'ตะกอนส่วนเกิน (WAS)', icon: '🗑️', kind: 'return' },
-  nrcy: { name: 'สูบน้ำวนไนเตรต', icon: '🔄', kind: 'return' },
-  gas: { name: 'ระบบก๊าซชีวภาพ', icon: '🔥', kind: 'return' },
-  plant: { name: 'ทั้งโรง', icon: '🏭' },
+  // ── หน่วยรับน้ำและบำบัดขั้นต้น ──
+  inlet: { name: 'น้ำเข้า', icon: '⬇️', shape: 'inlet' },
+  pump: { name: 'บ่อสูบน้ำเสีย', icon: '⚙️', shape: 'sump' },
+  screen: { name: 'ตะแกรงดักขยะหยาบ', icon: '🧱', shape: 'barScreen' },
+  finescreen: { name: 'ตะแกรงละเอียด', icon: '🕸️', shape: 'barScreen' },
+  grit: { name: 'บ่อดักกรวดทราย', icon: '⛏️', shape: 'hopper' },
+  gritCh: { name: 'รางดักกรวดทราย', icon: '⛏️', shape: 'channel' },
+  grease: { name: 'บ่อดักไขมันและน้ำมัน', icon: '🛢️', shape: 'tank' },
+  eq: { name: 'บ่อปรับสภาพการไหล', icon: '🫧', shape: 'tank' },
+  neutral: { name: 'ปรับกรด-ด่างและเติมสารเคมี', icon: '⚗️', shape: 'tank' },
+  primary: { name: 'ถังตกตะกอนขั้นต้น', icon: '🔻', shape: 'roundTank' },
+  // ── หน่วยบำบัดชีวภาพ ──
+  aeration: { name: 'ถังเติมอากาศ', icon: '💨', shape: 'aerTank' },
+  anoxic: { name: 'ถังแอนอกซิก', icon: '🌀', shape: 'tank' },
+  ditch: { name: 'คลองวนเวียน', icon: '🔁', shape: 'ditch' },
+  sbr: { name: 'ถังปฏิกิริยาเอสบีอาร์', icon: '⏱️', shape: 'sbrTank' },
+  rbc: { name: 'ชุดแผ่นหมุนชีวภาพ', icon: '⚪', shape: 'discs' },
+  membrane: { name: 'ถังเมมเบรน', icon: '🧫', shape: 'membrane' },
+  anaerobic: { name: 'ถังไร้อากาศ', icon: '🛢️', shape: 'dome' },
+  uasb: { name: 'ถังยูเอเอสบี', icon: '🛢️', shape: 'uasb' },
+  // ── บ่อดิน ──
+  pondA: { name: 'บ่อแอนแอโรบิค', icon: '🟤', shape: 'pond' },
+  pondF: { name: 'บ่อแฟคัลเททีฟ', icon: '🟡', shape: 'pond' },
+  pondAe: { name: 'บ่อแอโรบิค', icon: '🟩', shape: 'pond' },
+  pondM: { name: 'บ่อบ่ม', icon: '🟢', shape: 'pond' },
+  lagoon: { name: 'บ่อเติมอากาศ', icon: '🌊', shape: 'aerPond' },
+  wetlandA: { name: 'บึงส่วนที่ 1 พืชโผล่พ้นน้ำ', icon: '🌾', shape: 'wetland' },
+  wetlandB: { name: 'บึงส่วนที่ 2 พืชลอยน้ำ', icon: '🪷', shape: 'wetland' },
+  wetlandC: { name: 'บึงส่วนที่ 3 พืชโผล่พ้นน้ำ', icon: '🌿', shape: 'wetland' },
+  // ── หน่วยท้ายระบบ ──
+  clarifier: { name: 'ถังตกตะกอน', icon: '🔽', shape: 'roundTank' },
+  holding: { name: 'บ่อพักน้ำทิ้ง', icon: '🪣', shape: 'tank' },
+  post: { name: 'หน่วยบำบัดขั้นหลัง', icon: '🌱', shape: 'pond' },
+  chlorine: { name: 'บ่อเติมคลอรีน', icon: '🧪', shape: 'chlorine' },
+  contact: { name: 'ถังสัมผัสคลอรีน', icon: '🧪', shape: 'chlorine' },
+  outlet: { name: 'น้ำทิ้งออก', icon: '⬆️', shape: 'outlet' },
+  // ── สายวนกลับและสายแยก ──
+  ras: { name: 'สูบสลัดจ์กลับ', icon: '↩️', shape: 'line', kind: 'return' },
+  was: { name: 'สลัดจ์ส่วนเกิน', icon: '🗑️', shape: 'line', kind: 'return' },
+  gas: { name: 'ระบบก๊าซชีวภาพ', icon: '🔥', shape: 'line', kind: 'return' },
+  dredge: { name: 'ขุดลอกตะกอนก้นบ่อ', icon: '🚜', shape: 'line', kind: 'return' },
+  // ── หน่วยจัดการตะกอน ──
+  sludgePit: { name: 'บ่อสูบตะกอน', icon: '🕳️', shape: 'tank', kind: 'sludge' },
+  sludgeHold: { name: 'บ่อพักตะกอน', icon: '🪣', shape: 'tank', kind: 'sludge' },
+  press: { name: 'เครื่องรีดตะกอน', icon: '🎛️', shape: 'press', kind: 'sludge' },
+  dryBed: { name: 'ลานตากตะกอน', icon: '🧱', shape: 'bed', kind: 'sludge' },
+  plant: { name: 'ทั้งโรง', icon: '🏭', shape: 'line' },
 };
 
 const M = (stage, param, o = {}) => ({ stage, param, required: false, ...o });
-/** สายวนกลับ/สายแยก: from → to พร้อมอัตราออกแบบ (ค่าอ้างอิงวิชาการ) */
+/** สายวนกลับ/สายแยก: from → to พร้อมอัตราออกแบบตามคู่มือ คพ. */
 const R = (id, from, to, name, rate = '', note = '') => ({ id, from, to, name, rate, note });
-/** หัวรับน้ำ: ตะแกรงดักขยะ → ดักกรวดทราย/ไขมัน เป็นหน่วยเตรียมน้ำมาตรฐานของทุกระบบ */
-const PRETREAT = ['screen', 'grit'];
-const COMMON_IN = [
-  M('inlet', 'Flow', { required: true, note: 'มาตรวัดรางเปิด (ฝาย/รางพาร์แชล) ใช้คิดภาระสารอินทรีย์ ค่าธรรมเนียม และ kWh/m³' }),
-  M('inlet', 'PH', { note: 'เตือนน้ำเสียผิดปกติ (กรด/ด่าง) ที่จะฆ่าจุลินทรีย์ในถังปฏิกิริยา' }),
-  M('inlet', 'in:COD', { note: 'ยูวี-วิสิเบิลประเมินภาระเข้าต่อเนื่อง ใช้แทนบีโอดีที่ต้องรอผล 5 วัน' }),
-  M('screen', 'Level', { note: 'ผลต่างระดับน้ำหน้า-หลังตะแกรง บอกการอุดตัน สั่งเครื่องกวาดอัตโนมัติ' }),
-];
-const COMMON_OUT = [
+/** หน่วยรับน้ำมาตรฐานของโรงชุมชนไทย (คู่มือ คพ. §3.1 การบำบัดทางกายภาพ) */
+const HEAD = ['pump', 'screen', 'grit'];
+const HEAD_FINE = ['pump', 'screen', 'finescreen', 'grit'];
+const IN_FLOW = M('inlet', 'Flow', { required: true, note: 'มาตรวัดรางเปิด (ฝายหรือรางพาร์แชล) ใช้คิดภาระสารอินทรีย์ ค่าบริการบำบัด และหน่วยไฟต่อลูกบาศก์เมตร' });
+const IN_PH = M('inlet', 'PH', { note: 'เตือนน้ำเสียผิดปกติที่จะฆ่าจุลินทรีย์ในถังปฏิกิริยา' });
+const IN_COD = M('inlet', 'in:COD', { note: 'ยูวี-วิสิเบิลประเมินภาระเข้าต่อเนื่อง ใช้แทนบีโอดีที่ต้องรอผล 5 วัน' });
+const SCREEN_LV = M('screen', 'Level', { note: 'ผลต่างระดับน้ำหน้า-หลังตะแกรง บอกการอุดตัน คู่มือ คพ. ระบุว่าตะแกรงมีไว้ป้องกันเครื่องสูบน้ำอุดตัน' });
+/** จุดวัดที่น้ำทิ้งตามมาตรฐานระบบบำบัดน้ำเสียรวมของชุมชน (ประกาศ ทส. 7 เม.ย. 2553 มี 6 พารามิเตอร์) */
+const OUT_COMMUNITY = [
   M('outlet', 'Flow', { required: true }),
-  M('outlet', 'PH', { required: true, note: 'มาตรฐานน้ำทิ้งชุมชน 5.5–9.0' }),
-  M('outlet', 'eff:BOD', { required: true, note: 'มาตรฐานน้ำทิ้งชุมชน ≤ 20 mg/L' }),
-  M('outlet', 'eff:COD', { note: 'มาตรฐานน้ำทิ้งชุมชน ≤ 120 mg/L' }),
-  M('outlet', 'eff:TSS', { required: true, note: 'มาตรฐานน้ำทิ้งชุมชน ≤ 30 mg/L' }),
-  M('outlet', 'NH4N', { note: 'มาตรฐานคุมทีเคเอ็น ≤ 35 mg/L — แอมโมเนียเป็นตัวชี้ว่าไนตริฟิเคชันสมบูรณ์หรือไม่' }),
-  M('plant', 'Watt', { required: true, note: 'มิเตอร์ไฟรวม แยกวงจรเครื่องเติมอากาศ/ปั๊ม/เซนเซอร์' }),
+  M('outlet', 'PH', { required: true, note: 'มาตรฐาน 5.5–9.0' }),
+  M('outlet', 'eff:BOD', { required: true, note: 'มาตรฐาน ไม่เกิน 20 mg/L' }),
+  M('outlet', 'eff:TSS', { required: true, note: 'มาตรฐาน ไม่เกิน 30 mg/L' }),
+  M('outlet', 'eff:COD', { note: 'ไม่ใช่พารามิเตอร์ในมาตรฐานน้ำทิ้งชุมชน แต่วัดออนไลน์ได้ทันทีจึงใช้เป็นตัวชี้เชิงเดินระบบแทนบีโอดีที่ต้องรอผล 5 วัน' }),
+  M('outlet', 'eff:TN', { note: 'มาตรฐาน ไม่เกิน 20 มก.ไนโตรเจน/ล. — เครื่องวัดออนไลน์ราคาสูง โรงเล็กใช้แอมโมเนียมกับไนเตรตประกอบแล้วส่งแล็บยืนยัน' }),
+  M('outlet', 'NH4N', { note: 'ตัวชี้ว่าไนตริฟิเคชันสมบูรณ์หรือไม่ ใช้ประเมินไนโตรเจนรวม' }),
+  M('plant', 'Watt', { required: true, note: 'มิเตอร์ไฟรวม แยกวงจรระบบสูบน้ำเสียออกจากระบบบำบัดตามแนวปฏิบัติค่าบริการบำบัดของ คพ.' }),
 ];
-/** จุดวัดบนสายตะกอนของระบบตะกอนเร่ง (AS/OD/MBR/IND) — คุมอายุตะกอนและอัตราส่วนอาหารต่อจุลชีพ */
+/** จุดวัดบนสายตะกอนของระบบตะกอนเร่ง — คุมอายุสลัดจ์และอัตราส่วนอาหารต่อจุลชีพ */
 const SLUDGE_LINE = [
-  M('ras', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราสูบตะกอนกลับ ใช้คำนวณสมดุลตะกอนและอัตราส่วนสูบกลับ' }),
-  M('was', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราทิ้งตะกอนส่วนเกิน คือตัวแปรหลักที่กำหนดอายุตะกอน' }),
+  M('ras', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราสูบสลัดจ์กลับ ใช้คำนวณสมดุลตะกอนและอัตราส่วนสูบกลับตามคู่มือ คพ.' }),
+  M('was', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราทิ้งสลัดจ์ส่วนเกิน คือตัวแปรหลักที่กำหนดอายุสลัดจ์' }),
 ];
+const CL2 = (stage) => M(stage, 'Cl2', { required: true, target: [0.5, 1], note: 'คู่มือ คพ. กำหนดเวลาสัมผัส 30 นาทีที่อัตราไหลเฉลี่ย โดสคลอรีน 6 มก./ล. คลอรีนคงเหลือ 0.3–2 (แนะนำ 0.5–1) มก./ล.' });
 const sim = (o) => o;
 /** ค่าจำลองร่วมของพารามิเตอร์เดินระบบที่ใช้หลายระบบ */
 const SIM_COMMON = {
@@ -112,258 +133,288 @@ const SIM_COMMON = {
   Air: sim({ base: 1, amp: .3, noise: .08, phase: 10, scale: 'capacity' }),
   NO3N: sim({ base: 6, amp: .3, noise: .2, phase: 8 }),
   Level: sim({ base: .35, amp: .2, noise: .08, phase: 10 }),
+  'eff:TN': sim({ base: 15, amp: .2, noise: .15, phase: 8 }),
 };
+/** ที่มาของ benchmark พลังงาน — ย้ำว่าไม่ใช่ตัวเลขราชการไทย */
+const ENERGY_NOTE = 'ค่าประมาณจากวรรณกรรมสากล ไม่ใช่ตัวเลขที่ราชการไทยประกาศ — คู่มือ คพ. ไม่มีตาราง kWh ต่อลูกบาศก์เมตร มีเพียงกำลังกวนของบ่อเติมอากาศ';
 
 /**
- * ประเภทระบบบำบัด → ลำดับหน่วยบำบัด (stages), สายวนกลับ (recycles), จุดวัดที่ควรมี (monitor),
- * benchmark พลังงาน และพารามิเตอร์จำลอง
- * อ้างอิงหลักวิชาการ: Metcalf & Eddy, Wastewater Engineering: Treatment and Resource Recovery, 5th ed.
- * · คู่มือระบบบำบัดน้ำเสียชุมชน กรมควบคุมมลพิษ · มาตรฐานควบคุมการระบายน้ำทิ้งจากระบบบำบัดน้ำเสียรวมของชุมชน
- *   (บีโอดี ≤ 20 · ซีโอดี ≤ 120 · ของแข็งแขวนลอย ≤ 30 mg/L · pH 5.5–9.0)
+ * ประเภทของระบบบำบัด → ลำดับหน่วยบำบัด (stages) · สายวนกลับ (recycles) · หน่วยจัดการตะกอน (sludge)
+ * · จุดวัดที่ควรมี (monitor) · benchmark พลังงาน · พารามิเตอร์จำลอง
+ *
+ * ลำดับหน่วยและเกณฑ์ออกแบบยึดตาม **คู่มือระบบบำบัดน้ำเสียชุมชน กรมควบคุมมลพิษ สำนักจัดการคุณภาพน้ำ 2563**
+ * คู่มือจัดประเภทระบบชุมชนไว้ 5 ประเภท (SP · AL · AS · CW · RBC) โดยคลองวนเวียนและเอสบีอาร์เป็นรูปแบบย่อยของ AS
+ * ส่วนรหัสที่ใช้ในโปรแกรมนี้ยึดตามฐาน DSPOT ของ คพ./GIZ ซึ่งแยก OD และ SBR เป็นรหัสของตัวเอง
+ * มาตรฐานน้ำทิ้ง: ประกาศกระทรวงทรัพยากรธรรมชาติและสิ่งแวดล้อม 7 เม.ย. 2553 (ราชกิจจานุเบกษา เล่ม 127 ตอนพิเศษ 69 ง)
+ * — pH 5.5–9.0 · บีโอดี ≤ 20 · ของแข็งแขวนลอย ≤ 30 (บ่อปรับเสถียร/บ่อผึ่ง ≤ 50) · น้ำมันและไขมัน ≤ 5
+ *   · ไนโตรเจนทั้งหมด ≤ 20 · ฟอสฟอรัสทั้งหมด ≤ 2 — **ไม่มีซีโอดีและไม่มีทีเคเอ็นในมาตรฐานฉบับนี้**
+ * ⚠️ เกณฑ์ออกแบบในคู่มือ คพ. เอง ระบุที่มาว่ารวบรวมจาก "ค่ากำหนดการออกแบบระบบบำบัดน้ำเสีย" วสท. 2540
+ *   ร่วมกับ Metcalf & Eddy 1991 ส่วนตารางบึงประดิษฐ์มาจาก US EPA/625/R99/010
  */
 export const PROCESS_TYPES = {
   AS: {
-    code: 'AS', name: PLANT_TYPE.AS, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'primary', 'aeration', 'clarifier', 'disinfect', 'outlet'],
+    code: 'AS', name: PLANT_TYPE.AS, kind: 'community', pcd_type: true,
+    stages: ['inlet', ...HEAD_FINE, 'eq', 'aeration', 'clarifier', 'contact', 'outlet'],
+    optional: ['eq', 'finescreen'],
     recycles: [
-      R('ras', 'clarifier', 'aeration', 'ตะกอนเร่งสูบกลับ (RAS)', '25–100% ของอัตราน้ำเข้า', 'หัวใจของระบบตะกอนเร่ง รักษาความเข้มข้นจุลินทรีย์ในถังเติมอากาศ ถ้าไม่มีสายนี้ไม่ถือเป็นระบบตะกอนเร่ง'),
-      R('was', 'clarifier', 'sludge', 'ตะกอนส่วนเกิน (WAS)', '0.5–2% ของอัตราน้ำเข้า', 'อัตราทิ้งตะกอนกำหนดอายุตะกอน ซึ่งอยู่ที่ 5–15 วันสำหรับระบบธรรมดา'),
+      R('ras', 'clarifier', 'aeration', 'สูบสลัดจ์กลับ', 'อัตราส่วน 0.25–1 ของอัตราน้ำเข้า', 'คู่มือ คพ.: "สลัดจ์ที่แยกตัวอยู่ที่ก้นถังตกตะกอนส่วนหนึ่งจะถูกสูบกลับเข้าไปในถังเติมอากาศใหม่เพื่อรักษาความเข้มข้นของสลัดจ์" ถ้าไม่มีสายนี้ไม่ถือเป็นระบบตะกอนเร่ง'),
+      R('was', 'clarifier', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'คุมอายุสลัดจ์ 5–15 วัน', 'อัตราทิ้งสลัดจ์เป็นตัวกำหนดอายุสลัดจ์'),
     ],
-    desc: 'จุลินทรีย์แบบแขวนลอยในถังเติมอากาศย่อยสารอินทรีย์ แล้วแยกตะกอนในถังตกตะกอนขั้นสอง สูบตะกอนกลับเพื่อรักษาปริมาณจุลินทรีย์ และทิ้งตะกอนส่วนเกินเพื่อคุมอายุตะกอน',
-    design_note: 'อายุตะกอน 5–15 วัน · อัตราส่วนอาหารต่อจุลชีพ 0.2–0.5 kg BOD ต่อ kg MLSS ต่อวัน · เวลาเก็บกัก 4–8 ชม. · เครื่องเติมอากาศกินไฟ 45–75% ของทั้งโรง',
+    sludge: ['sludgePit', 'sludgeHold', 'press'],
+    desc: 'จุลินทรีย์แบบแขวนลอยย่อยสารอินทรีย์ในถังเติมอากาศที่กวนให้ผสมเป็นเนื้อเดียวทั่วทั้งถัง แล้วแยกสลัดจ์ในถังตกตะกอน สูบสลัดจ์ส่วนหนึ่งกลับเพื่อรักษาความเข้มข้นจุลินทรีย์ ที่เหลือเป็นสลัดจ์ส่วนเกินนำไปกำจัด',
+    design_note: 'เกณฑ์ คพ. ตารางที่ 5-5 แบบกวนสมบูรณ์: อัตราส่วนอาหารต่อจุลชีพ 0.2–0.6 กก.บีโอดี/กก.MLSS-วัน · อายุสลัดจ์ 5–15 วัน · ภาระอินทรีย์ 0.8–1.9 กก.บีโอดี/ลบ.ม.-วัน · MLSS 2,500–4,000 มก./ล. · เวลาเก็บกัก 3–5 ชม. · อัตราส่วนสูบสลัดจ์กลับ 0.25–1 · ความต้องการออกซิเจน 0.8–1.1 กก.O₂ ต่อ กก.บีโอดีที่กำจัด · กำจัดบีโอดี 85–95% · โรงชุมชนไทยโดยทั่วไปไม่มีถังตกตะกอนขั้นต้น · ใช้ที่ดินราว 0.3 ตร.ม./คน (กรมโยธาธิการ)',
     monitor: [
-      ...COMMON_IN,
-      M('primary', 'SBlanket', { note: 'ระดับตะกอนก้นถัง ใช้ตั้งรอบสูบตะกอนขั้นต้น' }),
-      M('aeration', 'DO', { required: true, target: [1.5, 2.5], note: 'ค่าออกแบบทั่วไป 2 mg/L — คุมโบลเวอร์ตามค่านี้ประหยัดไฟ 15–30%' }),
-      M('aeration', 'MLSS', { required: true, target: [2000, 4000], note: 'ความเข้มข้นจุลินทรีย์ ใช้คู่กับอัตราทิ้งตะกอนเพื่อคุมอายุตะกอน' }),
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
+      M('eq', 'Level', { note: 'ใช้เมื่อมีบ่อปรับสภาพการไหล คู่มือ คพ. แนะนำเป็นทางแก้เมื่ออัตราไหลเข้าไม่สม่ำเสมอ' }),
+      M('aeration', 'DO', { required: true, target: [1.5, 2.5], note: 'ค่าออกแบบทั่วไป 2 มก./ล. คุมโบลเวอร์ตามค่านี้ประหยัดไฟ 15–30%' }),
+      M('aeration', 'MLSS', { required: true, target: [2500, 4000], note: 'ช่วงตามเกณฑ์ คพ. ใช้คู่กับอัตราทิ้งสลัดจ์เพื่อคุมอายุสลัดจ์' }),
       M('aeration', 'Air', { required: true, note: 'อัตราอากาศจากโบลเวอร์ ใช้คิดประสิทธิภาพการเติมอากาศและตรวจหัวกระจายอากาศอุดตัน' }),
       M('aeration', 'ORP'), M('aeration', 'Temp'),
-      M('clarifier', 'SBlanket', { required: true, note: 'ชั้นตะกอนสูงเกินหนึ่งในสามของความลึกน้ำ เสี่ยงตะกอนลอยออกไปกับน้ำทิ้ง' }),
-      ...SLUDGE_LINE,
-      M('disinfect', 'Cl2', { required: true, target: [0.5, 1], note: 'คลอรีนคงเหลือหลังเวลาสัมผัสอย่างน้อย 30 นาที — มาตรฐานคุมโคลิฟอร์ม ไม่ได้คุมคลอรีนโดยตรง' }),
-      ...COMMON_OUT,
+      M('clarifier', 'SBlanket', { required: true, note: 'ชั้นสลัดจ์สูงเกินหนึ่งในสามของความลึกน้ำ เสี่ยงสลัดจ์ลอยออกไปกับน้ำทิ้ง' }),
+      ...SLUDGE_LINE, CL2('contact'),
+      ...OUT_COMMUNITY,
     ],
-    energy: { kwh_m3: [0.3, 0.6], ...EST('ช่วงอ้างอิงวรรณกรรมระบบตะกอนเร่งขนาดกลาง 0.3–0.6 kWh/m³ (ค่าประมาณ) — เครื่องเติมอากาศ 45–75% ของไฟทั้งโรง') },
+    energy: { kwh_m3: [0.3, 0.6], ...EST('ช่วงอ้างอิงระบบตะกอนเร่งขนาดกลาง 0.3–0.6 kWh/m³ · ' + ENERGY_NOTE + ' — เครื่องเติมอากาศกินไฟ 45–75% ของทั้งโรง') },
     sim: { ...SIM_COMMON, DO: sim({ base: 2.2, amp: .35, noise: .2, phase: 15 }), MLSS: sim({ base: 3200, amp: .05, noise: .04 }), 'eff:BOD': sim({ base: 14, amp: .3, noise: .12, phase: 6 }), 'eff:COD': sim({ base: 55, amp: .25, noise: .12, phase: 6 }), 'eff:TSS': sim({ base: 18, amp: .3, noise: .15, phase: 7 }), PH: sim({ base: 7.3, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .2, noise: .05, phase: 10, scale: 'plantKw' }), 'in:COD': sim({ base: 320, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 3, amp: .3, noise: .2, phase: 8 }), ORP: sim({ base: 120, amp: .3, noise: .1, phase: 15 }) },
   },
   OD: {
-    code: 'OD', name: PLANT_TYPE.OD, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'ditch', 'clarifier', 'disinfect', 'outlet'],
+    code: 'OD', name: PLANT_TYPE.OD, kind: 'community', pcd_type: 'AS',
+    stages: ['inlet', 'pump', 'screen', 'gritCh', 'eq', 'ditch', 'clarifier', 'contact', 'outlet'],
     recycles: [
-      R('ras', 'clarifier', 'ditch', 'ตะกอนเร่งสูบกลับ (RAS)', '75–150% ของอัตราน้ำเข้า', 'อัตราสูบกลับสูงกว่าระบบตะกอนเร่งธรรมดาเพราะเดินระบบที่ความเข้มข้นตะกอนสูงกว่า'),
-      R('was', 'clarifier', 'sludge', 'ตะกอนส่วนเกิน (WAS)', 'คุมอายุตะกอน 20–30 วัน', 'อายุตะกอนยาวทำให้ตะกอนเสถียรในถังแล้ว จึงไม่ต้องมีถังย่อยตะกอนแยก'),
+      R('ras', 'clarifier', 'ditch', 'สูบสลัดจ์กลับ', 'อัตราส่วน 0.75–1.5 ของอัตราน้ำเข้า', 'สูงกว่าแบบกวนสมบูรณ์เพราะเดินระบบที่ MLSS สูงกว่า · คู่มือเรียกหน่วยนี้ว่าบ่อสูบตะกอนหมุนเวียน'),
+      R('was', 'clarifier', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'คุมอายุสลัดจ์ 10–30 วัน', 'อายุสลัดจ์ยาวทำให้สลัดจ์เสถียรในถังแล้ว ไม่ต้องมีถังย่อยสลัดจ์แยก'),
     ],
-    desc: 'ระบบตะกอนเร่งแบบเติมอากาศยืดเวลา น้ำวนรอบคลองรูปวงรีด้วยเครื่องกลเติมอากาศ เกิดโซนเติมอากาศและโซนแอนอกซิกสลับกันในคลองเดียว จึงกำจัดไนโตรเจนได้ในตัว',
-    design_note: 'ไม่มีถังตกตะกอนขั้นต้น ซึ่งเป็นลักษณะเฉพาะของการเติมอากาศยืดเวลา · เวลาเก็บกัก 18–36 ชม. · อายุตะกอน 20–30 วัน · อัตราส่วนอาหารต่อจุลชีพ 0.05–0.15',
+    sludge: ['sludgePit', 'sludgeHold', 'press'],
+    desc: 'รูปแบบย่อยของแอกทิเวเต็ดสลัดจ์ ถังเติมอากาศเป็นวงรีหรือวงกลม น้ำไหลวนตามแนวยาวด้วยเครื่องกลเติมอากาศแนวนอน เกิดโซนแอนอกซิกในคลองเดียวกัน ระบบจึงบำบัดไนโตรเจนได้ในตัว',
+    design_note: 'เกณฑ์ คพ. ตารางที่ 5-5 คลองวนเวียน: อัตราส่วนอาหารต่อจุลชีพ 0.05–0.3 · อายุสลัดจ์ 10–30 วัน · ภาระอินทรีย์ 0.1–0.5 กก.บีโอดี/ลบ.ม.-วัน · MLSS 3,000–6,000 มก./ล. · เวลาเก็บกัก 8–36 ชม. · อัตราส่วนสูบสลัดจ์กลับ 0.75–1.5 · กำจัดบีโอดี 75–95% · เครื่องกลเติมอากาศหมุน 1–3 รอบต่อนาที โซนแอนอกซิกราว 10 นาที · ตัวอย่างโรงจริง โรงปรับปรุงคุณภาพน้ำกาญจนบุรี 24,000 ลบ.ม./วัน บนพื้นที่ 42.5 ไร่ ราว 2.8 ตร.ม. ต่อ ลบ.ม./วัน',
     monitor: [
-      ...COMMON_IN,
-      M('ditch', 'DO', { required: true, target: [1.5, 2.5], note: 'วัดท้ายเครื่องเติมอากาศ (โซนแอโรบิก) ควรมีอีกจุดในโซนแอนอกซิกที่ค่าต่ำกว่า 0.5 mg/L' }),
-      M('ditch', 'ORP', { required: true, note: 'แยกโซนแอโรบิก (สูงกว่า +50 mV) กับแอนอกซิก (−50 ถึง +50 mV) ใช้สั่งเปิด-ปิดเครื่องเติมอากาศ' }),
-      M('ditch', 'MLSS', { required: true, target: [3000, 5000] }),
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
+      M('eq', 'Level', { required: true, note: 'บ่อปรับสภาพการไหลเป็นหน่วยมาตรฐานของคลองวนเวียนตามคู่มือ' }),
+      M('ditch', 'DO', { required: true, target: [1.5, 2.5], note: 'วัดท้ายเครื่องกลเติมอากาศ ต้องมีอีกจุดในโซนแอนอกซิกที่ค่าต่ำกว่า 0.5 มก./ล.' }),
+      M('ditch', 'ORP', { required: true, note: 'แยกโซนแอโรบิกจากโซนแอนอกซิก ใช้สั่งเปิด-ปิดเครื่องกลเติมอากาศ' }),
+      M('ditch', 'MLSS', { required: true, target: [3000, 6000] }),
       M('ditch', 'NO3N', { note: 'ไนเตรตปลายโซนแอนอกซิกใกล้ศูนย์ แสดงว่าดีไนตริฟิเคชันสมบูรณ์' }),
       M('ditch', 'Temp'),
       M('clarifier', 'SBlanket', { required: true }),
-      ...SLUDGE_LINE,
-      M('disinfect', 'Cl2', { required: true, target: [0.5, 1] }),
-      ...COMMON_OUT,
+      ...SLUDGE_LINE, CL2('contact'),
+      ...OUT_COMMUNITY,
     ],
-    energy: { kwh_m3: [0.4, 0.8], ...EST('ช่วงอ้างอิงคลองวนเวียน 0.4–0.8 kWh/m³ — เติมอากาศต่อเนื่องและเวลาเก็บกักยาว') },
-    sim: { ...SIM_COMMON, DO: sim({ base: 1.8, amp: .5, noise: .25, phase: 15 }), ORP: sim({ base: 60, amp: 1.2, noise: .5, phase: 12 }), MLSS: sim({ base: 3800, amp: .05, noise: .04 }), 'eff:BOD': sim({ base: 10, amp: .3, noise: .12 }), 'eff:COD': sim({ base: 45, amp: .25, noise: .1 }), 'eff:TSS': sim({ base: 15, amp: .3, noise: .15 }), PH: sim({ base: 7.4, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .1, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 300, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 2, amp: .3, noise: .2 }), NO3N: sim({ base: 3, amp: .5, noise: .3, phase: 12 }) },
+    energy: { kwh_m3: [0.4, 0.8], ...EST('ช่วงอ้างอิงคลองวนเวียน 0.4–0.8 kWh/m³ · ' + ENERGY_NOTE) },
+    sim: { ...SIM_COMMON, DO: sim({ base: 1.8, amp: .5, noise: .25, phase: 15 }), ORP: sim({ base: 60, amp: 1.2, noise: .5, phase: 12 }), MLSS: sim({ base: 4200, amp: .05, noise: .04 }), 'eff:BOD': sim({ base: 10, amp: .3, noise: .12 }), 'eff:COD': sim({ base: 45, amp: .25, noise: .1 }), 'eff:TSS': sim({ base: 15, amp: .3, noise: .15 }), PH: sim({ base: 7.4, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .1, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 300, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 2, amp: .3, noise: .2 }), NO3N: sim({ base: 3, amp: .5, noise: .3, phase: 12 }) },
   },
   SBR: {
-    code: 'SBR', name: PLANT_TYPE.SBR, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'eq', 'sbr', 'disinfect', 'outlet'],
-    recycles: [R('was', 'sbr', 'sludge', 'ตะกอนส่วนเกิน (WAS)', 'สูบท้ายช่วงตกตะกอน', 'ไม่มีสายตะกอนสูบกลับ เพราะทำปฏิกิริยาและตกตะกอนในถังเดียวกัน')],
-    desc: 'ตะกอนเร่งแบบเป็นกะ ทำครบทุกขั้นในถังเดียวตามเวลา คือเติมน้ำ ทำปฏิกิริยา ตกตะกอน ระบายน้ำใส แล้วพัก จึงไม่ต้องมีถังตกตะกอนขั้นสองและไม่มีสายสูบตะกอนกลับ',
-    design_note: 'ต้องมีบ่อปรับสมดุลรับน้ำระหว่างที่ถังกำลังตกตะกอนหรือระบาย · รอบการทำงานทั่วไป 4–8 ชม. · น้ำออกเป็นกะผ่านเครื่องระบายน้ำใส จึงวัดอัตราไหลด้วยมาตรแม่เหล็กไฟฟ้าในท่อ ไม่ใช่รางเปิด',
+    code: 'SBR', name: PLANT_TYPE.SBR, kind: 'community', pcd_type: 'AS',
+    stages: ['inlet', ...HEAD_FINE, 'sbr', 'holding', 'chlorine', 'outlet'],
+    recycles: [R('was', 'sbr', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'สูบท้ายช่วงตกตะกอน', 'ไม่มีสายสูบสลัดจ์กลับต่อเนื่อง เพราะทำปฏิกิริยาและตกตะกอนในถังเดียวกัน')],
+    sludge: ['sludgePit', 'press'],
+    desc: 'แอกทิเวเต็ดสลัดจ์ประเภทเติมเข้า-ถ่ายออก ทำครบทุกขั้นในถังปฏิกิริยาเดียวตามลำดับเวลา จึงไม่มีถังตกตะกอนขั้นที่สองและไม่มีสายสูบสลัดจ์กลับ',
+    design_note: 'หนึ่งรอบการทำงานมี 5 ช่วงตามคู่มือ คพ.: ช่วงเติมน้ำเสีย → ช่วงทำปฏิกิริยา → ช่วงตกตะกอน → ช่วงระบายน้ำทิ้ง → ช่วงพักระบบ · เกณฑ์ตารางที่ 5-5: อัตราส่วนอาหารต่อจุลชีพ 0.05–0.3 · อายุสลัดจ์ 8–20 วัน · ภาระอินทรีย์ 0.1–0.3 กก.บีโอดี/ลบ.ม.-วัน · MLSS 1,500–6,000 มก./ล. · ความจุถังต่ออัตราไหลเข้า 8–50 ชม. (คู่มือเลี่ยงคำว่าเวลาเก็บกักโดยตั้งใจ) · กำจัดบีโอดี 85–95% · ต้องมีอย่างน้อย 2 ถังสลับรอบเพื่อรับน้ำต่อเนื่อง · ตัวอย่างโรงจริง โครงการยานนาวา กทม. 200,000 ลบ.ม./วัน',
     monitor: [
-      ...COMMON_IN,
-      M('eq', 'Level', { required: true, note: 'ควบคุมรอบเติมน้ำเข้าถัง และกันน้ำล้นระหว่างช่วงตกตะกอน' }),
-      M('sbr', 'DO', { required: true, target: [1.5, 2.5], note: 'เฉพาะช่วงเติมอากาศ ส่วนช่วงแอนอกซิกค่าต้องเข้าใกล้ศูนย์' }),
-      M('sbr', 'ORP', { required: true, note: 'จุดหักของเส้น ORP บอกว่าจบไนตริฟิเคชันหรือดีไนตริฟิเคชันแล้ว ใช้ตัดจบขั้นตอนก่อนเวลาเพื่อประหยัดไฟ' }),
-      M('sbr', 'MLSS', { required: true, target: [2500, 4500] }),
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
       M('sbr', 'Level', { required: true, note: 'ระดับน้ำในถังกำหนดจังหวะระบายน้ำใสและปริมาตรต่อรอบ' }),
+      M('sbr', 'DO', { required: true, target: [1.5, 2.5], note: 'เฉพาะช่วงทำปฏิกิริยาแบบเติมอากาศ ช่วงแอนอกซิกค่าต้องเข้าใกล้ศูนย์' }),
+      M('sbr', 'ORP', { required: true, note: 'จุดหักของเส้น ORP บอกว่าจบไนตริฟิเคชันหรือดีไนตริฟิเคชันแล้ว ใช้ตัดจบช่วงก่อนเวลาเพื่อประหยัดไฟ' }),
+      M('sbr', 'MLSS', { required: true, target: [1500, 6000] }),
       M('sbr', 'NH4N', { note: 'ใช้ตัดจบช่วงเติมอากาศเมื่อแอมโมเนียลดถึงเป้า' }),
-      M('was', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราทิ้งตะกอนกำหนดอายุตะกอน' }),
-      M('disinfect', 'Cl2', { required: true, target: [0.5, 1] }),
+      M('holding', 'Level', { note: 'บ่อพักน้ำทิ้งรับน้ำที่ระบายเป็นกะ ทำให้อัตราไหลออกสม่ำเสมอ' }),
+      M('was', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราทิ้งสลัดจ์กำหนดอายุสลัดจ์' }),
+      CL2('chlorine'),
       M('outlet', 'Flow', { required: true, sensor: 'Flow_em', note: 'ระบายเป็นกะผ่านท่อของเครื่องระบายน้ำใส จึงใช้มาตรแม่เหล็กไฟฟ้าในท่อเต็ม' }),
-      ...COMMON_OUT.filter((m) => !(m.stage === 'outlet' && m.param === 'Flow')),
+      ...OUT_COMMUNITY.filter((m) => !(m.stage === 'outlet' && m.param === 'Flow')),
     ],
-    energy: { kwh_m3: [0.4, 0.7], ...EST('ช่วงอ้างอิงเอสบีอาร์ 0.4–0.7 kWh/m³') },
+    energy: { kwh_m3: [0.4, 0.7], ...EST('ช่วงอ้างอิงเอสบีอาร์ 0.4–0.7 kWh/m³ · ' + ENERGY_NOTE) },
     sim: { ...SIM_COMMON, DO: sim({ base: 1.8, amp: .6, noise: .3, phase: 14 }), ORP: sim({ base: 60, amp: 1.5, noise: .4, phase: 14 }), MLSS: sim({ base: 3500, amp: .08, noise: .05 }), Level: sim({ base: 3.5, amp: .3, noise: .02, phase: 16 }), 'eff:BOD': sim({ base: 12, amp: .3, noise: .12 }), 'eff:COD': sim({ base: 50, amp: .25, noise: .1 }), 'eff:TSS': sim({ base: 16, amp: .3, noise: .15 }), PH: sim({ base: 7.2, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .3, noise: .08, scale: 'plantKw' }), 'in:COD': sim({ base: 330, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 2.5, amp: .3, noise: .2 }) },
   },
   AL: {
-    code: 'AL', name: PLANT_TYPE.AL, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'lagoon', 'pondS', 'outlet'],
-    recycles: [],
-    desc: 'บ่อดินเติมอากาศด้วยเครื่องกลผิวน้ำ จุลินทรีย์แขวนลอยเจริญแบบไหลผ่านโดยไม่มีการสูบตะกอนกลับ ตามด้วยบ่อตกตะกอนเพื่อแยกตะกอนก่อนระบายออก',
-    design_note: 'ต่างจากระบบตะกอนเร่งตรงที่ไม่มีสายตะกอนสูบกลับ ความเข้มข้นจุลินทรีย์จึงต่ำราว 100–400 mg/L และต้องใช้เวลาเก็บกักยาว 3–10 วัน · บ่อตกตะกอนต้องลอกตะกอนทุก 2–5 ปี',
+    code: 'AL', name: PLANT_TYPE.AL, kind: 'community', pcd_type: true,
+    stages: ['inlet', ...HEAD, 'lagoon', 'pondM', 'chlorine', 'outlet'],
+    recycles: [R('dredge', 'pondM', 'plant', 'ขุดลอกตะกอนก้นบ่อ', 'ตามรอบบำรุงรักษา', 'คู่มือ คพ. ไม่มีหน่วยจัดการตะกอนสำหรับระบบนี้ ใช้การขุดลอกเพื่อคุม MLSS ในบ่อเติมอากาศและบ่อบ่ม')],
+    sludge: [],
+    desc: 'บ่อดินที่เติมออกซิเจนด้วยเครื่องเติมอากาศแบบทุ่นลอยหรือยึดกับแท่น จุลินทรีย์แขวนลอยเจริญแบบไหลผ่านโดยไม่มีการสูบสลัดจ์กลับ ตามด้วยบ่อบ่มปรับสภาพน้ำทิ้ง แล้วจึงฆ่าเชื้อโรคด้วยคลอรีน',
+    design_note: 'องค์ประกอบตามคู่มือ คพ.: บ่อเติมอากาศ (จำนวนตามการออกแบบ) → บ่อบ่มเพื่อปรับสภาพน้ำทิ้ง (จำนวนตามการออกแบบ) → บ่อเติมคลอรีน 1 บ่อ · เกณฑ์ตารางที่ 5-3: บ่อเติมอากาศเก็บกัก 3–10 วัน ลึก 2–6 ม. ความต้องการออกซิเจน 0.7–1.4 กก.O₂ ต่อ กก.บีโอดีที่กำจัด กำลังกวนไม่น้อยกว่า 0.525 กิโลวัตต์ต่อ 100 ลบ.ม. · บ่อบ่มเก็บกักไม่น้อยกว่า 1 วัน · ลดบีโอดี 80–95% · ใช้ที่ดินราว 1 ตร.ม./คน (กรมโยธาธิการ) · ตัวอย่างโรงจริง เทศบาลนครเชียงใหม่ 55,000 ลบ.ม./วัน บนพื้นที่ 100 ไร่',
     monitor: [
-      ...COMMON_IN,
-      M('lagoon', 'DO', { required: true, target: [1, 2], note: 'คุมเครื่องเติมอากาศผิวน้ำ ต้องพอทั้งย่อยสารอินทรีย์และกวนให้ตะกอนแขวนลอย' }),
-      M('lagoon', 'Temp', { note: 'อัตราการย่อยแปรตามอุณหภูมิโดยตรง และบ่อดินไม่มีการควบคุมอุณหภูมิ' }),
-      M('pondS', 'DO'),
-      M('pondS', 'SBlanket', { required: true, note: 'ความหนาตะกอนสะสมก้นบ่อ ใช้วางแผนลอกบ่อ' }),
-      ...COMMON_OUT,
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
+      M('lagoon', 'DO', { required: true, target: [1, 2], note: 'คุมเครื่องเติมอากาศ ต้องพอทั้งย่อยสารอินทรีย์และกวนให้ตะกอนแขวนลอยตามกำลังกวนขั้นต่ำของ คพ.' }),
+      M('lagoon', 'MLSS', { note: 'ระบบไหลผ่านไม่มีการสูบกลับ ความเข้มข้นจึงต่ำกว่าระบบตะกอนเร่งมาก' }),
+      M('lagoon', 'Temp', { note: 'อัตราการย่อยแปรตามอุณหภูมิ และบ่อดินไม่มีการควบคุมอุณหภูมิ' }),
+      M('pondM', 'DO'),
+      M('pondM', 'SBlanket', { required: true, note: 'ความหนาตะกอนสะสมก้นบ่อ ใช้วางแผนขุดลอก' }),
+      CL2('chlorine'),
+      ...OUT_COMMUNITY,
     ],
-    energy: { kwh_m3: [0.2, 0.5], ...EST('ช่วงอ้างอิงบ่อเติมอากาศ 0.2–0.5 kWh/m³') },
-    sim: { ...SIM_COMMON, DO: sim({ base: 1.6, amp: .5, noise: .25, phase: 15 }), Temp: sim({ base: 29, amp: .06, noise: .02, phase: 15 }), 'eff:BOD': sim({ base: 18, amp: .3, noise: .12 }), 'eff:COD': sim({ base: 70, amp: .25, noise: .1 }), 'eff:TSS': sim({ base: 28, amp: .3, noise: .15 }), PH: sim({ base: 7.6, amp: .03, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .15, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 280, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 5, amp: .3, noise: .2 }) },
+    energy: { kwh_m3: [0.2, 0.5], ...EST('ช่วงอ้างอิงสระเติมอากาศ 0.2–0.5 kWh/m³ · ' + ENERGY_NOTE + ' — ตรวจทานได้จากกำลังกวนของ คพ. ที่ 0.525 กิโลวัตต์ต่อ 100 ลบ.ม. ซึ่งที่เวลาเก็บกัก 5 วันคิดได้ราว 0.63 kWh/m³ (การคำนวณของเราเอง)') },
+    sim: { ...SIM_COMMON, DO: sim({ base: 1.6, amp: .5, noise: .25, phase: 15 }), MLSS: sim({ base: 250, amp: .15, noise: .1 }), Temp: sim({ base: 29, amp: .06, noise: .02, phase: 15 }), 'eff:BOD': sim({ base: 18, amp: .3, noise: .12 }), 'eff:COD': sim({ base: 70, amp: .25, noise: .1 }), 'eff:TSS': sim({ base: 28, amp: .3, noise: .15 }), PH: sim({ base: 7.6, amp: .03, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .15, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 280, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 5, amp: .3, noise: .2 }) },
   },
   SP: {
-    code: 'SP', name: PLANT_TYPE.SP, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'pondA', 'pondF', 'pondM', 'outlet'],
-    recycles: [],
-    desc: 'บ่อดินต่อกันเป็นชุดโดยไม่ใช้เครื่องกล บ่อแอนแอโรบิกลดภาระสารอินทรีย์ ต่อด้วยบ่อแฟคัลเททีฟที่ย่อยด้วยออกซิเจนจากสาหร่าย แล้วจบที่บ่อบ่มซึ่งลดเชื้อโรคด้วยแสงแดดและเวลาเก็บกัก',
-    design_note: 'ชุดบ่อมาตรฐานคือแอนแอโรบิก 1–2 วัน แฟคัลเททีฟ 5–30 วัน และบ่อบ่ม 5–20 วัน · ใช้พื้นที่มากแต่ค่าเดินระบบต่ำที่สุด · ตะกอนก้นบ่อแอนแอโรบิกต้องลอกทุก 2–5 ปี',
+    code: 'SP', name: PLANT_TYPE.SP, kind: 'community', pcd_type: true,
+    stages: ['inlet', ...HEAD, 'pondA', 'pondF', 'pondAe', 'pondM', 'outlet'],
+    optional: ['pondA', 'pondAe'],
+    recycles: [R('dredge', 'pondA', 'plant', 'ขุดลอกตะกอนก้นบ่อ', 'ทุก 2–5 ปี', 'สลัดจ์ย่อยสลายแบบไร้อากาศที่ก้นบ่อเอง คู่มือ คพ. ไม่มีหน่วยจัดการตะกอนสำหรับระบบนี้')],
+    sludge: [],
+    desc: 'บ่อดินต่อกันเป็นชุด อาศัยธรรมชาติล้วน บ่อแอนแอโรบิคลดภาระสารอินทรีย์ บ่อแฟคัลเททีฟย่อยด้วยออกซิเจนจากสาหร่าย บ่อแอโรบิคและบ่อบ่มขัดคุณภาพน้ำและลดเชื้อโรคด้วยแสงแดด',
+    design_note: 'คู่มือ คพ. ระบุว่าต้องต่อกันแบบอนุกรมอย่างน้อย 3 บ่อ และไม่จำเป็นต้องมีระบบฆ่าเชื้อโรค เพราะกำจัดจุลินทรีย์ก่อโรคได้มากกว่าวิธีอื่น · เกณฑ์ตารางที่ 5-1: บ่อแอนแอโรบิค เก็บกัก 4.5 วัน ลึก 2–4 ม. กำจัดบีโอดี 50% · บ่อแฟคัลเททีฟ 7–30 วัน ลึก 1–1.5 ม. ภาระ 34 ก.บีโอดี/ตร.ม.-วัน กำจัด 70–90% · บ่อแอโรบิค 4–6 วัน ลึก 0.2–0.6 ม. ภาระ 45 ก./ตร.ม.-วัน กำจัด 80–95% · บ่อบ่ม 5–20 วัน ลึก 1–1.5 ม. ภาระ 2 ก./ตร.ม.-วัน กำจัด 60–80% · ใช้ที่ดินมากที่สุดราว 3 ตร.ม./คน (กรมโยธาธิการ) · ตัวอย่างโรงจริง เทศบาลนครหาดใหญ่ 138,000 ลบ.ม./วัน · ได้เกณฑ์น้ำทิ้งผ่อนปรน (ของแข็งแขวนลอย 50 และบีโอดีของน้ำกรอง) เฉพาะเมื่อเก็บกักไม่น้อยกว่า 7 วันโดยคิดปริมาตรที่ความลึกไม่เกิน 2 เมตร',
     monitor: [
-      M('inlet', 'Flow', { required: true }), M('inlet', 'PH'),
-      M('screen', 'Level', { note: 'ผลต่างระดับหน้า-หลังตะแกรง' }),
-      M('pondA', 'PH', { required: true, target: [6.8, 7.4], note: 'pH ต่ำกว่า 6.5 แสดงว่ากรดสะสม จุลินทรีย์สร้างมีเทนถูกยับยั้ง' }),
-      M('pondA', 'ORP', { note: 'ต้องต่ำกว่า −100 mV จึงเป็นสภาวะไร้อากาศจริง' }),
+      IN_FLOW, IN_PH, SCREEN_LV,
+      M('pondA', 'PH', { required: true, target: [6.8, 7.4], note: 'ต่ำกว่า 6.5 แสดงว่ากรดสะสม จุลินทรีย์สร้างมีเทนถูกยับยั้ง' }),
+      M('pondA', 'ORP', { note: 'ต้องต่ำกว่า −100 mV จึงเป็นสภาวะไร้อากาศจริง คู่มือเรียกบ่อนี้ว่าบ่อไร้ออกซิเจนหรือบ่อเหม็น' }),
       M('pondA', 'Temp'),
-      M('pondF', 'DO', { note: 'แปรตามแสงแดดในรอบวัน เช้าใกล้ศูนย์ บ่ายอาจเกิน 8 mg/L ซึ่งเป็นเรื่องปกติของบ่อแฟคัลเททีฟ' }),
+      M('pondF', 'DO', { note: 'แปรตามแสงแดดในรอบวัน เช้าใกล้ศูนย์ บ่ายอาจเกิน 8 มก./ล. เป็นเรื่องปกติของบ่อแฟคัลเททีฟ' }),
+      M('pondAe', 'DO', { note: 'บ่อตื้น 0.2–0.6 ม. ให้แสงส่องถึงก้นบ่อ สาหร่ายผลิตออกซิเจนได้ทั้งชั้นน้ำ' }),
       M('pondM', 'DO', { required: true }),
       M('pondM', 'PH', { required: true, note: 'สาหร่ายดึงคาร์บอนไดออกไซด์ทำให้ pH ขึ้นถึง 9–10 ตอนบ่าย เสี่ยงเกินมาตรฐาน 5.5–9.0' }),
       M('pondM', 'Temp'),
       M('outlet', 'Flow', { required: true }),
-      M('outlet', 'eff:BOD', { required: true }),
-      M('outlet', 'eff:TSS', { required: true, note: 'ค่าสูงมักมาจากสาหร่ายที่ลอยออกไป ไม่ได้แปลว่าระบบล้มเหลว แต่ยังนับตามมาตรฐาน' }),
+      M('outlet', 'eff:BOD', { required: true, note: 'ระบบนี้ใช้บีโอดีของน้ำที่ผ่านการกรองด้วยกระดาษกรองใยแก้วตามข้อ 4 ของประกาศ' }),
+      M('outlet', 'eff:TSS', { required: true, note: 'มาตรฐานผ่อนปรนเป็นไม่เกิน 50 มก./ล. เพราะค่าที่สูงมักมาจากสาหร่ายที่ลอยออกไป' }),
       M('outlet', 'PH', { required: true }),
+      M('outlet', 'eff:TN'), M('outlet', 'NH4N'),
       M('plant', 'Watt'),
     ],
-    energy: { kwh_m3: [0.02, 0.1], ...EST('ช่วงอ้างอิงบ่อปรับเสถียร 0.02–0.1 kWh/m³ (ใช้ไฟเฉพาะปั๊มน้ำเข้า)') },
-    sim: { ...SIM_COMMON, DO: sim({ base: 4, amp: .8, noise: .3, phase: 15 }), PH: sim({ base: 8, amp: .06, noise: .02, phase: 15 }), ORP: sim({ base: -150, amp: .1, noise: .08 }), Temp: sim({ base: 30, amp: .06, noise: .02, phase: 15 }), 'eff:BOD': sim({ base: 22, amp: .3, noise: .15 }), 'eff:TSS': sim({ base: 40, amp: .3, noise: .2 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .2, noise: .05, scale: 'plantKw' }) },
+    energy: { kwh_m3: [0.02, 0.1], ...EST('ช่วงอ้างอิงบ่อปรับเสถียร 0.02–0.1 kWh/m³ ใช้ไฟเฉพาะระบบสูบน้ำเสีย · ' + ENERGY_NOTE) },
+    sim: { ...SIM_COMMON, DO: sim({ base: 4, amp: .8, noise: .3, phase: 15 }), PH: sim({ base: 8, amp: .06, noise: .02, phase: 15 }), ORP: sim({ base: -150, amp: .1, noise: .08 }), Temp: sim({ base: 30, amp: .06, noise: .02, phase: 15 }), 'eff:BOD': sim({ base: 22, amp: .3, noise: .15 }), 'eff:TSS': sim({ base: 40, amp: .3, noise: .2 }), NH4N: sim({ base: 6, amp: .3, noise: .2 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .2, noise: .05, scale: 'plantKw' }) },
   },
   CW: {
-    code: 'CW', name: PLANT_TYPE.CW, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'primary', 'wetland', 'outlet'],
+    code: 'CW', name: PLANT_TYPE.CW, kind: 'community', pcd_type: true,
+    stages: ['inlet', ...HEAD, 'primary', 'wetlandA', 'wetlandB', 'wetlandC', 'outlet'],
+    optional: ['primary'],
     recycles: [],
-    desc: 'บำบัดด้วยพืชน้ำ ตัวกลางกรวดทราย และจุลินทรีย์ที่เกาะราก ต้องมีหน่วยตกตะกอนขั้นต้นเสมอเพื่อกันตะกอนอุดตันชั้นตัวกลาง',
-    design_note: 'สองแบบหลักคือแบบไหลใต้ผิวตัวกลางซึ่งวัดระดับน้ำในชั้นกรวด และแบบผิวน้ำอิสระซึ่งวัดระดับผิวน้ำ · อัตราภาระชลศาสตร์ทั่วไป 2–8 ซม./วัน · การอุดตันของชั้นกรวดคือสาเหตุความเสียหายอันดับหนึ่ง',
+    sludge: [],
+    desc: 'บำบัดด้วยพืชน้ำและจุลินทรีย์ที่เกาะราก คู่มือ คพ. ระบุว่านิยมใช้ปรับปรุงคุณภาพน้ำทิ้งที่ผ่านบ่อปรับเสถียรมาแล้ว โดยเฉพาะเพื่อลดไนโตรเจนและฟอสฟอรัสก่อนระบาย และใช้เป็นหน่วยบำบัดขั้นที่สองได้ด้วย',
+    design_note: 'แบบไหลผิวน้ำ (Free Water Surface) แบ่งเป็น 3 ส่วน: ส่วนที่ 1 ปลูกพืชโผล่พ้นน้ำรากเกาะดิน เช่น กก แฝก ธูปฤาษี ทำหน้าที่กรองและตกตะกอน → ส่วนที่ 2 พืชลอยน้ำ เช่น จอก แหน บัว เพิ่มออกซิเจนและเกิดไนตริฟิเคชัน → ส่วนที่ 3 ปลูกเหมือนส่วนแรก กรองตะกอนที่เหลือและเกิดดีไนตริฟิเคชัน · เกณฑ์ตารางที่ 5-7: ภาระบีโอดีสูงสุด 4.5 ก./ตร.ม.-วัน เมื่อต้องการน้ำทิ้ง 20 มก./ล. · สัดส่วนยาวต่อกว้าง 3:1 ถึง 5:1 · ลึกส่วนที่ 1 และ 3 เท่ากับ 0.6–0.9 ม. ส่วนที่ 2 เท่ากับ 1.2–1.5 ม. · เวลาเก็บกักต่ำสุดส่วนที่ 1 และ 3 เท่ากับ 2 วัน · อีกแบบคือแบบพืชรากจมใต้ผิว (Vegetated Submerged Bed) ชั้นตัวกลางลึก 0.5–0.6 ม. ระดับน้ำ 0.4–0.5 ม. ความลาดก้นบ่อ 0.5–1% ตัวกลางส่วนบำบัด 3/4–1 นิ้ว · ตารางทั้งสองคู่มือ คพ. อ้างจาก US EPA/625/R99/010',
     monitor: [
-      M('inlet', 'Flow', { required: true }), M('inlet', 'PH'),
-      M('inlet', 'in:TSS', { required: true, note: 'ตะกอนเข้าสูงเป็นสาเหตุหลักที่ชั้นกรวดอุดตัน ต้องเฝ้าระวังต่อเนื่อง' }),
-      M('primary', 'SBlanket', { note: 'ตะกอนในบ่อเกรอะหรือบ่อตกตะกอนขั้นต้น ใช้ตั้งรอบสูบตะกอน' }),
-      M('wetland', 'Level', { required: true, note: 'ระดับน้ำในชั้นตัวกลาง ระดับสูงผิดปกติแปลว่าชั้นกรวดเริ่มอุดตันจนน้ำเอ่อผิวหน้า' }),
-      M('wetland', 'DO', { note: 'ออกซิเจนต่ำจำกัดการเปลี่ยนแอมโมเนียเป็นไนเตรตในแบบไหลระดับ' }),
-      M('wetland', 'Temp'),
+      IN_FLOW, IN_PH,
+      M('inlet', 'in:TSS', { required: true, note: 'ตะกอนเข้าสูงเป็นสาเหตุหลักที่ชั้นตัวกลางอุดตัน ต้องเฝ้าระวังต่อเนื่อง' }),
+      SCREEN_LV,
+      M('primary', 'SBlanket', { note: 'ตะกอนในบ่อเกรอะหรือถังตกตะกอนขั้นต้น ใช้ตั้งรอบสูบตะกอน' }),
+      M('wetlandA', 'Level', { required: true, note: 'ระดับน้ำผิดปกติแปลว่าชั้นตัวกลางเริ่มอุดตันจนน้ำเอ่อผิวหน้า' }),
+      M('wetlandB', 'DO', { note: 'พืชลอยน้ำและสาหร่ายเพิ่มออกซิเจน ทำให้เกิดไนตริฟิเคชันในส่วนนี้' }),
+      M('wetlandC', 'NO3N', { note: 'ส่วนสุดท้ายเกิดดีไนตริฟิเคชัน ไนเตรตควรลดลง' }),
+      M('wetlandC', 'Temp'),
       M('outlet', 'Flow', { required: true }),
       M('outlet', 'eff:BOD', { required: true }), M('outlet', 'eff:TSS', { required: true }),
-      M('outlet', 'NH4N', { note: 'บึงแบบไหลระดับกำจัดแอมโมเนียได้จำกัด ถ้าต้องการมากกว่านี้ต้องใช้แบบไหลแนวดิ่ง' }),
-      M('outlet', 'PH'), M('plant', 'Watt'),
+      M('outlet', 'eff:TN', { note: 'บึงประดิษฐ์เป็นหน่วยหลักที่คู่มือแนะนำให้ใช้ลดไนโตรเจนและฟอสฟอรัส' }),
+      M('outlet', 'NH4N'), M('outlet', 'PH'), M('plant', 'Watt'),
     ],
-    energy: { kwh_m3: [0.01, 0.05], ...EST('ช่วงอ้างอิงบึงประดิษฐ์ 0.01–0.05 kWh/m³ (ไหลตามแรงโน้มถ่วง ใช้ไฟเฉพาะปั๊มยก)') },
-    sim: { ...SIM_COMMON, Level: sim({ base: .5, amp: .05, noise: .02 }), DO: sim({ base: 1.5, amp: .4, noise: .2, phase: 15 }), 'eff:BOD': sim({ base: 15, amp: .2, noise: .1 }), 'eff:TSS': sim({ base: 20, amp: .2, noise: .15 }), NH4N: sim({ base: 4, amp: .2, noise: .15 }), PH: sim({ base: 7.1, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .1, noise: .05, scale: 'plantKw' }), 'in:TSS': sim({ base: 180, amp: .3, noise: .15, phase: 9 }) },
+    energy: { kwh_m3: [0.01, 0.05], ...EST('ช่วงอ้างอิงบึงประดิษฐ์ 0.01–0.05 kWh/m³ ไหลตามแรงโน้มถ่วง ใช้ไฟเฉพาะปั๊มยก · ' + ENERGY_NOTE) },
+    sim: { ...SIM_COMMON, Level: sim({ base: .75, amp: .05, noise: .02 }), DO: sim({ base: 2.2, amp: .5, noise: .25, phase: 15 }), 'eff:BOD': sim({ base: 15, amp: .2, noise: .1 }), 'eff:TSS': sim({ base: 20, amp: .2, noise: .15 }), NH4N: sim({ base: 4, amp: .2, noise: .15 }), NO3N: sim({ base: 3, amp: .4, noise: .25, phase: 10 }), PH: sim({ base: 7.1, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .1, noise: .05, scale: 'plantKw' }), 'in:TSS': sim({ base: 180, amp: .3, noise: .15, phase: 9 }) },
   },
   RBC: {
-    code: 'RBC', name: PLANT_TYPE.RBC, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'primary', 'rbc', 'clarifier', 'disinfect', 'outlet'],
-    recycles: [R('was', 'clarifier', 'sludge', 'ตะกอนส่วนเกิน (WAS)', 'ตามอัตราที่ฟิล์มชีวภาพหลุดลอก', 'ไม่มีสายตะกอนสูบกลับ เพราะจุลินทรีย์เกาะอยู่บนแผ่นจาน ไม่ได้แขวนลอยในน้ำ')],
-    desc: 'ฟิล์มจุลินทรีย์เกาะบนแผ่นจานที่หมุนสลับจมน้ำและสัมผัสอากาศ ต้องมีถังตกตะกอนขั้นต้นเพื่อกันจานอุดตัน และถังตกตะกอนขั้นสองเพื่อดักฟิล์มที่หลุดลอก',
-    design_note: 'ภาระสารอินทรีย์ต่อพื้นที่จาน 4–10 กรัมบีโอดีต่อตารางเมตรต่อวัน · จานจมน้ำราว 40% ของเส้นผ่านศูนย์กลาง หมุน 1–2 รอบต่อนาที · ควรแบ่งเป็นชุดอนุกรม 3–4 ชุด',
+    code: 'RBC', name: PLANT_TYPE.RBC, kind: 'community', pcd_type: true,
+    stages: ['inlet', ...HEAD, 'eq', 'primary', 'rbc', 'clarifier', 'chlorine', 'outlet'],
+    recycles: [R('was', 'clarifier', 'dryBed', 'สลัดจ์ส่วนเกิน', 'ตามอัตราที่ฟิล์มชีวภาพหลุดลอก', 'คู่มือ คพ. ระบุเป็นข้อดีของระบบว่าไม่ต้องมีการควบคุมการเวียนตะกอนกลับ เพราะจุลินทรีย์เกาะบนแผ่นจาน')],
+    sludge: ['dryBed', 'press'],
+    desc: 'ฟิล์มจุลินทรีย์เกาะบนแผ่นจานพลาสติกที่หมุนสลับจมน้ำและสัมผัสอากาศ ต้องมีถังตกตะกอนขั้นต้นกันจานอุดตัน และถังตกตะกอนขั้นที่สองดักฟิล์มที่หลุดลอก',
+    design_note: 'องค์ประกอบตามคู่มือ คพ.: บ่อปรับสภาพการไหล → ถังตกตะกอนขั้นต้น → ระบบแผ่นหมุนชีวภาพ → ถังตกตะกอนขั้นที่ 2 → บ่อเติมคลอรีน · เกณฑ์ตารางที่ 5-10: ถังตกตะกอนขั้นต้นเก็บกัก 1–4 ชม. อัตราน้ำล้น 30–50 ลบ.ม./ตร.ม.-วัน · ชุดจานหมุน ภาระชลศาสตร์ 80–160 ลบ.ม. ต่อ 1,000 ตร.ม.-วัน ภาระอินทรีย์ 10–17 กก.บีโอดี ต่อ 1,000 ตร.ม.-วัน เก็บกัก 0.7–1.5 ชม. · แผ่นจานพลาสติกโพลิเอทิลีน จมน้ำ 35–40% ของพื้นที่ หมุน 1–3 รอบต่อนาที ฟิล์มหนา 1–4 มม. · ถังตกตะกอนขั้นสอง อัตราน้ำล้น 16–32 ลบ.ม./ตร.ม.-วัน ลึก 3–4.5 ม. · เริ่มเดินระบบใช้เวลาเพียง 1–2 สัปดาห์ · ข้อเสียที่คู่มือระบุคือเพลาแกนหมุนชำรุดบ่อยและแผ่นจานเสียหายง่ายเมื่อโดนแสงยูวี จึงต้องมีหลังคาคลุม · ในไทยมีโรงชุมชนแห่งเดียวคือเทศบาลเมืองหัวหิน ซึ่งหยุดเดินระบบแล้ว',
     monitor: [
-      ...COMMON_IN,
-      M('primary', 'SBlanket', { note: 'ตะกอนขั้นต้นล้นจะทำให้จานรับภาระเกินและอุดตัน' }),
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
+      M('eq', 'Level', { required: true, note: 'บ่อปรับสภาพการไหลเป็นหน่วยมาตรฐานของระบบนี้ตามคู่มือ' }),
+      M('primary', 'SBlanket', { required: true, note: 'ตะกอนขั้นต้นล้นจะทำให้แผ่นจานรับภาระเกินและอุดตัน' }),
       M('rbc', 'DO', { required: true, target: [1, 3], note: 'วัดที่ชุดสุดท้าย ค่าต่ำต่อเนื่องแสดงว่าฟิล์มหนาเกินหรือรับภาระเกิน' }),
       M('rbc', 'PH'),
-      M('rbc', 'Watt', { required: true, note: 'กำลังไฟมอเตอร์เพลาใช้แทนภาระบิด ฟิล์มชีวภาพหนาเกินทำให้เพลาโก่งหรือหัก ซึ่งเป็นความเสียหายที่พบบ่อยที่สุดของระบบนี้' }),
+      M('rbc', 'Watt', { required: true, note: 'กำลังไฟมอเตอร์เพลาใช้แทนภาระบิด คู่มือระบุว่าเพลาแกนหมุนที่ต้องรับทั้งแรงอัดและแรงบิดชำรุดบ่อยครั้ง' }),
       M('clarifier', 'SBlanket', { required: true }),
-      M('was', 'Flow', { sensor: 'Flow_em', note: 'อัตราสูบตะกอนทิ้ง' }),
-      M('disinfect', 'Cl2', { required: true, target: [0.5, 1] }),
-      ...COMMON_OUT,
+      M('was', 'Flow', { sensor: 'Flow_em', note: 'อัตราสูบตะกอนไปลานตากตะกอนหรือเครื่องรีดตะกอน' }),
+      CL2('chlorine'),
+      ...OUT_COMMUNITY,
     ],
-    energy: { kwh_m3: [0.15, 0.4], ...EST('ช่วงอ้างอิงแผ่นจานหมุนชีวภาพ 0.15–0.4 kWh/m³ (มอเตอร์หมุนจาน ไม่ต้องใช้โบลเวอร์)') },
+    energy: { kwh_m3: [0.15, 0.4], ...EST('ช่วงอ้างอิงแผ่นหมุนชีวภาพ 0.15–0.4 kWh/m³ · ' + ENERGY_NOTE + ' — คู่มือ คพ. ระบุเชิงคุณภาพว่าใช้ไฟน้อยเพราะใช้เฉพาะขับเคลื่อนมอเตอร์') },
     sim: { ...SIM_COMMON, DO: sim({ base: 2.5, amp: .3, noise: .2, phase: 15 }), PH: sim({ base: 7.3, amp: .02, noise: .01 }), 'eff:BOD': sim({ base: 16, amp: .3, noise: .12 }), 'eff:COD': sim({ base: 60, amp: .25, noise: .1 }), 'eff:TSS': sim({ base: 20, amp: .3, noise: .15 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .05, noise: .03, scale: 'plantKw' }), 'in:COD': sim({ base: 300, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 3, amp: .3, noise: .2 }) },
   },
   MBR: {
-    code: 'MBR', name: PLANT_TYPE.MBR, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'finescreen', 'anoxic', 'aeration', 'membrane', 'outlet'],
+    code: 'MBR', name: PLANT_TYPE.MBR, kind: 'community', pcd_type: false,
+    stages: ['inlet', ...HEAD_FINE, 'anoxic', 'aeration', 'membrane', 'outlet'],
     recycles: [
-      R('ras', 'membrane', 'anoxic', 'ตะกอนสูบกลับจากถังเมมเบรน', '300–500% ของอัตราน้ำเข้า', 'ทำหน้าที่ทั้งคืนตะกอนและพาไนเตรตกลับไปโซนแอนอกซิกในสายเดียวกัน'),
-      R('was', 'membrane', 'sludge', 'ตะกอนส่วนเกิน (WAS)', 'คุมอายุตะกอน 15–30 วัน', ''),
+      R('ras', 'membrane', 'anoxic', 'สูบสลัดจ์กลับจากถังเมมเบรน', 'อัตราส่วน 3–5 ของอัตราน้ำเข้า', 'ทำหน้าที่ทั้งคืนสลัดจ์และพาไนเตรตกลับไปโซนแอนอกซิกในสายเดียวกัน'),
+      R('was', 'membrane', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'คุมอายุสลัดจ์ 15–30 วัน', ''),
     ],
-    desc: 'ระบบตะกอนเร่งที่ใช้เมมเบรนกรองแยกน้ำใสแทนถังตกตะกอนขั้นสอง จึงเดินระบบที่ความเข้มข้นจุลินทรีย์สูงมากและได้น้ำทิ้งคุณภาพสูง',
-    design_note: 'ต้องมีตะแกรงละเอียด 1–3 มม. ก่อนถังเสมอ มิฉะนั้นเส้นใยและเส้นผมจะพันเมมเบรน · ขนาดรูกรอง 0.04–0.4 ไมครอน กรองแบคทีเรียได้ จึงไม่จำเป็นต้องเติมคลอรีนเพื่อฆ่าเชื้อ · ฟลักซ์ออกแบบ 15–30 ลิตรต่อตารางเมตรต่อชั่วโมง',
+    sludge: ['sludgePit', 'press'],
+    desc: 'ระบบตะกอนเร่งที่ใช้เมมเบรนกรองแยกน้ำใสแทนถังตกตะกอน จึงเดินระบบที่ความเข้มข้นจุลินทรีย์สูงมากและได้น้ำทิ้งคุณภาพสูง',
+    design_note: '⚠️ ไม่อยู่ใน 5 ประเภทของคู่มือ คพ. และไม่มีโรงชุมชนไทยที่ใช้ระบบนี้ในฐาน DSPOT — เกณฑ์ด้านล่างมาจากแหล่งสากล · ต้องมีตะแกรงละเอียด 1–3 มม. ก่อนถังเสมอ มิฉะนั้นเส้นใยและเส้นผมจะพันเมมเบรน · ขนาดรูกรอง 0.04–0.4 ไมครอน กรองแบคทีเรียได้ จึงไม่จำเป็นต้องเติมคลอรีน · MLSS 8,000–12,000 มก./ล. · ฟลักซ์ออกแบบ 15–30 ลิตรต่อตารางเมตรต่อชั่วโมง',
     monitor: [
-      ...COMMON_IN,
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
       M('finescreen', 'Level', { required: true, note: 'ผลต่างระดับหน้า-หลังตะแกรงละเอียด ถ้าอุดตันน้ำจะล้นข้ามไปทำลายเมมเบรน' }),
       M('anoxic', 'ORP', { required: true, note: 'คุมสภาวะแอนอกซิกที่ −50 ถึง +50 mV สำหรับดีไนตริฟิเคชัน' }),
       M('anoxic', 'NO3N', { note: 'ไนเตรตท้ายถังใกล้ศูนย์แปลว่าอัตราสูบวนเพียงพอแล้ว' }),
       M('aeration', 'DO', { required: true, target: [1, 2.5] }),
-      M('aeration', 'MLSS', { required: true, target: [8000, 12000], note: 'สูงกว่าระบบตะกอนเร่งทั่วไปราวสามเท่า เกิน 12,000 mg/L ความหนืดจะทำให้การถ่ายเทออกซิเจนแย่ลงมาก' }),
+      M('aeration', 'MLSS', { required: true, target: [8000, 12000], note: 'สูงกว่าระบบตะกอนเร่งทั่วไปราวสามเท่า เกิน 12,000 มก./ล. ความหนืดจะทำให้การถ่ายเทออกซิเจนแย่ลงมาก' }),
       M('membrane', 'TMP', { required: true, note: 'ความดันคร่อมเมมเบรนเป็นตัวชี้การอุดตันที่ตรงที่สุด ใช้สั่งล้างย้อนและล้างเคมี' }),
       M('membrane', 'Tur', { required: true, note: 'ความขุ่นของน้ำที่กรองได้ ปกติต่ำกว่า 0.2 NTU ค่าที่กระโดดขึ้นแสดงว่าเส้นใยเมมเบรนขาด' }),
       M('membrane', 'Flow', { required: true, sensor: 'Flow_em', note: 'อัตราน้ำที่กรองได้ ใช้คิดฟลักซ์และค่าการซึมผ่าน' }),
       ...SLUDGE_LINE,
-      ...COMMON_OUT,
+      ...OUT_COMMUNITY,
     ],
-    energy: { kwh_m3: [0.8, 1.5], ...EST('ช่วงอ้างอิงเอ็มบีอาร์ 0.8–1.5 kWh/m³ — สูงกว่าระบบอื่นเพราะต้องเป่าอากาศล้างผิวเมมเบรนตลอดเวลา') },
+    energy: { kwh_m3: [0.8, 1.5], ...EST('ช่วงอ้างอิงเอ็มบีอาร์ 0.8–1.5 kWh/m³ สูงกว่าระบบอื่นเพราะต้องเป่าอากาศล้างผิวเมมเบรนตลอดเวลา · ' + ENERGY_NOTE) },
     sim: { ...SIM_COMMON, DO: sim({ base: 1.8, amp: .3, noise: .2, phase: 15 }), ORP: sim({ base: -20, amp: 2, noise: .5 }), MLSS: sim({ base: 9500, amp: .04, noise: .03 }), TMP: sim({ base: .22, amp: .25, noise: .12, phase: 8 }), Tur: sim({ base: .15, amp: .3, noise: .3 }), 'eff:BOD': sim({ base: 4, amp: .3, noise: .2 }), 'eff:COD': sim({ base: 25, amp: .25, noise: .15 }), 'eff:TSS': sim({ base: 2, amp: .3, noise: .3 }), PH: sim({ base: 7.2, amp: .02, noise: .01 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .15, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 350, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 1, amp: .3, noise: .2 }), NO3N: sim({ base: 2, amp: .5, noise: .3, phase: 12 }) },
   },
   UASB: {
-    code: 'UASB', name: PLANT_TYPE.UASB, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'eq', 'uasb', 'post', 'outlet'],
+    code: 'UASB', name: PLANT_TYPE.UASB, kind: 'industrial', pcd_type: false,
+    stages: ['inlet', 'pump', 'screen', 'grease', 'eq', 'neutral', 'uasb', 'post', 'outlet'],
     recycles: [
-      R('gas', 'uasb', 'plant', 'ก๊าซชีวภาพจากตัวแยกสามวัฏภาค', '0.30–0.35 m³ มีเทน ต่อ kg ซีโอดีที่ถูกกำจัด', 'เก็บไปผลิตไฟฟ้าหรือความร้อน หรือเผาทิ้งที่หัวเผา ไม่ควรปล่อยสู่บรรยากาศเพราะมีเทนเป็นก๊าซเรือนกระจก'),
-      R('was', 'uasb', 'sludge', 'ตะกอนส่วนเกิน', 'สูบเมื่อชั้นตะกอนสูงเกินค่าออกแบบ', 'ตะกอนเม็ดมีค่า ควรเก็บไว้ใช้เริ่มระบบอื่น'),
+      R('gas', 'uasb', 'plant', 'ก๊าซชีวภาพจากตัวแยกสามวัฏภาค', 'ตามทฤษฎี 0.35 ลบ.ม.มีเทน ต่อ กก.ซีโอดีที่ถูกกำจัด', 'เก็บไปผลิตไฟฟ้าหรือความร้อน หรือเผาทิ้งที่หัวเผา ไม่ควรปล่อยสู่บรรยากาศเพราะมีเทนเป็นก๊าซเรือนกระจก'),
+      R('was', 'uasb', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'สูบเมื่อชั้นสลัดจ์สูงเกินค่าออกแบบ', 'สลัดจ์เม็ดมีค่า ควรเก็บไว้ใช้เริ่มระบบอื่น'),
     ],
-    desc: 'น้ำเสียไหลขึ้นผ่านชั้นตะกอนจุลินทรีย์ไร้อากาศที่ก้นถัง สารอินทรีย์ถูกเปลี่ยนเป็นก๊าซชีวภาพ แล้วแยกก๊าซ ตะกอน และน้ำ ด้วยตัวแยกสามวัฏภาคที่ยอดถัง',
-    design_note: 'ความเร็วไหลขึ้น 0.5–1.5 ม./ชม. · อุณหภูมิช่วงมีโซฟิลิก 30–35 °C · คุ้มค่าที่สุดกับน้ำเสียเข้มข้นซีโอดีเกิน 1,500 mg/L · ระบบนี้เพียงลำพังไม่ผ่านมาตรฐานน้ำทิ้ง ต้องมีหน่วยหลังบำบัดเสมอ · ตัวชี้เตือนล่วงหน้าที่ดีที่สุดคืออัตราส่วนกรดไขมันระเหยต่อสภาพด่าง ซึ่งยังต้องวิเคราะห์ในห้องปฏิบัติการ',
+    sludge: ['sludgePit', 'press'],
+    desc: 'น้ำเสียไหลขึ้นผ่านชั้นสลัดจ์จุลินทรีย์ไร้อากาศที่ก้นถัง สารอินทรีย์ถูกเปลี่ยนเป็นก๊าซชีวภาพ แล้วแยกก๊าซ สลัดจ์ และน้ำ ด้วยตัวแยกสามวัฏภาคที่ยอดถัง',
+    design_note: '⚠️ คู่มือ คพ. ระบุว่า**ไม่เหมาะกับน้ำเสียชุมชนไทย** เพราะความเข้มข้นสารอินทรีย์ไม่สูงพอ และไม่มีโรงชุมชนไทยที่ใช้ระบบนี้ — ใช้กับน้ำเสียอุตสาหกรรม เช่น แป้งมัน น้ำมันปาล์ม ยาง สุกร และโรงงานอาหาร · คู่มือจัดอยู่ในกลุ่มระบบไร้อากาศร่วมกับถังกรองไร้อากาศ คัฟเวอร์ลากูน และฟิกซ์โดม และแนะนำให้มีตะแกรงดักขยะกับบ่อดักไขมันไว้หน้าระบบ · เกณฑ์จากแหล่งสากล (ไม่ใช่ของราชการไทย): ความเร็วไหลขึ้น 0.5–1.5 ม./ชม. · ภาระอินทรีย์ถึง 10–15 กก.ซีโอดี/ลบ.ม.-วัน · เวลาเก็บกัก 6–12 ชม. · อุณหภูมิช่วงมีโซฟิลิก 30–35 °C · ระบบนี้เพียงลำพังไม่ผ่านมาตรฐานน้ำทิ้ง ต้องมีหน่วยบำบัดขั้นหลังเสมอ',
     monitor: [
-      ...COMMON_IN,
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
       M('eq', 'Level', { required: true }),
-      M('eq', 'PH', { required: true, note: 'ปรับกรด-ด่างก่อนเข้าถังไร้อากาศ เพราะจุลินทรีย์สร้างมีเทนไวต่อ pH มาก' }),
+      M('neutral', 'PH', { required: true, target: [6.8, 7.4], note: 'ปรับกรด-ด่างก่อนเข้าถังไร้อากาศ เพราะจุลินทรีย์สร้างมีเทนไวต่อ pH มาก' }),
       M('uasb', 'PH', { required: true, target: [6.8, 7.4], note: 'ต่ำกว่า 6.5 แสดงว่ากรดไขมันระเหยสะสม ระบบกำลังจะล้ม' }),
       M('uasb', 'Temp', { required: true, note: 'ช่วงมีโซฟิลิก 30–35 °C และอุณหภูมิที่เปลี่ยนเกิน 2 °C ต่อวันกระทบจุลินทรีย์มีเทน' }),
       M('uasb', 'ORP', { note: 'ต้องต่ำกว่า −200 mV จึงเป็นสภาวะสร้างมีเทน' }),
-      M('uasb', 'SBlanket', { required: true, note: 'ความสูงชั้นตะกอนจุลินทรีย์ ใช้ตัดสินใจสูบตะกอนออกและกันตะกอนหลุดไปกับน้ำ' }),
+      M('uasb', 'SBlanket', { required: true, note: 'ความสูงชั้นสลัดจ์จุลินทรีย์ ใช้ตัดสินใจสูบสลัดจ์ออกและกันสลัดจ์หลุดไปกับน้ำ' }),
       M('gas', 'Biogas', { required: true, note: 'อัตราการเกิดก๊าซตกลงก่อนที่ค่าน้ำทิ้งจะแย่ จึงเป็นสัญญาณเตือนล่วงหน้า' }),
       M('gas', 'CH4', { note: 'ระบบเสถียรมีมีเทน 60–75% ต่ำกว่า 50% แสดงว่าระบบเริ่มเป็นกรด' }),
-      M('post', 'DO', { note: 'หน่วยหลังบำบัด เช่น บ่อผึ่ง บ่อเติมอากาศ หรือบึงประดิษฐ์ ทำหน้าที่ขัดค่าให้ผ่านมาตรฐาน' }),
-      ...COMMON_OUT,
+      M('post', 'DO', { note: 'หน่วยบำบัดขั้นหลัง เช่น ถังเติมอากาศหรือบ่อผึ่ง ทำหน้าที่ขัดค่าให้ผ่านมาตรฐาน' }),
+      M('outlet', 'Flow', { required: true }), M('outlet', 'PH', { required: true }),
+      M('outlet', 'eff:BOD', { required: true }), M('outlet', 'eff:COD', { required: true, note: 'น้ำทิ้งอุตสาหกรรมใช้เกณฑ์ซีโอดีตามประเภทโรงงาน คนละประกาศกับระบบรวมชุมชน' }),
+      M('outlet', 'eff:TSS', { required: true }), M('plant', 'Watt', { required: true }),
     ],
-    energy: { kwh_m3: [0.05, 0.15], ...EST('ช่วงอ้างอิงยูเอเอสบี 0.05–0.15 kWh/m³ — ไม่ต้องเติมอากาศ และก๊าซชีวภาพที่ได้ยังชดเชยพลังงานได้อีก') },
+    energy: { kwh_m3: [0.05, 0.15], ...EST('ช่วงอ้างอิงยูเอเอสบี 0.05–0.15 kWh/m³ ไม่ต้องเติมอากาศ และก๊าซชีวภาพยังชดเชยพลังงานได้ · ' + ENERGY_NOTE) },
     sim: { ...SIM_COMMON, PH: sim({ base: 7, amp: .02, noise: .01 }), Temp: sim({ base: 31, amp: .04, noise: .02 }), ORP: sim({ base: -280, amp: .05, noise: .05 }), SBlanket: sim({ base: 2.5, amp: .03, noise: .02 }), Biogas: sim({ base: 1, amp: .25, noise: .1, phase: 11, scale: 'capacity' }), CH4: sim({ base: 66, amp: .05, noise: .03 }), DO: sim({ base: 1.5, amp: .4, noise: .2, phase: 15 }), 'eff:BOD': sim({ base: 25, amp: .25, noise: .12 }), 'eff:COD': sim({ base: 90, amp: .25, noise: .12 }), 'eff:TSS': sim({ base: 30, amp: .3, noise: .15 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .1, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 600, amp: .3, noise: .15, phase: 9 }), NH4N: sim({ base: 8, amp: .2, noise: .15 }) },
   },
   Anaerobic: {
-    code: 'Anaerobic', name: PLANT_TYPE.Anaerobic, kind: 'community',
-    stages: ['inlet', ...PRETREAT, 'anaerobic', 'post', 'outlet'],
+    code: 'Anaerobic', name: PLANT_TYPE.Anaerobic, kind: 'industrial', pcd_type: false,
+    stages: ['inlet', 'pump', 'screen', 'grease', 'anaerobic', 'post', 'outlet'],
     recycles: [
       R('gas', 'anaerobic', 'plant', 'ก๊าซชีวภาพ', 'ตามภาระสารอินทรีย์', 'เผาทิ้งที่หัวเผาหรือใช้เป็นเชื้อเพลิง'),
-      R('was', 'anaerobic', 'sludge', 'ตะกอนส่วนเกิน', 'สูบปีละ 1–2 ครั้ง', ''),
+      R('was', 'anaerobic', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'สูบปีละ 1–2 ครั้ง', ''),
     ],
-    desc: 'ถังปฏิกิริยาไร้อากาศแบบอื่น เช่น ถังเกรอะ ถังกรองไร้อากาศ หรือถังกั้นแผ่น ย่อยสารอินทรีย์โดยไม่ใช้ออกซิเจน ได้ก๊าซชีวภาพและตะกอนน้อย ต้องมีหน่วยหลังบำบัดเสมอ',
-    design_note: 'เวลาเก็บกัก 1–3 วัน · ประสิทธิภาพกำจัดบีโอดี 60–80% ซึ่งยังไม่ผ่านมาตรฐานน้ำทิ้งโดยลำพัง · เหมาะเป็นหน่วยลดภาระก่อนระบบเติมอากาศ',
+    sludge: ['sludgePit', 'dryBed'],
+    desc: 'ถังปฏิกิริยาไร้อากาศแบบอื่นตามที่คู่มือ คพ. ระบุ ได้แก่ ถังกรองไร้อากาศ ระบบคัฟเวอร์ลากูน และระบบฟิกซ์โดม ย่อยสารอินทรีย์โดยไม่ใช้ออกซิเจน ได้ก๊าซชีวภาพและสลัดจ์น้อย',
+    design_note: '⚠️ ไม่ใช่ระบบสำหรับน้ำเสียชุมชนตามคู่มือ คพ. · คู่มือแนะนำว่าต้องกำจัดสารแขวนลอยออกก่อน โดยมีตะแกรงดักขยะและบ่อดักไขมันไว้หน้าระบบ ถ้าใช้บำบัดน้ำส้วมควรผ่านบ่อเกรอะก่อน · ประสิทธิภาพกำจัดบีโอดีราว 60–80% ซึ่งยังไม่ผ่านมาตรฐานน้ำทิ้งโดยลำพัง เหมาะเป็นหน่วยลดภาระก่อนระบบเติมอากาศ',
     monitor: [
-      M('inlet', 'Flow', { required: true }), M('inlet', 'PH', { required: true }), M('inlet', 'in:COD'),
-      M('screen', 'Level'),
+      IN_FLOW, IN_PH, IN_COD, SCREEN_LV,
       M('anaerobic', 'PH', { required: true, target: [6.8, 7.4] }),
       M('anaerobic', 'Temp', { required: true }),
       M('anaerobic', 'ORP', { note: 'ต่ำกว่า −200 mV คือสภาวะสร้างมีเทน' }),
-      M('anaerobic', 'SBlanket', { note: 'ความหนาตะกอนก้นถัง ใช้วางแผนสูบตะกอน' }),
+      M('anaerobic', 'SBlanket', { note: 'ความหนาสลัดจ์ก้นถัง ใช้วางแผนสูบสลัดจ์' }),
       M('gas', 'Biogas', { note: 'อัตราการเกิดก๊าซบอกสุขภาพของระบบ' }),
       M('post', 'DO'),
       M('outlet', 'Flow', { required: true }), M('outlet', 'PH', { required: true }),
       M('outlet', 'eff:BOD', { required: true }), M('outlet', 'eff:COD'), M('outlet', 'eff:TSS', { required: true }),
       M('plant', 'Watt'),
     ],
-    energy: { kwh_m3: [0.03, 0.12], ...EST('ช่วงอ้างอิงระบบไร้อากาศ 0.03–0.12 kWh/m³') },
+    energy: { kwh_m3: [0.03, 0.12], ...EST('ช่วงอ้างอิงระบบไร้อากาศ 0.03–0.12 kWh/m³ · ' + ENERGY_NOTE) },
     sim: { ...SIM_COMMON, PH: sim({ base: 7, amp: .02, noise: .01 }), Temp: sim({ base: 31, amp: .04, noise: .02 }), ORP: sim({ base: -250, amp: .05, noise: .05 }), Biogas: sim({ base: .8, amp: .25, noise: .12, phase: 11, scale: 'capacity' }), DO: sim({ base: 1.2, amp: .4, noise: .2, phase: 15 }), 'eff:BOD': sim({ base: 30, amp: .25, noise: .12 }), 'eff:COD': sim({ base: 110, amp: .25, noise: .12 }), 'eff:TSS': sim({ base: 35, amp: .3, noise: .15 }), Flow: sim({ base: 1, amp: .35, noise: .08, phase: 10, scale: 'capacity' }), Watt: sim({ base: 1, amp: .1, noise: .05, scale: 'plantKw' }), 'in:COD': sim({ base: 500, amp: .3, noise: .15, phase: 9 }) },
   },
   IND: {
-    code: 'IND', name: 'Industrial WWTP · ระบบบำบัดน้ำเสียโรงงานอุตสาหกรรม (POMS/WPMS)', kind: 'industrial',
-    stages: ['inlet', 'screen', 'eq', 'neutral', 'primary', 'aeration', 'clarifier', 'outlet'],
+    code: 'IND', name: 'Industrial WWTP · ระบบบำบัดน้ำเสียโรงงานอุตสาหกรรม (POMS/WPMS)', kind: 'industrial', pcd_type: false,
+    stages: ['inlet', 'pump', 'screen', 'grease', 'eq', 'neutral', 'primary', 'aeration', 'clarifier', 'outlet'],
     recycles: [
-      R('ras', 'clarifier', 'aeration', 'ตะกอนเร่งสูบกลับ (RAS)', '50–100% ของอัตราน้ำเข้า', ''),
-      R('was', 'clarifier', 'sludge', 'ตะกอนส่วนเกิน (WAS)', 'ตามภาระสารอินทรีย์', 'ตะกอนจากขั้นตอนเคมีมักเป็นของเสียอันตราย ต้องส่งกำจัดตามกฎหมาย'),
+      R('ras', 'clarifier', 'aeration', 'สูบสลัดจ์กลับ', 'อัตราส่วน 0.5–1 ของอัตราน้ำเข้า', ''),
+      R('was', 'clarifier', 'sludgePit', 'สลัดจ์ส่วนเกิน', 'ตามภาระสารอินทรีย์', 'สลัดจ์จากขั้นตอนเคมีมักเป็นของเสียอันตราย ต้องส่งกำจัดตามกฎหมาย'),
     ],
+    sludge: ['sludgePit', 'sludgeHold', 'press'],
     diw_rule: 'ประกาศกรมโรงงานฯ: โรงงานที่ระบายน้ำทิ้ง ≥ 500 m³/วัน หรือมีภาระ BOD เข้า ≥ 4,000 kg/วัน ต้องติดตั้งเครื่องวัด COD/BOD ออนไลน์ (พร้อม Flow, pH) และส่งข้อมูลต่อเนื่องเข้าระบบ POMS/WPMS ของกรมโรงงานฯ',
-    desc: 'สายบำบัดน้ำเสียโรงงานทั่วไป เริ่มจากปรับสมดุลน้ำที่ผันผวน ปรับกรด-ด่างและเติมสารเคมีสร้างตะกอน แยกตะกอนเคมีด้วยการตกตะกอนหรือลอยตะกอนด้วยอากาศละลาย แล้วบำบัดชีวภาพและตกตะกอนขั้นสอง',
-    design_note: 'ต่างจากระบบชุมชนตรงที่น้ำเสียผันผวนทั้งปริมาณและความเข้มข้นตามกะการผลิต บ่อปรับสมดุลจึงเป็นหน่วยบังคับ · มาตรฐานน้ำทิ้งอุตสาหกรรมอยู่ที่บีโอดี ≤ 20–60 ซีโอดี ≤ 120–400 และของแข็งแขวนลอย ≤ 50–150 mg/L ตามประเภทโรงงาน',
+    desc: 'สายบำบัดน้ำเสียโรงงานทั่วไป เริ่มจากดักไขมัน ปรับสมดุลน้ำที่ผันผวน ปรับกรด-ด่างและเติมสารเคมีสร้างตะกอน แยกตะกอนเคมีด้วยการตกตะกอนหรือลอยตะกอนด้วยอากาศละลาย แล้วบำบัดชีวภาพและตกตะกอน',
+    design_note: '⚠️ ไม่ใช่ระบบชุมชนตามคู่มือ คพ. · น้ำเสียโรงงานผันผวนทั้งปริมาณและความเข้มข้นตามกะการผลิต บ่อปรับสภาพการไหลจึงเป็นหน่วยบังคับ · **มาตรฐานน้ำทิ้งเป็นคนละประกาศกับระบบรวมชุมชน** โดยคุมซีโอดีและทีเคเอ็นด้วย ค่าทั่วไปคือบีโอดี ≤ 20–60 ซีโอดี ≤ 120–400 ของแข็งแขวนลอย ≤ 50–150 มก./ล. ตามประเภทโรงงาน',
     monitor: [
       M('inlet', 'Flow', { required: true }),
       M('inlet', 'PH', { required: true, note: 'น้ำเสียอุตสาหกรรมแกว่งแรงตามกะการผลิต' }),
       M('inlet', 'in:COD', { required: true }),
+      SCREEN_LV,
       M('eq', 'Level', { required: true, note: 'ปริมาตรสำรองอย่างน้อย 6–12 ชม. เพื่อเกลี่ยภาระให้สม่ำเสมอ' }),
       M('eq', 'PH'),
       M('neutral', 'PH', { required: true, target: [6.5, 8.5], note: 'ควบคุมการจ่ายกรด ด่าง และสารสร้างตะกอน ทำงานเป็นวงปิดกับปั๊มจ่ายสารเคมี' }),
@@ -381,7 +432,7 @@ export const PROCESS_TYPES = {
       M('outlet', 'eff:TSS'),
       M('plant', 'Watt', { required: true, note: 'POMS รับค่ากำลังไฟฟ้าของระบบบำบัด' }),
     ],
-    energy: { kwh_m3: [0.5, 2.0], ...EST('น้ำทิ้งอุตสาหกรรมต่างกันมากตามชนิด 0.5–2.0 kWh/m³ (ค่าประมาณ) — เทียบค่าวัดจริงจาก POMS โดยเอากำลังไฟฟ้าหารอัตราไหล') },
+    energy: { kwh_m3: [0.5, 2.0], ...EST('น้ำทิ้งอุตสาหกรรมต่างกันมากตามชนิด 0.5–2.0 kWh/m³ · ' + ENERGY_NOTE + ' — เทียบค่าวัดจริงจาก POMS โดยเอากำลังไฟฟ้าหารอัตราไหล') },
     sim: { ...SIM_COMMON, DO: sim({ base: 2, amp: .3, noise: .2, phase: 15 }), MLSS: sim({ base: 3500, amp: .05, noise: .04 }), Level: sim({ base: 3, amp: .2, noise: .05, phase: 12 }), 'eff:COD': sim({ base: 80, amp: .35, noise: .2, phase: 11 }), 'eff:BOD': sim({ base: 12, amp: .35, noise: .2, phase: 11 }), 'eff:TSS': sim({ base: 25, amp: .3, noise: .2 }), PH: sim({ base: 7.5, amp: .04, noise: .02 }), ORP: sim({ base: 200, amp: .3, noise: .15 }), Flow: sim({ base: 1, amp: .45, noise: .1, phase: 12, scale: 'capacity' }), Watt: sim({ base: 1, amp: .3, noise: .08, phase: 12, scale: 'plantKw' }), 'in:COD': sim({ base: 900, amp: .4, noise: .25, phase: 11 }) },
   },
 };
@@ -410,6 +461,9 @@ export const SENSOR_TYPES = {
   NO3N: { name: 'หัววัดไนเตรต', tech: 'ยูวีสเปกตรัมแบบไม่ใช้รีเอเจนต์ หรืออิเล็กโทรดเลือกจำเพาะไอออน', params: ['NO3N'], unit: 'mg/L', power_w: [3, 15], comms: ['4–20 mA', 'Modbus RTU'], stds: ['ISO 15839', 'MCERTS', 'IP68'], price_thb: [120000, 400000], maint: 'ล้างอัตโนมัติ สอบเทียบกับแล็บรายเดือน', select: ['แบบยูวีไม่ใช้สารเคมี เหมาะติดจุ่มในถังตลอดเวลา', 'ใช้คู่กับหัววัดแอมโมเนียมเพื่อคุมการกำจัดไนโตรเจน'], ...EST('ราคาตลาด 2568') },
   Cl2: { name: 'หัววัดคลอรีนคงเหลือ', tech: 'Amperometric แบบมีเมมเบรน (ไม่ใช้รีเอเจนต์) หรือแบบวัดสีด้วยดีพีดี', params: ['Cl2'], unit: 'mg/L', power_w: [1, 5], comms: ['4–20 mA', 'Modbus RTU'], stds: ['ISO 7393', 'US EPA 334.0', 'IP65'], price_thb: [40000, 150000], maint: 'เปลี่ยนเมมเบรนหรือน้ำยาทุก 6–12 เดือน', select: ['ติดที่ปลายถังสัมผัสคลอรีน ไม่ใช่ที่จุดจ่าย', 'ต้องมีชุดควบคุมอัตราไหลตัวอย่างให้คงที่'], ...EST('ราคาตลาด 2568') },
   Biogas: { name: 'มาตรวัดก๊าซชีวภาพและวิเคราะห์มีเทน', tech: 'Thermal mass flow ทนก๊าซชื้น ร่วมกับเครื่องวิเคราะห์อินฟราเรดสำหรับมีเทน', params: ['Biogas', 'CH4'], unit: 'm³/hr · %', power_w: [5, 25], comms: ['4–20 mA', 'Modbus RTU'], stds: ['ATEX/IECEx โซน 1 (บังคับ)', 'IP66', 'CE'], price_thb: [150000, 600000], maint: 'ระบายน้ำในสายก๊าซทุกสัปดาห์ สอบเทียบด้วยก๊าซมาตรฐานรายปี', select: ['ต้องได้รับรองพื้นที่อันตรายเพราะมีเทนติดไฟ', 'ติดหลังชุดดักน้ำและตัวกรองไฮโดรเจนซัลไฟด์'], ...EST('ราคาตลาด 2568') },
+  TN: { name: 'เครื่องวัดไนโตรเจนทั้งหมด', tech: 'ยูวีสเปกตรัมหรือเครื่องวิเคราะห์แบบย่อยด้วยความร้อน (thermal digestion)', params: ['eff:TN'], unit: 'mg-N/L', power_w: [10, 60], comms: ['4–20 mA', 'Modbus RTU/TCP'], stds: ['ISO 15839', 'ISO 11905-1', 'MCERTS', 'IP65'], price_thb: [350000, 1200000], maint: 'เติมรีเอเจนต์ทุก 1–2 เดือน สอบเทียบกับแล็บรายเดือน', select: ['มาตรฐานน้ำทิ้งชุมชนคุมไนโตรเจนทั้งหมด ≤ 20 มก./ล.', 'ราคาสูง โรงเล็กมักใช้แอมโมเนียมกับไนเตรตประกอบแทน แล้วส่งแล็บยืนยัน'], ...EST('ราคาตลาด 2568') },
+  TP: { name: 'เครื่องวัดฟอสฟอรัสทั้งหมด', tech: 'เครื่องวิเคราะห์แบบวัดสี ย่อยตัวอย่างด้วยกรดและความร้อนก่อนวัด', params: ['eff:TP'], unit: 'mg-P/L', power_w: [10, 60], comms: ['4–20 mA', 'Modbus RTU/TCP'], stds: ['ISO 6878', 'ISO 15839', 'MCERTS', 'IP65'], price_thb: [350000, 1000000], maint: 'เติมรีเอเจนต์ทุก 1–2 เดือน มีของเสียเคมีต้องกำจัด', select: ['มาตรฐานน้ำทิ้งชุมชนคุมฟอสฟอรัสทั้งหมด ≤ 2 มก./ล.', 'ต้องมีชุดกรองตัวอย่างกันหัวฉีดอุดตัน'], ...EST('ราคาตลาด 2568') },
+  FOG: { name: 'เครื่องวัดน้ำมันและไขมัน', tech: 'อินฟราเรดหรือการเรืองแสงยูวีบนผิวน้ำ', params: ['eff:FOG'], unit: 'mg/L', power_w: [5, 20], comms: ['4–20 mA', 'Modbus RTU'], stds: ['ISO 9377-2 (วิธีอ้างอิงห้องปฏิบัติการ)', 'IP65'], price_thb: [200000, 700000], maint: 'ล้างหน้าต่างวัดรายสัปดาห์', select: ['มาตรฐานน้ำทิ้งชุมชนคุมไม่เกิน 5 มก./ล.', 'ส่วนใหญ่ยังเก็บตัวอย่างส่งแล็บ ใช้เครื่องออนไลน์เมื่อมีความเสี่ยงไขมันรั่วเป็นประจำ'], ...EST('ราคาตลาด 2568') },
   Controller: { name: 'ตัวควบคุม/ทรานสมิตเตอร์หลายช่อง', tech: 'Multi-parameter controller (ต่อหัววัดดิจิทัล 2–8 หัว) + จอแสดงผล', params: [], unit: '', power_w: [5, 15], comms: ['Modbus RTU/TCP', 'Profibus', '4–20 mA out'], stds: ['IP66', 'CE', 'UL'], price_thb: [40000, 150000], maint: 'ไม่ต้อง', select: ['ลดจำนวนทรานสมิตเตอร์ ใช้หัวดิจิทัลร่วมกัน'], ...EST('ราคาตลาด 2568') },
 };
 /** พารามิเตอร์ → ชนิดเซนเซอร์ (ตามตำแหน่ง) */
@@ -417,6 +471,9 @@ export function sensorFor(param, stage) {
   if (param === 'Flow') return stage === 'inlet' || stage === 'outlet' ? 'Flow_us' : 'Flow_em';
   if (param === 'in:TSS') return 'MLSS';
   if (param === 'CH4') return 'Biogas';
+  if (param === 'eff:TN') return 'TN';
+  if (param === 'eff:TP') return 'TP';
+  if (param === 'eff:FOG') return 'FOG';
   if (param === 'Tur') return 'TSS';
   const base = param.replace(/^(eff|in):/, '');
   return SENSOR_TYPES[base] ? base : null;
@@ -491,7 +548,7 @@ export function designSystem(code, capacityM3d = 5000, opts = {}) {
   items.push({ stage: 'plant', param: null, sensor: 'Controller', qty: Math.max(1, Math.ceil(sensorsCount / 6)), required: true, note: 'ต่อหัววัดดิจิทัล ~6 หัว/เครื่อง' });
   items.push({ stage: 'plant', param: null, sensor: 'Logger', qty: 1, required: true, note: 'เก็บ/ส่งข้อมูลทุก 15 นาที · buffer 7 วัน' });
   items.push({ stage: 'plant', param: null, sensor: 'Gateway', qty: 1, required: true, note: opts.comms ?? '4G (ค่าเริ่มต้น)' });
-  return { code, name: p.name, kind: p.kind, capacity: cap, stages: p.stages, recycles: p.recycles ?? [], desc: p.desc ?? '', design_note: p.design_note ?? '', diw_rule: p.kind === 'industrial' || cap >= 500 && code === 'IND' ? p.diw_rule : null, items, catalog_version: CATALOG_VERSION };
+  return { code, name: p.name, kind: p.kind, capacity: cap, stages: p.stages, recycles: p.recycles ?? [], sludge: p.sludge ?? [], optional: p.optional ?? [], pcd_type: p.pcd_type ?? false, desc: p.desc ?? '', design_note: p.design_note ?? '', diw_rule: p.kind === 'industrial' || cap >= 500 && code === 'IND' ? p.diw_rule : null, items, catalog_version: CATALOG_VERSION };
 }
 export const stageName = (s) => STAGES[s]?.name ?? s;
 /** ชื่อจุดวัดตามตำแหน่งติดตั้ง — พารามิเตอร์เดียวกันมีความหมายต่างกันตามหน่วยบำบัดที่ติด */
@@ -502,6 +559,9 @@ const POINT_NAME = {
   'eq:Level': 'ระดับน้ำในบ่อปรับสมดุล', 'sbr:Level': 'ระดับน้ำในถังเอสบีอาร์', 'wetland:Level': 'ระดับน้ำในชั้นตัวกลาง',
   'rbc:Watt': 'กำลังไฟมอเตอร์เพลาจานหมุน', 'plant:Watt': 'กำลังไฟฟ้ารวมของโรง',
   'membrane:Tur': 'ความขุ่นน้ำที่กรองได้',
+  'wetlandA:Level': 'ระดับน้ำในบึงส่วนที่ 1', 'holding:Level': 'ระดับน้ำในบ่อพักน้ำทิ้ง', 'sbr:Level': 'ระดับน้ำในถังเอสบีอาร์',
+  'pondM:SBlanket': 'ความหนาตะกอนก้นบ่อบ่ม', 'pondA:PH': 'ความเป็นกรด-ด่างบ่อแอนแอโรบิค', 'pondM:PH': 'ความเป็นกรด-ด่างบ่อบ่ม',
+  'lagoon:MLSS': 'ความเข้มข้นจุลินทรีย์ในบ่อเติมอากาศ', 'rbc:Watt': 'กำลังไฟมอเตอร์เพลาแผ่นหมุน',
   'primary:SBlanket': 'ระดับชั้นตะกอนขั้นต้น', 'clarifier:SBlanket': 'ระดับชั้นตะกอนขั้นสอง',
   'uasb:SBlanket': 'ความสูงชั้นตะกอนจุลินทรีย์', 'pondS:SBlanket': 'ความหนาตะกอนก้นบ่อ',
   'neutral:PH': 'ความเป็นกรด-ด่างจุดปรับสภาพ', 'inlet:PH': 'ความเป็นกรด-ด่างน้ำเข้า', 'outlet:PH': 'ความเป็นกรด-ด่างน้ำทิ้ง',
@@ -510,7 +570,7 @@ export const pointName = (stage, param) => POINT_NAME[`${stage}:${param}`] ?? AL
 /** ขั้นตอนทั้งหมดที่ระบบนี้ใช้ รวมสายวนกลับ (ใช้ตรวจว่าจุดวัดอยู่ในกระบวนการจริง) */
 export const allStagesOf = (code) => {
   const p = PROCESS_TYPES[code]; if (!p) return [];
-  return [...p.stages, ...(p.recycles ?? []).map((r) => r.id), 'plant'];
+  return [...p.stages, ...(p.recycles ?? []).map((r) => r.id), ...(p.sludge ?? []), 'plant'];
 };
 
 // ─────────────────────────────────────────────────────────── พลังงาน
