@@ -1331,7 +1331,7 @@ export const PCD_AERATION = {
   AS: { o2_per_bod: [1.4, 1.6], hrt_h: [6, 36], aerator: 'porous', removal: 0.9, source: 'ตารางที่ 7.4 เอเอสแบบเติมอากาศยืดเวลา' },
   OD: { o2_per_bod: [1.4, 1.6], hrt_h: [8, 36], aerator: 'horizontal', removal: 0.9, source: 'ตารางที่ 7.4 เอเอสแบบเติมอากาศยืดเวลา (คลองวนเวียนเป็นรูปแบบย่อย)' },
   SBR: { o2_per_bod: [1.4, 1.6], hrt_h: [8, 50], aerator: 'porous', removal: 0.9, source: 'ตารางที่ 7.4 เอสบีอาร์' },
-  AL: { o2_per_bod: [0.7, 1.0], hrt_d: [1, 2], aerator: 'surface_radial', removal: 0.8, mixing_kw_per_1000m3: [1.5, 3.0], source: 'ตารางที่ 7.2 สระเติมอากาศแบบผสมบางส่วน' },
+  AL: { o2_per_bod: [0.7, 1.0], hrt_d: [1, 2], aerator: 'surface_radial', removal: 0.8, mixing_kw_per_1000m3: [1.5, 3.0, 2.5], source: 'ตารางที่ 7.2 สระเติมอากาศแบบผสมบางส่วน' },
   MBR: { o2_per_bod: [1.4, 1.6], hrt_h: [6, 12], aerator: 'porous', removal: 0.95, source: 'อนุโลมจากเกณฑ์เอเอสแบบเติมอากาศยืดเวลา — เกณฑ์ไทยไม่ครอบคลุมระบบนี้' },
   IND: { o2_per_bod: [1.0, 1.5], hrt_h: [6, 24], aerator: 'porous', removal: 0.9, source: 'อนุโลมจากเกณฑ์เอเอส — เกณฑ์ไทยไม่ครอบคลุมน้ำเสียอุตสาหกรรม' },
 };
@@ -1350,36 +1350,40 @@ export const THAI_SEWAGE = {
  *   ทางที่ 2 การผสม: ปริมาตรถัง × กำลังกวนต่อ 1,000 ลบ.ม. × 24 ชม.
  * @param {string} code รหัสประเภทของระบบ
  */
-export function aerationEnergy(code, { q_m3d = 0, bod_in = null, bod_out = 20, sewer = 'combined', aerator = null, field_factor = 0.55, hrt_h = null, mixing_kw_per_1000m3 = null } = {}) {
+export function aerationEnergy(code, { q_m3d = 0, bod_in = null, bod_out = null, sewer = 'combined', aerator = null, field_factor = 0.5, hrt_h = null, mixing_kw_per_1000m3 = null, o2_mode = 'design' } = {}) {
   const p = PCD_AERATION[code]; if (!p || !(q_m3d > 0)) return null;
   const sew = THAI_SEWAGE[sewer] ?? THAI_SEWAGE.combined;
   const bin = bod_in ?? sew.bod;
-  const removed_kg = q_m3d * Math.max(0, bin - bod_out) / 1000;
-  const o2mid = (p.o2_per_bod[0] + p.o2_per_bod[1]) / 2;
-  const o2_kg = removed_kg * o2mid;
+  // ไม่กำหนดบีโอดีน้ำออก ให้คิดจากประสิทธิภาพกำจัดของประเภทระบบนั้น เหมือนตัวอย่างการคำนวณในเล่ม 3
+  const bout = bod_out ?? bin * (1 - p.removal);
+  const removed_kg = q_m3d * Math.max(0, bin - bout) / 1000;
+  // ตัวอย่างการคำนวณของ คพ. เลือกค่าสูงสุดของช่วงเพื่อเผื่อการออกแบบ ส่วน typical ใช้ค่ากลางสำหรับประเมินการใช้ไฟจริง
+  const o2f = o2_mode === 'typical' ? (p.o2_per_bod[0] + p.o2_per_bod[1]) / 2 : p.o2_per_bod[1];
+  const o2_kg = removed_kg * o2f;
   const ae = AERATOR_SAE[aerator ?? p.aerator];
   const sae_mid = (ae.sae[0] + ae.sae[1]) / 2;
   const sae_field = sae_mid * field_factor;
   const kwh_o2 = sae_field > 0 ? o2_kg / sae_field : 0;
   // ทางที่ 2 การผสม
-  const hrt = hrt_h ?? (p.hrt_d ? p.hrt_d[0] * 24 : (p.hrt_h ? (p.hrt_h[0] + p.hrt_h[1]) / 2 : 12));
+  const hrt = hrt_h ?? (p.hrt_d ? p.hrt_d[1] * 24 : (p.hrt_h ? (p.hrt_h[0] + p.hrt_h[1]) / 2 : 12));
   const volume = q_m3d * hrt / 24;
-  const mixKw = mixing_kw_per_1000m3 ?? (p.mixing_kw_per_1000m3 ? (p.mixing_kw_per_1000m3[0] + p.mixing_kw_per_1000m3[1]) / 2 : null);
+  const mixKw = mixing_kw_per_1000m3 ?? (p.mixing_kw_per_1000m3 ? (p.mixing_kw_per_1000m3[2] ?? 2.5) : null);
   const kwh_mix = mixKw != null ? volume / 1000 * mixKw * 24 : null;
   const governing = kwh_mix != null && kwh_mix > kwh_o2 ? 'mixing' : 'oxygen';
   const kwh_day = Math.max(kwh_o2, kwh_mix ?? 0);
   const bench = PROCESS_TYPES[code]?.energy?.kwh_m3 ?? null;
   const kwh_m3 = q_m3d > 0 ? kwh_day / q_m3d : null;
   return {
-    code, q_m3d, bod_in: bin, bod_out, removed_kg, o2_kg, aerator: ae.name, sae: ae.sae, sae_field,
+    code, q_m3d, bod_in: bin, bod_out: bout, removed_kg, o2_kg, aerator: ae.name, sae: ae.sae, sae_field,
     kwh_o2, kwh_mix, kwh_day, kwh_m3, governing, volume_m3: volume, hrt_h: hrt,
     benchmark: bench, vs_benchmark: bench ? (kwh_m3 < bench[0] ? 'ต่ำกว่าช่วงอ้างอิงสากล' : (kwh_m3 > bench[1] ? 'สูงกว่าช่วงอ้างอิงสากล' : 'อยู่ในช่วงอ้างอิงสากล')) : null,
     estimate: true,
-    source: `คิดจากประกาศกรมควบคุมมลพิษ เรื่องเกณฑ์การออกแบบฯ (ราชกิจจานุเบกษา 8 มิ.ย. 2553) (${p.source} · ตารางที่ 7.5 ประสิทธิภาพเครื่องเติมอากาศ · ตารางที่ 2.2 ลักษณะน้ำเสียไทย) — เป็นเฉพาะไฟของเครื่องเติมอากาศ ยังไม่รวมไฟของสถานีสูบน้ำเสีย ปั๊มสลัดจ์ และระบบสลัดจ์ · ค่าปรับประสิทธิภาพในสนาม ${field_factor} เป็นข้อสมมติของเรา ไม่ได้อยู่ในเกณฑ์`,
+    source: `คิดจากประกาศกรมควบคุมมลพิษ เรื่องเกณฑ์การออกแบบฯ (ราชกิจจานุเบกษา 8 มิ.ย. 2553) (${p.source} · ตารางที่ 7.5 ประสิทธิภาพเครื่องเติมอากาศ · ตารางที่ 2.2 ลักษณะน้ำเสียไทย) — เป็นเฉพาะไฟของเครื่องเติมอากาศ ยังไม่รวมไฟของสถานีสูบน้ำเสีย ปั๊มสลัดจ์ และระบบสลัดจ์ · ตัวปรับอัตราการถ่ายเทออกซิเจนในสนามต่อค่ามาตรฐาน ${field_factor} เป็นค่าที่ตัวอย่างการคำนวณในเล่ม 3 ของเอกสารชุดเดียวกันใช้`,
     steps: [
       STEP('บีโอดีน้ำเข้า', `${sew.name} ตามตารางที่ 2.2 = ${n$(bin)} มก./ล.${bod_in == null ? ' (ค่าแนะนำ)' : ' (ผู้ใช้กรอก)'}`, bin, 'mg/L', bod_in == null ? 'benchmark' : 'input'),
-      STEP('บีโอดีที่ถูกกำจัด', `ปริมาณน้ำ × (บีโอดีเข้า − บีโอดีออก) ÷ 1,000 = ${n$(q_m3d)} × (${n$(bin)} − ${n$(bod_out)}) ÷ 1,000`, removed_kg, 'กก./วัน', 'benchmark'),
-      STEP('ความต้องการออกซิเจน', `บีโอดีที่ถูกกำจัด × ${o2mid} ก.O₂ ต่อ ก.บีโอดี = ${n$(removed_kg)} × ${o2mid}`, o2_kg, 'กก.O₂/วัน', 'benchmark'),
+      STEP('บีโอดีน้ำออก', `บีโอดีเข้า × (1 − ประสิทธิภาพกำจัด ${p.removal}) = ${n$(bin)} × ${(1 - p.removal).toFixed(2)}`, bout, 'mg/L', 'benchmark'),
+      STEP('บีโอดีที่ถูกกำจัด', `ปริมาณน้ำ × (บีโอดีเข้า − บีโอดีออก) ÷ 1,000 = ${n$(q_m3d)} × (${n$(bin)} − ${n$(bout, 1)}) ÷ 1,000`, removed_kg, 'กก./วัน', 'benchmark'),
+      STEP('ความต้องการออกซิเจน', `บีโอดีที่ถูกกำจัด × ${o2f} ก.O₂ ต่อ ก.บีโอดี = ${n$(removed_kg)} × ${o2f}`, o2_kg, 'กก.O₂/วัน', 'benchmark'),
       STEP('ประสิทธิภาพเติมอากาศในสนาม', `${ae.name} ค่ามาตรฐาน ${ae.sae[0]}–${ae.sae[1]} กก.O₂/kWh × ตัวปรับในสนาม ${field_factor}`, sae_field, 'กก.O₂/kWh', 'benchmark'),
       STEP('ทางที่ 1 หน่วยไฟตามความต้องการออกซิเจน', `${n$(o2_kg)} ÷ ${n$(sae_field, 2)}`, kwh_o2, 'kWh/วัน', 'benchmark'),
       ...(kwh_mix != null ? [
