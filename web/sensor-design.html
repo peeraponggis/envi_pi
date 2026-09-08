@@ -107,10 +107,10 @@
     <div class="left">
       <div class="step"><h3><span class="no">1</span>เลือกระบบบำบัด</h3>
         <div class="opts">
-          <div class="hint"><b>ก. มีโรงจริงอยู่แล้ว</b> — เลือกจังหวัดและระบบจากทะเบียน DSPOT (Database System for Publicly Owned Treatment Works — ฐานข้อมูลระบบบำบัดน้ำเสียรวมชุมชน คพ.) ระบบจะเติมชนิด ความสามารถ น้ำเข้าจริง และพิกัดให้ · <b>ข. ออกแบบโรงใหม่</b> — ข้ามไปเลือกชนิดระบบเอง</div>
+          <div class="hint"><b>ก. มีโรงจริงอยู่แล้ว</b> — เลือกจังหวัดและระบบจากทะเบียน DSPOT (Database System for Publicly Owned Treatment Works — ฐานข้อมูลระบบบำบัดน้ำเสียรวมชุมชน คพ.) ระบบจะเติมประเภทของระบบ ความสามารถ น้ำเข้าจริง และพิกัดให้ · <b>ข. ออกแบบโรงใหม่</b> — ข้ามไปเลือกประเภทของระบบเอง</div>
           <label><span title="Database System for Publicly Owned Treatment Works — ฐานข้อมูลระบบบำบัดน้ำเสียรวมชุมชน ของกรมควบคุมมลพิษ พัฒนาร่วมกับ GIZ">จังหวัด (DSPOT)</span> <select id="sProv"><option value="">— เลือกจังหวัด —</option></select></label>
           <label id="lPlant" hidden>โรงจริง <select id="sPlant"></select></label>
-          <label>ชนิดระบบ <select id="sType"></select></label>
+          <label>ประเภทของระบบ <select id="sType"></select></label>
           <label>ความสามารถ <input id="sCap" type="number" min="1" step="100" value="5000" placeholder="ลบ.ม./วัน"></label>
           <label>น้ำเข้าจริง <input id="sInflow" type="number" min="0" step="100" placeholder="ลบ.ม./วัน (ถ้ามี)"></label>
           <label>พิกัด <div class="row2"><input id="sLat" type="number" step="0.0001" placeholder="ละติจูด" value="14.0190"><input id="sLng" type="number" step="0.0001" placeholder="ลองจิจูด" value="100.5577"></div></label>
@@ -159,7 +159,7 @@
           <button class="btn" id="btnLink">🔗 คัดลอกลิงก์</button>
           <button class="btn" id="btnSave" disabled title="ต้องล็อกอิน">💾 บันทึก</button>
         </div>
-        <div class="hint" id="status" style="margin-top:8px">เลือกชนิดระบบแล้วกด "ออกแบบและคำนวณ"</div>
+        <div class="hint" id="status" style="margin-top:8px">เลือกประเภทของระบบแล้วกด "ออกแบบและคำนวณ"</div>
         <div id="saved" style="margin-top:8px"></div>
       </div>
     </div>
@@ -194,7 +194,7 @@
         $('#sProv').innerHTML = '<option value="">— เลือกจังหวัด —</option>' + provs.map((p) => `<option>${esc(p)}</option>`).join('');
         $('#sProv').addEventListener('change', () => { const list = plants.filter((s) => s.province === $('#sProv').value); $('#lPlant').hidden = !list.length; $('#sPlant').innerHTML = '<option value="">— เลือกระบบ —</option>' + list.map((s) => `<option value="${s.id}">${esc(s.name_th)} · ${esc(s.meta?.plant_type ?? '?')} ${fmt(s.meta?.capacity)} m³/d</option>`).join(''); });
         $('#sPlant').addEventListener('change', () => { const s = plants.find((x) => String(x.id) === $('#sPlant').value); if (!s) return; if (PROCESS_TYPES[s.meta?.plant_type]) $('#sType').value = s.meta.plant_type; $('#sCap').value = s.meta?.capacity ?? ''; $('#sInflow').value = s.meta?.avg_inflow ?? ''; $('#sLat').value = s.lat; $('#sLng').value = s.lng; $('#sName').value = s.name_th; typeHint(); $('#status').textContent = `เติมจากโรงจริง: ${s.name_th} · ${s.meta?.plant_type ?? 'ไม่ระบุชนิด (เลือกเอง)'} · ${fmt(s.meta?.capacity)} m³/d · กด "ออกแบบและคำนวณ"`; build().catch(() => {}); });
-        // เมื่อเปลี่ยนชนิดระบบเองหลังเลือกโรงจริง ให้ล้างการเลือกโรง (ถือว่าออกแบบเอง)
+        // เมื่อเปลี่ยนประเภทของระบบเองหลังเลือกโรงจริง ให้ล้างการเลือกโรง (ถือว่าออกแบบเอง)
         $('#sType').addEventListener('change', () => { if ($('#sPlant').value && plants.find((x) => String(x.id) === $('#sPlant').value)?.meta?.plant_type !== $('#sType').value) { $('#sPlant').value = ''; } });
         $('#status').textContent = `โหลดโรงจริง DSPOT ${plants.length} ระบบ · POMS ${poms.length} โรงงาน (ใช้เทียบ kWh/m³ วัดจริง)`;
       } catch (e) { $('#status').textContent = 'โหลดข้อมูลโรงจริงไม่ได้: ' + (e.message ?? e); }

@@ -530,9 +530,9 @@ export const COMMS = {
 };
 
 // ─────────────────────────────────────────────────────────── ออกแบบ (BOQ)
-/** ออกแบบชุดเซนเซอร์ตามชนิดระบบและความสามารถ → รายการอุปกรณ์ (qty แก้ทีหลังได้) */
+/** ออกแบบชุดเซนเซอร์ตามประเภทของระบบและความสามารถ → รายการอุปกรณ์ (qty แก้ทีหลังได้) */
 export function designSystem(code, capacityM3d = 5000, opts = {}) {
-  const p = PROCESS_TYPES[code]; if (!p) throw new Error('ไม่รู้จักชนิดระบบ ' + code);
+  const p = PROCESS_TYPES[code]; if (!p) throw new Error('ไม่รู้จักประเภทของระบบ ' + code);
   const cap = Number(capacityM3d) || 0;
   const big = cap >= 20000, huge = cap >= 100000;
   const items = p.monitor.filter((m) => opts.requiredOnly ? m.required : true).map((m) => {
@@ -586,7 +586,7 @@ export function powerBudget(design, { dutyDefault = 1, dutyBySensor = {} } = {})
 }
 /** ไฟฟ้าของโรงบำบัดตาม benchmark (kWh/m³) × ปริมาณน้ำ — คืนทั้งตามความสามารถออกแบบและน้ำเข้าจริง */
 export function plantEnergy(code, { capacity = 0, avg_inflow = null, kwh_m3 = null } = {}) {
-  const p = PROCESS_TYPES[code]; if (!p) throw new Error('ไม่รู้จักชนิดระบบ ' + code);
+  const p = PROCESS_TYPES[code]; if (!p) throw new Error('ไม่รู้จักประเภทของระบบ ' + code);
   const [lo, hi] = kwh_m3 ? [kwh_m3, kwh_m3] : p.energy.kwh_m3; const mid = (lo + hi) / 2;
   const calc = (q) => q ? { q, lo: lo * q, mid: mid * q, hi: hi * q, kwh_year_mid: mid * q * 365, kw_avg: mid * q / 24 } : null;
   return { code, kwh_m3: { lo, mid, hi }, design: calc(capacity), actual: calc(avg_inflow), ...EST(p.energy.source) };

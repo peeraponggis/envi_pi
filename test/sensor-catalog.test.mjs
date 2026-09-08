@@ -5,7 +5,7 @@ import {
   measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, designToURL, designFromURL, levelFor, allStagesOf, schematicSVG, wrapLabel,
 } from '../web/js/sensor-catalog.js';
 
-test('ทุกชนิดระบบมี stage/monitor ครบ และพารามิเตอร์ทุกตัวมีคำอธิบาย + เซนเซอร์รองรับ', () => {
+test('ทุกประเภทของระบบมี stage/monitor ครบ และพารามิเตอร์ทุกตัวมีคำอธิบาย + เซนเซอร์รองรับ', () => {
   for (const code of PROCESS_CODES) {
     const p = PROCESS_TYPES[code];
     assert.ok(p.stages.length >= 4, code + ' stages');
