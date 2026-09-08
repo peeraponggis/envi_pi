@@ -232,3 +232,17 @@ test('พลังงานเติมอากาศคิดจากเก�
   assert.deepEqual(PCD_AERATION.AL.o2_per_bod, [0.7, 1.0]);
   assert.deepEqual(PCD_AERATION.AS.o2_per_bod, [1.4, 1.6]);
 });
+
+test('ตัวเลขเกณฑ์ออกแบบอ้างประกาศราชกิจจานุเบกษา ไม่ใช่แค่คู่มือ', async () => {
+  const { PROCESS_TYPES, THAI_SEWAGE, AERATOR_SAE, aerationEnergy } = await import('../web/js/sensor-catalog.js');
+  const cite = /ราชกิจจานุเบกษา/;
+  assert.ok(cite.test(THAI_SEWAGE.source), 'ลักษณะน้ำเสียไทยต้องอ้างประกาศ');
+  assert.ok(cite.test(aerationEnergy('AS', { q_m3d: 1000 }).source), 'พลังงานเติมอากาศต้องอ้างประกาศ');
+  for (const c of ['AS', 'OD', 'SBR', 'AL', 'SP']) {
+    assert.ok(/ประกาศกรมควบคุมมลพิษ/.test(PROCESS_TYPES[c].design_note), c + ' เกณฑ์ออกแบบต้องอ้างประกาศกรมควบคุมมลพิษ');
+  }
+  // เครื่องเติมอากาศครบทุกชนิดในตารางที่ 7.5 ของประกาศ
+  assert.deepEqual(AERATOR_SAE.aspirating.sae, [0.5, 0.8]);
+  assert.deepEqual(AERATOR_SAE.turbine.sae, [1.1, 2.1]);
+  assert.equal(Object.keys(AERATOR_SAE).length, 8);
+});
