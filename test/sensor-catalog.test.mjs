@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, BRAND_EXAMPLES, ALL_PARAM_INFO, STAGES, sensorFor, designSystem, powerBudget, plantEnergy,
-  measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, designToURL, designFromURL, levelFor, allStagesOf,
+  measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, designToURL, designFromURL, levelFor, allStagesOf, schematicSVG, wrapLabel,
 } from '../web/js/sensor-catalog.js';
 
 test('ทุกชนิดระบบมี stage/monitor ครบ และพารามิเตอร์ทุกตัวมีคำอธิบาย + เซนเซอร์รองรับ', () => {
@@ -186,4 +186,55 @@ test('จุดวัดบังคับตรงตามหลักกา�
   // เอสบีอาร์ระบายเป็นกะ ต้องใช้มาตรวัดในท่อ ไม่ใช่รางเปิด
   assert.equal(pt('SBR', 'outlet', 'Flow').sensor, 'Flow_em', 'SBR ต้องวัดน้ำออกด้วยมาตรแม่เหล็กไฟฟ้า');
   assert.equal(PROCESS_TYPES.SBR.monitor.filter((m) => m.stage === 'outlet' && m.param === 'Flow').length, 1, 'ต้องไม่มีจุดวัดน้ำออกซ้ำ');
+});
+
+test('schematicSVG วาดผังได้ทุกประเภทระบบ และรูปทรงต่างกันจริง', () => {
+  const shapes = new Map();
+  for (const code of PROCESS_CODES) {
+    const d = designSystem(code, 5000);
+    const svg = schematicSVG(d);
+    assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), code + ' ต้องคืน SVG');
+    assert.ok(/viewBox="0 0 [\d.]+ [\d.]+"/.test(svg), code + ' ต้องมี viewBox');
+    // ทุกหน่วยในลำดับการไหลต้องปรากฏชื่อในภาพ
+    for (const st of d.stages) {
+      const nm = STAGES[st].name;
+      assert.ok(svg.includes(nm.slice(0, 6)), `${code}: ไม่พบชื่อหน่วย ${nm} ในผัง`);
+    }
+    // จำนวนหมุดเซนเซอร์ต้องเท่ากับจุดวัดที่มีพารามิเตอร์และอยู่ในหน่วยที่วาด
+    const drawn = new Set([...d.stages, ...(d.sludge ?? [])]);
+    const expect = d.items.filter((i) => i.param && drawn.has(i.stage)).length;
+    assert.equal((svg.match(/class="pin /g) ?? []).length, expect, code + ' จำนวนหมุดเซนเซอร์ต้องตรงกับจุดวัดในผัง');
+    // สายวนกลับต้องมีเส้นของตัวเองทุกสาย
+    for (const r of d.recycles ?? []) assert.ok(svg.includes(`flowline ${r.id}`), `${code}: ไม่พบเส้นสาย ${r.id}`);
+    shapes.set(code, d.stages.map((s) => STAGES[s].shape).join(','));
+  }
+  // ผังของแต่ละประเภทต้องไม่ซ้ำกัน — เป็นข้อร้องเรียนเดิมของผู้ใช้ว่า "เกือบเหมือนกันหมด"
+  assert.equal(new Set(shapes.values()).size, PROCESS_CODES.length, 'ลำดับรูปทรงของแต่ละประเภทต้องไม่ซ้ำกัน');
+  // รูปทรงเฉพาะตัวที่ต้องมี
+  assert.ok(shapes.get('OD').includes('ditch'), 'OD ต้องวาดเป็นคลองวงรี');
+  assert.ok(shapes.get('SP').split(',').filter((x) => x === 'pond').length === 4, 'SP ต้องมีบ่อดิน 4 บ่อ');
+  assert.ok(shapes.get('AL').includes('aerPond'), 'AL ต้องมีบ่อเติมอากาศแบบมีเครื่องกล');
+  assert.ok(shapes.get('CW').split(',').filter((x) => x === 'wetland').length === 3, 'CW ต้องมีบึงสามส่วน');
+  assert.ok(shapes.get('RBC').includes('discs'), 'RBC ต้องวาดเป็นชุดแผ่นจาน');
+  assert.ok(shapes.get('MBR').includes('membrane'), 'MBR ต้องวาดถังเมมเบรน');
+  assert.ok(shapes.get('UASB').includes('uasb'), 'UASB ต้องวาดถังยูเอเอสบี');
+});
+
+test('schematicSVG หนีอักขระพิเศษ และปิดหมุดเซนเซอร์ได้', () => {
+  const d = designSystem('AS', 5000);
+  assert.ok(!schematicSVG(d, { showSensors: false }).includes('class="pin '), 'ปิดหมุดแล้วต้องไม่มีหมุด');
+  assert.ok(!schematicSVG(d, { showSludge: false }).includes('เครื่องรีดตะกอน'), 'ปิดสายตะกอนแล้วต้องไม่มีหน่วยตะกอน');
+  assert.equal(schematicSVG({ code: 'ไม่มี' }), '', 'ประเภทที่ไม่รู้จักคืนสตริงว่าง');
+  // ข้อความในภาพต้องหนีอักขระ HTML เสมอ ไม่งั้น SVG พัง
+  const svg = schematicSVG(d);
+  const texts = [...svg.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1]);
+  for (const t of texts) assert.ok(!/<(?!\/?tspan)/.test(t), 'ข้อความในผังต้องไม่มีแท็กแปลกปลอม');
+});
+
+test('wrapLabel ตัดชื่อหน่วยยาวเป็นหลายบรรทัดโดยไม่ทำข้อความหาย', () => {
+  assert.deepEqual(wrapLabel('น้ำเข้า', 60), ['น้ำเข้า']);
+  const lines = wrapLabel('ปรับกรด-ด่างและเติมสารเคมี', 60);
+  assert.ok(lines.length >= 2 && lines.length <= 3, 'ชื่อยาวต้องตัดเป็น 2–3 บรรทัด');
+  assert.ok(lines.join('').length > 10, 'ต้องไม่ตัดข้อความทิ้งทั้งหมด');
+  assert.ok(wrapLabel('ก'.repeat(80), 60).length <= 3, 'จำกัดไม่เกิน 3 บรรทัด');
 });

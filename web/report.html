@@ -50,6 +50,9 @@
     .page td:first-child, .page th:first-child { text-align: left; }
     .page .pill { display: inline-block; padding: 0 6px; border-radius: 4px; color: #fff; font-size: 10px; }
     .page .note { font-size: 10px; color: #4a5450; background: #f7faf8; border-radius: 6px; padding: 6px 8px; margin-top: 6px; }
+    /* ผังกระบวนการวาดจริง — ย่อให้พอดีความกว้าง A4 ตอนพิมพ์ */
+    .sch-print { margin: 6px 0; overflow: hidden; }
+    .sch-print svg { width: 100%; height: auto; }
     .page .ft { position: absolute; left: 16mm; right: 16mm; bottom: 8mm; border-top: 1px solid #dde5e0; padding-top: 4px; font-size: 9.5px; color: #7b8783; display: flex; justify-content: space-between; }
     .page .chartbox { margin: 4px 0 10px; text-align: center; }
     .page .chartbox canvas { max-width: 100%; }
@@ -110,7 +113,7 @@
     import { LV, lvOf, LV_ORDER, PARAM_INFO, infoKey, levelOf, pcdLevel, PLANT_TYPE, regionOf, pomsLevelName, POMS_DISCLAIMER } from './js/param-info.js';
     const SHOW_NAMES = await canSeeFactoryNames();   // โหมดสาธารณะซ่อนชื่อโรงงาน POMS
     const fname = (s) => factoryLabel(s, SHOW_NAMES);
-    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, ALL_PARAM_INFO, stageName, pointName, brandsFor, designSystem, powerBudget, plantEnergy, solarSizing, batterySizing, pshFromDede, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
+    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, ALL_PARAM_INFO, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, solarSizing, batterySizing, pshFromDede, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
     import { nearestStations, fetchStationMeta } from './js/envi-core.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -316,7 +319,7 @@
       const plantE = energy.actual ?? energy.design; const sSens = solarSizing({ kwh_day: budget.kwh_day, ...opt }), sPlant = plantE ? solarSizing({ kwh_day: plantE.mid, ...opt }) : null, sTot = plantE ? solarSizing({ kwh_day: budget.kwh_day + plantE.mid, ...opt }) : null;
       const P = PROCESS_TYPES[code];
       const body = kp([[esc(P.name.split(' · ')[1] ?? code), `ระบบ ${code} · ${fmt(cap, 0)} m³/d${o.inflow ? ' · น้ำเข้าจริง ' + fmt(o.inflow, 0) : ''}`], [design.items.filter((i) => i.param).reduce((a, i) => a + i.qty, 0), 'หัววัด'], [fmt(budget.w_avg, 0) + ' W', 'ไฟระบบเซนเซอร์เฉลี่ย'], [sTot ? fmt(sTot.kwp, 1) + ' kWp' : fmt(sSens.kwp, 2) + ' kWp', 'โซลาร์รวม (ค่าประมาณ)']]) +
-        `<div class="note"><b>ผังกระบวนการ:</b> ${P.stages.map(stageName).map(esc).join(' → ')}${(P.recycles ?? []).length ? '<br><b>สายวนกลับ:</b> ' + P.recycles.map((r) => esc(`${r.name}: ${stageName(r.from)} → ${stageName(r.to)}${r.rate ? ' (' + r.rate + ')' : ''}`)).join(' · ') : ''}${P.design_note ? '<br><b>เกณฑ์ออกแบบอ้างอิง:</b> ' + esc(P.design_note) : ''}${design.diw_rule ? '<br><b>ข้อกำหนด:</b> ' + esc(design.diw_rule) : ''}</div>` +
+        `<div class="sch-print">${schematicSVG(design)}</div><div class="note"><b>ผังกระบวนการ:</b> ${P.stages.map(stageName).map(esc).join(' → ')}${(P.recycles ?? []).length ? '<br><b>สายวนกลับ:</b> ' + P.recycles.map((r) => esc(`${r.name}: ${stageName(r.from)} → ${stageName(r.to)}${r.rate ? ' (' + r.rate + ')' : ''}`)).join(' · ') : ''}${P.design_note ? '<br><b>เกณฑ์ออกแบบอ้างอิง:</b> ' + esc(P.design_note) : ''}${design.diw_rule ? '<br><b>ข้อกำหนด:</b> ' + esc(design.diw_rule) : ''}</div>` +
         '<h3>จุดวัดและอุปกรณ์ (BOQ)</h3>' + table('BOQ เซนเซอร์', [['ตำแหน่ง', (i) => esc(stageName(i.stage))], ['พารามิเตอร์/อุปกรณ์', (i) => esc(i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name) + (i.required ? ' *' : '')], ['เทคโนโลยี', (i) => esc(SENSOR_TYPES[i.sensor].tech)], ['มาตรฐาน', (i) => esc(SENSOR_TYPES[i.sensor].stds.join(', '))], ['ตัวอย่างแบรนด์', (i) => esc(brandsFor(i.sensor).map((b) => `${b.brand} ${b.model}`).join('; '))], ['จำนวน', (i) => i.qty], ['W/ตัว', (i) => `${SENSOR_TYPES[i.sensor].power_w[0]}–${SENSOR_TYPES[i.sensor].power_w[1]}`], ['ราคา/ตัว', (i) => `${fmt(SENSOR_TYPES[i.sensor].price_thb[0], 0)}–${fmt(SENSOR_TYPES[i.sensor].price_thb[1], 0)}`]], design.items) +
         `<div class="note">* จุดวัดบังคับ · ราคารวมอุปกรณ์ ≈ ${fmt(budget.price_lo, 0)}–${fmt(budget.price_hi, 0)} บาท (ไม่รวมติดตั้ง) · แบรนด์เป็นตัวอย่างข้อมูลสาธารณะ ไม่ใช่การรับรอง ต้องตรวจเอกสารรับรองรุ่นจริงกับผู้จำหน่าย</div>` +
         '<h3>พลังงานไฟฟ้าและโซลาร์เซลล์ (ค่าประมาณ)</h3>' + table('พลังงานและโซลาร์', [['ส่วน', (r) => r[0]], ['kWh/วัน', (r) => fmt(r[1], 1)], ['kWh/ปี', (r) => fmt(r[1] * 365, 0)], ['ค่าไฟ บาท/ปี', (r) => fmt(r[1] * 365 * opt.tariff, 0)], ['โซลาร์ kWp', (r) => r[2] ? fmt(r[2].kwp, 1) : '–'], ['พื้นที่ m²', (r) => r[2] ? fmt(r[2].area_m2, 0) : '–'], ['ลงทุน บาท', (r) => r[2] ? fmt(r[2].cost_thb, 0) : '–'], ['คืนทุน ปี', (r) => r[2]?.payback_years ? fmt(r[2].payback_years, 1) : '–']],

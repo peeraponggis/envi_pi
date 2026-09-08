@@ -685,3 +685,301 @@ export function designFromURL(qs) {
   if (o.qty) o.qty = Object.fromEntries(String(o.qty).split(',').filter(Boolean).map((s) => { const [k, v] = s.split('='); return [k, Number(v)]; }));
   return o;
 }
+
+// ─────────────────────────────────────────────────────────── ผังกระบวนการเป็นภาพวาด (SVG)
+/**
+ * วาดผังโรงบำบัดเป็น SVG — คืนสตริงล้วน ไม่แตะ DOM จึงทดสอบด้วย node --test ได้
+ * รูปทรงของแต่ละหน่วยมาจาก STAGES[..].shape · สีอ้าง CSS custom property ของ pi.css เพื่อให้ธีมมืดไม่พัง
+ */
+const SVG_W = 60, SVG_GAP = 26, MIN_SLOT = 58;   // ความกว้างมาตรฐานของหนึ่งหน่วยและระยะห่าง
+const esc$ = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const P = (n, d = 1) => Number(n).toFixed(d).replace(/\.0+$/, '');
+
+/** ความกว้างสัมพัทธ์ของแต่ละรูปทรง (คูณกับ SVG_W) — บ่อดินและคลองวนเวียนกว้างกว่าถังคอนกรีต */
+const SHAPE_W = { inlet: 0.5, outlet: 0.5, sump: 0.75, barScreen: 0.45, hopper: 0.8, channel: 0.9, tank: 1, roundTank: 1, aerTank: 1.35, sbrTank: 1.2, ditch: 1.9, pond: 1.5, aerPond: 1.7, wetland: 1.5, discs: 1.25, membrane: 1.05, dome: 1, uasb: 1, chlorine: 1, press: 0.9, bed: 1.1, line: 1 };
+
+/** วาดรูปทรงหนึ่งหน่วย · คืน {svg, cx, cy, top} โดยพิกัดอ้างกล่อง x,y,w,h */
+function drawShape(shape, x, y, w, h) {
+  const c = (n) => `class="u-${n}"`;
+  const mid = y + h / 2, cx = x + w / 2;
+  switch (shape) {
+    case 'inlet': case 'outlet':
+      return `<path ${c('pipe')} d="M ${P(x)} ${P(mid - 7)} h ${P(w)} v 14 h ${P(-w)} z"/>` +
+        `<path ${c('arrow')} d="M ${P(cx - 6)} ${P(mid - 5)} l 11 5 l -11 5 z"/>`;
+    case 'sump': // บ่อสูบน้ำเสีย — บ่อลึกมีปั๊มจุ่ม
+      return `<path ${c('tank')} d="M ${P(x)} ${P(y + h * .25)} h ${P(w)} v ${P(h * .75)} h ${P(-w)} z"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .45)} h ${P(w - 4)} v ${P(h * .55 - 2)} h ${P(-(w - 4))} z"/>` +
+        `<rect ${c('mech')} x="${P(cx - 5)}" y="${P(y + h * .55)}" width="10" height="${P(h * .3)}" rx="2"/>` +
+        `<path ${c('mech')} d="M ${P(cx)} ${P(y + h * .55)} v ${P(-h * .35)}"/>`;
+    case 'barScreen': // ตะแกรง — ซี่แนวเฉียง
+      return `<path ${c('tank')} d="M ${P(x)} ${P(y + h * .3)} h ${P(w)} v ${P(h * .7)} h ${P(-w)} z"/>` +
+        Array.from({ length: 5 }, (_, i) => `<path ${c('bar')} d="M ${P(x + 4 + i * (w - 8) / 4)} ${P(y + h * .32)} l 6 ${P(h * .66)}"/>`).join('');
+    case 'hopper': // บ่อดักกรวดทราย — ก้นบ่อเป็นกรวย
+      return `<path ${c('tank')} d="M ${P(x)} ${P(y + h * .25)} h ${P(w)} v ${P(h * .4)} l ${P(-w * .3)} ${P(h * .35)} h ${P(-w * .4)} l ${P(-w * .3)} ${P(-h * .35)} z"/>` +
+        `<path ${c('grit')} d="M ${P(x + w * .3)} ${P(y + h)} h ${P(w * .4)} l ${P(-w * .1)} ${P(-h * .18)} h ${P(-w * .2)} z"/>`;
+    case 'channel': // รางดักกรวดทราย — รางยาวเปิดด้านบน
+      return `<path ${c('tank')} d="M ${P(x)} ${P(y + h * .3)} v ${P(h * .7)} h ${P(w)} v ${P(-h * .7)}"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .5)} h ${P(w - 4)} v ${P(h * .48)} h ${P(-(w - 4))} z"/>`;
+    case 'tank':
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .2)}" width="${P(w)}" height="${P(h * .8)}" rx="3"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .38)} h ${P(w - 4)} v ${P(h * .6)} h ${P(-(w - 4))} z"/>`;
+    case 'roundTank': { // ถังตกตะกอนวงกลม มองจากด้านบน มีสะพานกวาด
+      const r = Math.min(w, h) / 2 - 2;
+      return `<circle ${c('tank')} cx="${P(cx)}" cy="${P(mid)}" r="${P(r)}"/>` +
+        `<circle ${c('water')} cx="${P(cx)}" cy="${P(mid)}" r="${P(r - 4)}"/>` +
+        `<path ${c('mech')} d="M ${P(cx - r)} ${P(mid)} h ${P(r * 2)}"/>` +
+        `<circle ${c('mech')} cx="${P(cx)}" cy="${P(mid)}" r="3"/>`;
+    }
+    case 'aerTank': { // ถังเติมอากาศ — ฟองอากาศจากหัวกระจายอากาศ
+      const bub = [];
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) bub.push(`<circle ${c('bub')} cx="${P(x + 8 + i * (w - 16) / 3)}" cy="${P(y + h * .85 - j * h * .2)}" r="${P(1.6 + j * .5)}"/>`);
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .18)}" width="${P(w)}" height="${P(h * .82)}" rx="3"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .3)} h ${P(w - 4)} v ${P(h * .68)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('mech')} d="M ${P(x + 5)} ${P(y + h * .95)} h ${P(w - 10)}"/>` + bub.join('');
+    }
+    case 'sbrTank': { // ถังเอสบีอาร์ — มีเครื่องระบายน้ำใสที่ผิวน้ำ
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .15)}" width="${P(w)}" height="${P(h * .85)}" rx="3"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .35)} h ${P(w - 4)} v ${P(h * .63)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('sludge')} d="M ${P(x + 2)} ${P(y + h * .8)} h ${P(w - 4)} v ${P(h * .18)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('mech')} d="M ${P(x + w * .2)} ${P(y + h * .35)} h ${P(w * .6)} m ${P(-w * .3)} 0 v ${P(-h * .22)}"/>` +
+        `<circle ${c('bub')} cx="${P(cx + w * .28)}" cy="${P(y + h * .6)}" r="2"/><circle ${c('bub')} cx="${P(cx - w * .28)}" cy="${P(y + h * .7)}" r="2"/>`;
+    }
+    case 'ditch': { // คลองวนเวียน — วงรีมองจากด้านบน มีเครื่องกลเติมอากาศแนวนอน
+      const r = h * .34, x1 = x + r + 2, x2 = x + w - r - 2;
+      return `<path ${c('tank')} d="M ${P(x1)} ${P(mid - r)} H ${P(x2)} A ${P(r)} ${P(r)} 0 0 1 ${P(x2)} ${P(mid + r)} H ${P(x1)} A ${P(r)} ${P(r)} 0 0 1 ${P(x1)} ${P(mid - r)} Z"/>` +
+        `<path ${c('water')} d="M ${P(x1)} ${P(mid - r + 4)} H ${P(x2)} A ${P(r - 4)} ${P(r - 4)} 0 0 1 ${P(x2)} ${P(mid + r - 4)} H ${P(x1)} A ${P(r - 4)} ${P(r - 4)} 0 0 1 ${P(x1)} ${P(mid - r + 4)} Z"/>` +
+        `<path ${c('wall')} d="M ${P(x1 + 4)} ${P(mid)} H ${P(x2 - 4)}"/>` +
+        `<rect ${c('mech')} x="${P(x1 + 2)}" y="${P(mid - r + 1)}" width="14" height="6" rx="2"/>` +
+        `<rect ${c('mech')} x="${P(x2 - 16)}" y="${P(mid + r - 7)}" width="14" height="6" rx="2"/>` +
+        `<path ${c('arrow')} d="M ${P(cx - 5)} ${P(mid - r + 8)} l 10 4 l -10 4 z"/>` +
+        `<path ${c('arrow')} d="M ${P(cx + 5)} ${P(mid + r - 8)} l -10 -4 l 10 -4 z"/>`;
+    }
+    case 'pond': case 'aerPond': { // บ่อดิน — ตัดขวางเห็นลาดคันดิน
+      const s = w * .16;
+      const body = `<path ${c('earth')} d="M ${P(x)} ${P(y + h * .28)} L ${P(x + s)} ${P(y + h)} H ${P(x + w - s)} L ${P(x + w)} ${P(y + h * .28)} Z"/>` +
+        `<path ${c('water')} d="M ${P(x + 3)} ${P(y + h * .38)} L ${P(x + s + 2)} ${P(y + h - 3)} H ${P(x + w - s - 2)} L ${P(x + w - 3)} ${P(y + h * .38)} Z"/>`;
+      if (shape !== 'aerPond') return body;
+      return body + `<rect ${c('mech')} x="${P(cx - 9)}" y="${P(y + h * .3)}" width="18" height="7" rx="3"/>` +
+        `<path ${c('spray')} d="M ${P(cx - 12)} ${P(y + h * .3)} q 12 -12 24 0"/>` +
+        `<circle ${c('bub')} cx="${P(cx - 14)}" cy="${P(y + h * .55)}" r="2"/><circle ${c('bub')} cx="${P(cx + 14)}" cy="${P(y + h * .6)}" r="2"/>`;
+    }
+    case 'wetland': { // บึงประดิษฐ์ — ชั้นกรวดและต้นพืช
+      const plants = Array.from({ length: 4 }, (_, i) => {
+        const px = x + 8 + i * (w - 16) / 3, top = y + h * .12;
+        return `<path ${c('plant')} d="M ${P(px)} ${P(y + h * .55)} V ${P(top)} M ${P(px)} ${P(y + h * .3)} l -5 -7 M ${P(px)} ${P(y + h * .38)} l 5 -7"/>`;
+      }).join('');
+      return `<path ${c('earth')} d="M ${P(x)} ${P(y + h * .5)} h ${P(w)} v ${P(h * .5)} h ${P(-w)} z"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .55)} h ${P(w - 4)} v ${P(h * .3)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('gravel')} d="M ${P(x + 2)} ${P(y + h * .86)} h ${P(w - 4)} v ${P(h * .12)} h ${P(-(w - 4))} z"/>` + plants;
+    }
+    case 'discs': { // แผ่นหมุนชีวภาพ — ชุดจานบนเพลา จมน้ำราว 40%
+      const r = h * .26, n = 5;
+      const discs = Array.from({ length: n }, (_, i) => `<ellipse ${c('disc')} cx="${P(x + 10 + i * (w - 20) / (n - 1))}" cy="${P(mid - h * .06)}" rx="4" ry="${P(r)}"/>`).join('');
+      return `<path ${c('tank')} d="M ${P(x)} ${P(y + h * .35)} h ${P(w)} v ${P(h * .65)} h ${P(-w)} z"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(mid + h * .07)} h ${P(w - 4)} v ${P(h * .41)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('mech')} d="M ${P(x + 4)} ${P(mid - h * .06)} h ${P(w - 8)}"/>` + discs +
+        `<path ${c('arrow')} d="M ${P(cx + 3)} ${P(mid - h * .3)} a 8 8 0 1 1 -6 3"/>`;
+    }
+    case 'membrane': { // ถังเมมเบรน — มัดเส้นใยจุ่มในถัง
+      const mods = Array.from({ length: 3 }, (_, i) => `<rect ${c('mem')} x="${P(x + 7 + i * (w - 14) / 3)}" y="${P(y + h * .42)}" width="${P((w - 14) / 3 - 5)}" height="${P(h * .42)}" rx="2"/>`).join('');
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .2)}" width="${P(w)}" height="${P(h * .8)}" rx="3"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .34)} h ${P(w - 4)} v ${P(h * .64)} h ${P(-(w - 4))} z"/>` + mods +
+        `<circle ${c('bub')} cx="${P(x + 12)}" cy="${P(y + h * .92)}" r="1.8"/><circle ${c('bub')} cx="${P(cx)}" cy="${P(y + h * .92)}" r="1.8"/><circle ${c('bub')} cx="${P(x + w - 12)}" cy="${P(y + h * .92)}" r="1.8"/>`;
+    }
+    case 'dome': // ถังไร้อากาศ — ฝาโดมเก็บก๊าซ
+      return `<path ${c('tank')} d="M ${P(x)} ${P(y + h * .45)} a ${P(w / 2)} ${P(h * .3)} 0 0 1 ${P(w)} 0 v ${P(h * .55)} h ${P(-w)} z"/>` +
+        `<path ${c('gasfill')} d="M ${P(x + 2)} ${P(y + h * .45)} a ${P(w / 2 - 2)} ${P(h * .27)} 0 0 1 ${P(w - 4)} 0 z"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .48)} h ${P(w - 4)} v ${P(h * .5)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('sludge')} d="M ${P(x + 2)} ${P(y + h * .82)} h ${P(w - 4)} v ${P(h * .16)} h ${P(-(w - 4))} z"/>`;
+    case 'uasb': // ถังยูเอเอสบี — ตัวแยกสามวัฏภาคที่ยอดถัง ชั้นสลัดจ์ที่ก้น
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .15)}" width="${P(w)}" height="${P(h * .85)}" rx="3"/>` +
+        `<path ${c('water')} d="M ${P(x + 2)} ${P(y + h * .3)} h ${P(w - 4)} v ${P(h * .68)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('sludge')} d="M ${P(x + 2)} ${P(y + h * .68)} h ${P(w - 4)} v ${P(h * .3)} h ${P(-(w - 4))} z"/>` +
+        `<path ${c('mech')} d="M ${P(x + 4)} ${P(y + h * .42)} l ${P(w / 2 - 4)} ${P(-h * .12)} l ${P(w / 2 - 4)} ${P(h * .12)}"/>` +
+        `<path ${c('arrow')} d="M ${P(cx)} ${P(y + h * .62)} v ${P(-h * .12)} m -4 4 l 4 -5 l 4 5"/>`;
+    case 'chlorine': { // บ่อสัมผัสคลอรีน — ผนังกั้นบังคับให้น้ำไหลวน
+      const b = [1, 2, 3].map((i) => `<path ${c('wall')} d="M ${P(x + i * w / 4)} ${P(y + (i % 2 ? h * .3 : h * .55))} v ${P(h * .45)}"/>`).join('');
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .25)}" width="${P(w)}" height="${P(h * .75)}" rx="3"/>` +
+        `<path ${c('cl2')} d="M ${P(x + 2)} ${P(y + h * .4)} h ${P(w - 4)} v ${P(h * .58)} h ${P(-(w - 4))} z"/>` + b;
+    }
+    case 'press': // เครื่องรีดตะกอน — สายพานคู่
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .3)}" width="${P(w)}" height="${P(h * .5)}" rx="4"/>` +
+        `<circle ${c('mech')} cx="${P(x + 8)}" cy="${P(y + h * .55)}" r="6"/><circle ${c('mech')} cx="${P(x + w - 8)}" cy="${P(y + h * .55)}" r="6"/>` +
+        `<path ${c('mech')} d="M ${P(x + 8)} ${P(y + h * .43)} h ${P(w - 16)} M ${P(x + 8)} ${P(y + h * .67)} h ${P(w - 16)}"/>`;
+    case 'bed': // ลานตากตะกอน — ลานทรายมีร่องระบายน้ำ
+      return `<path ${c('earth')} d="M ${P(x)} ${P(y + h * .45)} h ${P(w)} v ${P(h * .53)} h ${P(-w)} z"/>` +
+        `<path ${c('sludge')} d="M ${P(x + 3)} ${P(y + h * .5)} h ${P(w - 6)} v ${P(h * .18)} h ${P(-(w - 6))} z"/>` +
+        [1, 2, 3].map((i) => `<path ${c('bar')} d="M ${P(x + i * w / 4)} ${P(y + h * .72)} v ${P(h * .22)}"/>`).join('');
+    default:
+      return `<rect ${c('tank')} x="${P(x)}" y="${P(y + h * .25)}" width="${P(w)}" height="${P(h * .75)}" rx="3"/>`;
+  }
+}
+
+/** สไตล์ของผัง — อ้าง CSS custom property ของ pi.css ทั้งหมด */
+const SCHEMATIC_CSS = `
+.sch{width:100%;height:auto;display:block;font-family:inherit}
+.sch text{fill:var(--ink-2);font-size:8.5px}
+.sch .lbl{fill:var(--ink);font-size:9px;font-weight:600}
+.sch .u-tank,.sch .u-pipe{fill:var(--surface-2);stroke:var(--ink-3);stroke-width:1.4}
+.sch .u-water{fill:var(--info-bg,#dbeafe);stroke:none;opacity:.9}
+.sch .u-earth{fill:var(--surface-2);stroke:var(--ink-3);stroke-width:1.4}
+.sch .u-gravel{fill:var(--ink-3);opacity:.35}
+.sch .u-sludge{fill:var(--ink-3);opacity:.55}
+.sch .u-gasfill{fill:var(--warn,#a16207);opacity:.35}
+.sch .u-cl2{fill:var(--good-bg,#dcfce7);opacity:.9}
+.sch .u-mem{fill:var(--brand-soft);stroke:var(--brand);stroke-width:1}
+.sch .u-disc{fill:var(--brand-soft);stroke:var(--brand);stroke-width:1}
+.sch .u-mech,.sch .u-wall,.sch .u-bar{fill:none;stroke:var(--ink-2);stroke-width:1.3;stroke-linecap:round}
+.sch .u-mech{fill:none}
+.sch .u-grit{fill:var(--ink-3);opacity:.6;stroke:none}
+.sch .u-bub{fill:var(--info,#1d4ed8);opacity:.5;stroke:none}
+.sch .u-spray{fill:none;stroke:var(--info,#1d4ed8);stroke-width:1.2;opacity:.7}
+.sch .u-plant{fill:none;stroke:var(--brand);stroke-width:1.4;stroke-linecap:round}
+.sch .u-arrow{fill:var(--ink-2);stroke:none}
+.sch .flowline{fill:none;stroke:var(--ink-2);stroke-width:1.6}
+.sch .flowline.ras,.sch .flowline.was{stroke:var(--warn,#a16207);stroke-dasharray:5 3}
+.sch .flowline.gas{stroke:var(--crit,#be123c);stroke-dasharray:2 3}
+.sch .flowline.dredge{stroke:var(--ink-3);stroke-dasharray:1 4}
+.sch .fhead{fill:var(--ink-2);stroke:none}
+.sch .fhead.ras,.sch .fhead.was{fill:var(--warn,#a16207)}
+.sch .fhead.gas{fill:var(--crit,#be123c)}
+.sch .pin{stroke:var(--surface);stroke-width:1.5}
+.sch .pin.req{fill:var(--brand)}
+.sch .pin.opt{fill:var(--ink-3)}
+.sch .pinbox{fill:var(--surface);stroke:var(--line);stroke-width:.8}
+.sch .opt-u .u-tank,.sch .opt-u .u-earth{stroke-dasharray:4 3}
+`;
+
+/**
+ * สร้าง SVG ของผังกระบวนการ
+ * @param {object} design ผลจาก designSystem() (ใช้ code, stages, recycles, sludge, items, optional)
+ * @param {object} opts {showSensors, showSludge, width}
+ * @returns {string} สตริง SVG พร้อมฝังใน HTML
+ */
+export function schematicSVG(design, { showSensors = true, showSludge = true, cellH = 74 } = {}) {
+  const p = PROCESS_TYPES[design?.code]; if (!p) return '';
+  const stages = design.stages ?? p.stages;
+  const optional = new Set(design.optional ?? p.optional ?? []);
+  const items = showSensors ? (design.items ?? []) : [];
+  const byStage = (s) => items.filter((i) => i.stage === s && i.param);
+
+  // วางหน่วยเรียงแนวนอน ความกว้างตามชนิดรูปทรง
+  const pad = 10, rowY = 36;
+  const boxes = {}; let x = pad;
+  for (const s of stages) {
+    const sh = STAGES[s]?.shape ?? 'tank';
+    const dw = SVG_W * (SHAPE_W[sh] ?? 1), w = Math.max(dw, MIN_SLOT);
+    boxes[s] = { x, y: rowY, w, dw, dx: x + (w - dw) / 2, h: cellH, shape: sh };
+    x += w + SVG_GAP;
+  }
+  const mainW = x - SVG_GAP + pad;
+
+  // แถวล่าง: หน่วยจัดการตะกอน
+  const sludgeUnits = showSludge ? (design.sludge ?? p.sludge ?? []) : [];
+  const sludgeY = rowY + cellH + 62;
+  let sx = pad + SVG_W * 2;
+  for (const s of sludgeUnits) {
+    const sh = STAGES[s]?.shape ?? 'tank';
+    const dw = SVG_W * (SHAPE_W[sh] ?? 1) * .8, w = Math.max(dw, MIN_SLOT);
+    boxes[s] = { x: sx, y: sludgeY, w, dw, dx: sx + (w - dw) / 2, h: cellH * .62, shape: sh, small: true };
+    sx += w + SVG_GAP;
+  }
+  const totalW = Math.max(mainW, sx - SVG_GAP + pad);
+  const baseH = sludgeUnits.length ? sludgeY + cellH * .62 + 24 : rowY + cellH + 30;
+
+  // ── หน่วยบำบัด ──
+  const units = stages.concat(sludgeUnits).map((s) => {
+    const b = boxes[s]; const st = STAGES[s] ?? {};
+    const name = st.name ?? s;
+    const cls = optional.has(s) ? 'opt-u' : '';
+    const cx = b.x + b.w / 2, lines = wrapLabel(name, b.w + SVG_GAP * .5);
+    const label = `<text class="lbl" y="${P(b.y - 5 - (lines.length - 1) * 9)}" text-anchor="middle">` +
+      lines.map((ln, i) => `<tspan x="${P(cx)}" dy="${i ? 9 : 0}">${esc$(ln)}</tspan>`).join('') + '</text>';
+    return `<g class="${cls}">${drawShape(b.shape, b.dx ?? b.x, b.y, b.dw ?? b.w, b.h)}${label}</g>`;
+  }).join('');
+
+  // ── เส้นทางน้ำ ──
+  const flows = []; let bottom = rowY + cellH;   // ขอบล่างสุดที่มีการวาดจริง ใช้คิดความสูงภาพ
+  for (let i = 0; i < stages.length - 1; i++) {
+    const a = boxes[stages[i]], b = boxes[stages[i + 1]];
+    const y = a.y + a.h * .6, ax = (a.dx ?? a.x) + (a.dw ?? a.w), bx = b.dx ?? b.x;
+    flows.push(`<path class="flowline" d="M ${P(ax)} ${P(y)} H ${P(bx)}"/>` +
+      `<path class="fhead" d="M ${P(bx - 7)} ${P(y - 3.5)} l 7 3.5 l -7 3.5 z"/>`);
+  }
+  // ── สายวนกลับและสายแยก ──
+  for (const r of design.recycles ?? p.recycles ?? []) {
+    const a = boxes[r.from], b = boxes[r.to];
+    if (!a) continue;
+    if (r.id === 'gas') { // ก๊าซขึ้นด้านบน
+      flows.push(`<path class="flowline gas" d="M ${P(a.x + a.w / 2)} ${P(a.y)} V ${P(a.y - 12)}"/>` +
+        `<path class="fhead gas" d="M ${P(a.x + a.w / 2 - 3.5)} ${P(a.y - 12)} l 3.5 -6 l 3.5 6 z"/>` +
+        `<text x="${P(a.x + a.w / 2 + 6)}" y="${P(a.y - 13)}">${esc$(r.name)}</text>`);
+      continue;
+    }
+    if (r.id === 'dredge') { // การขุดลอกเป็นงานบำรุงรักษา ไม่ใช่ท่อ วาดเป็นลูกศรออกจากก้นบ่อ
+      const ax = a.x + a.w / 2;
+      flows.push(`<path class="flowline dredge" d="M ${P(ax)} ${P(a.y + a.h)} V ${P(a.y + a.h + 14)}"/>` +
+        `<path class="fhead dredge" d="M ${P(ax - 3.5)} ${P(a.y + a.h + 14)} l 3.5 6 l 3.5 -6 z"/>` +
+        `<text x="${P(ax + 6)}" y="${P(a.y + a.h + 19)}">${esc$(r.name)}${r.rate ? ' · ' + esc$(r.rate) : ''}</text>`);
+      bottom = Math.max(bottom, a.y + a.h + 24);
+      continue;
+    }
+    if (!b) continue;
+    const below = a.y + a.h + (r.id === 'ras' ? 16 : 30);
+    if (b.y > a.y) { // ลงไปยังหน่วยจัดการตะกอนแถวล่าง — เข้าทางด้านซ้ายของหน่วย เพื่อไม่ให้เส้นทับป้ายชื่อ
+      const my = b.y + b.h * .6, ax = a.x + a.w / 2, bx = (b.dx ?? b.x) - 10;
+      flows.push(`<path class="flowline ${r.id}" d="M ${P(ax)} ${P(a.y + a.h)} V ${P(my)} H ${P(bx)}"/>` +
+        `<path class="fhead ${r.id}" d="M ${P(bx)} ${P(my - 3.5)} l 7 3.5 l -7 3.5 z"/>` +
+        `<text x="${P(ax + 5)}" y="${P(a.y + a.h + 12)}">${esc$(r.name)}</text>`);
+    } else { // ย้อนกลับไปหน่วยต้นทาง
+      flows.push(`<path class="flowline ${r.id}" d="M ${P(a.x + a.w / 2)} ${P(a.y + a.h)} V ${P(below)} H ${P(b.x + b.w / 2)} V ${P(b.y + b.h)}"/>` +
+        `<path class="fhead ${r.id}" d="M ${P(b.x + b.w / 2 - 3.5)} ${P(b.y + b.h)} l 3.5 -6 l 3.5 6 z"/>` +
+        `<text x="${P(Math.min(a.x, b.x) + Math.abs(a.x - b.x) / 2)}" y="${P(below + 10)}" text-anchor="middle">${esc$(r.name)}${r.rate ? ' · ' + esc$(r.rate) : ''}</text>`);
+      bottom = Math.max(bottom, below + 14);
+    }
+  }
+
+  for (let i = 0; i < sludgeUnits.length - 1; i++) {
+    const a = boxes[sludgeUnits[i]], b = boxes[sludgeUnits[i + 1]];
+    const y = a.y + a.h * .6, ax = (a.dx ?? a.x) + (a.dw ?? a.w), bx = b.dx ?? b.x;
+    flows.push(`<path class="flowline was" d="M ${P(ax)} ${P(y)} H ${P(bx)}"/>` +
+      `<path class="fhead was" d="M ${P(bx - 7)} ${P(y - 3.5)} l 7 3.5 l -7 3.5 z"/>`);
+  }
+
+  // ── หมุดเซนเซอร์บนหน่วยที่ติดตั้ง ──
+  const pins = [];
+  for (const s of stages.concat(sludgeUnits)) {
+    const list = byStage(s); if (!list.length) continue;
+    const b = boxes[s];
+    list.forEach((it, k) => {
+      const px = b.x + 8 + (k % 3) * ((b.w - 16) / 2), py = b.y + 6 + Math.floor(k / 3) * 11;
+      const t = `${pointName(it.stage, it.param)} · ${it.required ? 'บังคับ' : 'แนะนำ'}${it.qty > 1 ? ' ×' + it.qty : ''}`;
+      pins.push(`<circle class="pin ${it.required ? 'req' : 'opt'}" cx="${P(px)}" cy="${P(py)}" r="3.6"><title>${esc$(t)}</title></circle>`);
+    });
+  }
+
+  const totalH = Math.max(baseH, bottom + 22);
+  const legend = `<text x="${P(pad)}" y="${P(totalH - 6)}">● เขียว = จุดวัดบังคับ · ● เทา = แนะนำ · เส้นทึบ = ทางน้ำ · เส้นประส้ม = สายสลัดจ์ · เส้นประแดง = ก๊าซชีวภาพ · เส้นขอบประ = หน่วยที่มีหรือไม่มีก็ได้</text>`;
+  return `<svg class="sch" viewBox="0 0 ${P(totalW)} ${P(totalH)}" role="img" aria-label="ผังกระบวนการ ${esc$(p.name)}" xmlns="http://www.w3.org/2000/svg">` +
+    `<style>${SCHEMATIC_CSS}</style>${flows.join('')}${units}${pins.join('')}${legend}</svg>`;
+}
+
+/** ตัดชื่อหน่วยยาวเป็นได้ถึงสามบรรทัดให้พอดีความกว้างกล่อง (ตัดที่ช่องว่างก่อน) */
+export function wrapLabel(name, w, maxLines = 3) {
+  const max = Math.max(7, Math.round(w / 4.4));
+  const words = String(name).split(' ');
+  const lines = []; let cur = '';
+  for (const word of words) {
+    const test = cur ? cur + ' ' + word : word;
+    if (test.length <= max || !cur) { cur = test; } else { lines.push(cur); cur = word; }
+  }
+  if (cur) lines.push(cur);
+  // คำเดียวที่ยาวเกินกล่อง ตัดตามจำนวนอักขระ
+  const out = [];
+  for (const ln of lines) {
+    if (ln.length <= max) { out.push(ln); continue; }
+    for (let i = 0; i < ln.length; i += max) out.push(ln.slice(i, i + max));
+  }
+  if (out.length > maxLines) { const keep = out.slice(0, maxLines); keep[maxLines - 1] = keep[maxLines - 1].slice(0, max - 1) + '…'; return keep; }
+  return out;
+}

@@ -40,6 +40,9 @@
     .stage { flex: 0 0 150px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; position: relative; }
     .stage::after { content: '→'; position: absolute; right: -14px; top: 40%; color: var(--ink-3); font-size: 18px; }
     .stage:last-child::after { content: ''; }
+    /* ผังกระบวนการวาดจริง — เลื่อนแนวนอนได้เมื่อจอแคบ */
+    .schwrap { overflow-x: auto; margin: 8px 0 4px; min-width: 0; }
+    .schwrap svg { min-width: 620px; }
     /* แถวสายวนกลับ/สายแยก — ไม่ใช่ลำดับของน้ำ จึงไม่มีลูกศรต่อกัน */
     .flow.rt .stage::after { content: ''; }
     .stage.rt { border-style: dashed; background: var(--surface); }
@@ -132,7 +135,7 @@
   <script type="module">
     import { getClient, isConfigured, fetchStationsLatest, nearestStations, fetchStationMeta, fetchNasaPower, summarizeNasaPower, withCache, cacheKey, currentSession, onAuthChange, ago } from './js/envi-core.js';
     import { LV, lvOf } from './js/param-info.js';
-    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
+    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const fmt = (n, d = 0) => n == null || isNaN(n) ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
@@ -204,7 +207,10 @@
       const rec = p.recycles ?? [];
       const flowReturn = `<div class="flow rt">${rec.map((r) => stageCard(r.id, `<div class="rtn"><b>${esc(stageName(r.from))} → ${esc(stageName(r.to))}</b>${r.rate ? '<br>' + esc(r.rate) : ''}</div>`, 'rt')).join('')}${stageCard('plant', '', 'rt')}</div>`;
       const flowNotes = `${rec.filter((r) => r.note).map((r) => `<div class="sub" style="margin-top:2px">↩︎ <b>${esc(r.name)}</b> — ${esc(r.note)}</div>`).join('')}`;
-      const flow = flowMain + (rec.length ? `<div class="sub" style="margin-top:6px;font-weight:600">สายวนกลับและสายแยก</div>` : '') + flowReturn + flowNotes;
+      // ผังวาดจริงตามแบบ คพ. เป็นภาพหลัก ส่วนแถวการ์ดเดิมเก็บไว้เป็นรายการหน่วยแบบย่อ
+      const cards = flowMain + (rec.length ? `<div class="sub" style="margin-top:6px;font-weight:600">สายวนกลับและสายแยก</div>` : '') + flowReturn;
+      const flow = `<div class="schwrap">${schematicSVG(design)}</div>${flowNotes}` +
+        `<details><summary>รายการหน่วยบำบัดและจุดวัดแบบย่อ</summary>${cards}</details>`;
       const boq = tbl('BOQ อุปกรณ์', [
         ['ตำแหน่ง', (i) => esc(stageName(i.stage))], ['พารามิเตอร์/อุปกรณ์', (i) => `<b>${esc(i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name)}</b>${i.required ? ' <span class="est" style="background:var(--brand-soft);color:var(--brand-dark)">บังคับ</span>' : ''}<small>${esc(i.note)}</small>`, (i) => (i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name)],
         ['เซนเซอร์/เทคโนโลยี', (i) => `${esc(SENSOR_TYPES[i.sensor].name)}<small>${esc(SENSOR_TYPES[i.sensor].tech)}</small>`, (i) => SENSOR_TYPES[i.sensor].tech],
