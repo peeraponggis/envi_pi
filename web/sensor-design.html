@@ -6,6 +6,7 @@
   <title>envi_pi — ออกแบบเซนเซอร์และพลังงานระบบบำบัดน้ำเสีย</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="css/pi.css">
   <style>
     /* ออกแบบเซนเซอร์ 5 ขั้น: ระบบ → ผัง/BOQ → พลังงาน+โซลาร์ → จำลอง → ส่งออก/บันทึก · ตัวเลขทั้งหมดที่เป็นค่าประมาณติดป้าย .est */
@@ -40,6 +41,16 @@
     .stage { flex: 0 0 150px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; position: relative; }
     .stage::after { content: '→'; position: absolute; right: -14px; top: 40%; color: var(--ink-3); font-size: 18px; }
     .stage:last-child::after { content: ''; }
+    /* การ์ดสรุป: เนื้อหาซ้าย กรอบแผนที่ดาวเทียมขวา */
+    .sumgrid { display: grid; grid-template-columns: 1fr 320px; gap: 12px; align-items: start; }
+    .mapbox { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+    .mapbox .mhd { font-size: 12px; padding: 6px 8px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+    .mapbox .mhd b { display: block; font-size: 13px; color: var(--brand-dark); }
+    .mapbox .mhd span { color: var(--ink-3); }
+    #minimap { height: 260px; }
+    .leaflet-container { font-family: inherit; background: var(--surface-2); }
+    .leaflet-control-layers, .leaflet-control-attribution { font-family: inherit; font-size: 11px; }
+    @media (max-width: 1000px) { .sumgrid { grid-template-columns: 1fr; } #minimap { height: 220px; } }
     /* ผังกระบวนการวาดจริง — เลื่อนแนวนอนได้เมื่อจอแคบ */
     .schwrap { overflow-x: auto; margin: 8px 0 4px; min-width: 0; }
     .schwrap svg { min-width: 620px; }
@@ -127,14 +138,17 @@
         <div id="saved" style="margin-top:8px"></div>
       </div>
     </div>
+    <!-- กล่องแผนที่อยู่นอก #out เพราะการ์ดถูกเขียนทับด้วย innerHTML ทั้งก้อนทุกครั้งที่คำนวณใหม่ ถ้าอยู่ข้างในแผนที่จะตาย -->
+    <div class="mapbox" id="mapbox" hidden><div class="mhd" id="mapHd"></div><div id="minimap"></div></div>
     <div class="right" id="out"><div class="card"><div class="sub">ผลการออกแบบจะแสดงที่นี่</div></div></div>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script type="module">
     import { getClient, isConfigured, fetchStationsLatest, nearestStations, fetchStationMeta, fetchNasaPower, summarizeNasaPower, withCache, cacheKey, currentSession, onAuthChange, ago } from './js/envi-core.js';
-    import { LV, lvOf } from './js/param-info.js';
+    import { LV, lvOf, PLANT_TYPE } from './js/param-info.js';
     import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION } from './js/sensor-catalog.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -196,7 +210,54 @@
       $('#status').textContent = `ออกแบบ ${design.items.length} รายการ · เซนเซอร์ ${fmt(budget.w_avg)} W เฉลี่ย · โรงบำบัด ${fmt(plantKwhDay)} kWh/วัน · PSH ${psh.toFixed(2)} (${pshSrc})`;
     }
 
+
+    // ── กรอบแผนที่ภาพถ่ายดาวเทียมของโรงจริง ──
+    // สร้างแผนที่ครั้งเดียวแล้วย้ายกล่องเข้าไปในการ์ดสรุปหลังเขียน innerHTML ทุกครั้ง
+    let miniMap = null, miniMark = null, miniRing = null, lastLL = null;
+    function ensureMap() {
+      if (miniMap || typeof L === 'undefined') return miniMap;
+      const esriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics' });
+      const googleHybrid = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=th', { subdomains: ['0', '1', '2', '3'], maxZoom: 20, attribution: 'Imagery © Google' });
+      const esriStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' });
+      miniMap = L.map('minimap', { layers: [esriImagery], zoomControl: true, attributionControl: true }).setView([13.75, 100.5], 13);
+      L.control.layers({ 'ESRI ภาพดาวเทียม': esriImagery, 'Google ดาวเทียม+ถนน': googleHybrid, 'ESRI ถนน': esriStreet }, null, { position: 'topright', collapsed: true }).addTo(miniMap);
+      addEventListener('resize', () => miniMap && miniMap.invalidateSize());
+      return miniMap;
+    }
+    /** ย้ายกล่องแผนที่ออกจาก #out ก่อนเขียนทับการ์ด ไม่งั้นแผนที่จะถูกลบไปพร้อมกัน */
+    function parkMap() {
+      const b = $('#mapbox');
+      if (b && b.parentElement && b.parentElement.id === 'mapslot') { b.style.cssText = 'position:absolute;left:-9999px'; document.body.appendChild(b); }
+    }
+    /** ย้ายกล่องแผนที่เข้าการ์ดสรุป แล้วเลื่อนไปยังพิกัดที่เลือก */
+    function syncMap(lat, lng) {
+      const slot = $('#mapslot'), box = $('#mapbox');
+      if (!slot || !box) return;
+      slot.appendChild(box);
+      box.removeAttribute('style');
+      if (!isFinite(lat) || !isFinite(lng)) { box.hidden = true; return; }
+      box.hidden = false;
+      const st = plants.find((x) => String(x.id) === $('#sPlant').value) ?? null;
+      const cap = st?.meta?.capacity ?? (+$('#sCap').value || 0);
+      $('#mapHd').innerHTML = st
+        ? `<b>${esc(st.name_th)}</b><span>${esc(st.province ?? '')}${st.meta?.plant_type ? ' · ' + esc(PLANT_TYPE[st.meta.plant_type] ?? st.meta.plant_type) : ''}${st.meta?.status ? ' · ' + esc(st.meta.status) : ''}${st.meta?.year_op ? ' · เปิดใช้ ' + esc(st.meta.year_op) : ''}${st.meta?.operator ? '<br>ผู้ดูแล ' + esc(st.meta.operator) : ''}</span>`
+        : `<b>พิกัดที่กรอกเอง</b><span>${fmt(lat, 4)}, ${fmt(lng, 4)} · ภาพถ่ายดาวเทียมใช้ประเมินพื้นที่ว่างสำหรับติดตั้งแผงโซลาร์</span>`;
+      const map = ensureMap();
+      if (!map) { $('#minimap').innerHTML = '<div class="hint" style="padding:10px">โหลดแผนที่ไม่สำเร็จ (ต้องต่ออินเทอร์เน็ต)</div>'; return; }
+      const ll = [lat, lng], moved = !lastLL || lastLL[0] !== lat || lastLL[1] !== lng;
+      if (moved) { map.setView(ll, st ? 17 : 13); lastLL = ll; }
+      if (miniMark) miniMark.remove();
+      if (miniRing) miniRing.remove();
+      miniMark = L.marker(ll).addTo(map);
+      // วงประมาณพื้นที่โรงจากความสามารถ: ระบบตะกอนเร่งราว 0.3 ตร.ม./คน ส่วนบ่อดินใช้พื้นที่มากกว่ามาก
+      const perM3 = { SP: 12, AL: 5, CW: 8 }[$('#sType').value] ?? 2.5;
+      const r = cap > 0 ? Math.sqrt(cap * perM3 / Math.PI) : 0;
+      if (r > 5) miniRing = L.circle(ll, { radius: r, color: 'var(--brand)', weight: 1.5, fillOpacity: .08 }).addTo(map);
+      setTimeout(() => map.invalidateSize(), 60);
+    }
+
     function render({ code, cap, inflow, lat, lng, measured }) {
+      parkMap();
       const p = PROCESS_TYPES[code];
       // 2. ผัง + BOQ
       const byStage = (s) => design.items.filter((i) => i.stage === s);
@@ -248,14 +309,15 @@
         <div class="opts" style="margin:8px 0"><label>ดูกราฟ <select id="simParam">${params.map((k) => `<option value="${esc(k)}">${esc(ALL_PARAM_INFO[k]?.name ?? k)}</option>`).join('')}</select></label><label>เหตุการณ์ <select id="simEvent"><option value="">ไม่มี</option><option value="spike">ค่าพุ่ง (spike) วันที่ 3</option><option value="drop">ค่าดิ่ง (drop) วันที่ 3</option></select></label></div>
         <div class="chart"><canvas id="cSim"></canvas></div>${simTbl}`;
       $('#out').innerHTML = `
-        <div class="card"><h2>${esc($('#sName').value || 'ระบบใหม่')} · ${esc(p.name)}</h2><div class="sub">ความสามารถ ${fmt(cap)} m³/d${inflow ? ` · น้ำเข้าจริง ${fmt(inflow)} m³/d (${fmt(inflow / cap * 100)}%)` : ''} · พิกัด ${lat}, ${lng} · แคตตาล็อก ${CATALOG_VERSION}</div>
+        <div class="card"><h2>${esc($('#sName').value || 'ระบบใหม่')} · ${esc(p.name)}</h2><div class="sumgrid"><div><div class="sub">ความสามารถ ${fmt(cap)} m³/d${inflow ? ` · น้ำเข้าจริง ${fmt(inflow)} m³/d (${fmt(inflow / cap * 100)}%)` : ''} · พิกัด ${lat}, ${lng} · แคตตาล็อก ${CATALOG_VERSION}</div>
           <div class="kpis"><div class="kpi"><b>${design.items.filter((i) => i.param).reduce((a, i) => a + i.qty, 0)}</b><span>หัววัด (จุดวัด ${design.items.filter((i) => i.param).length})</span></div><div class="kpi"><b>${design.items.filter((i) => i.required && i.param).length}</b><span>จุดวัดบังคับ</span></div><div class="kpi"><b>${fmt(budget.price_lo / 1e6, 2)}–${fmt(budget.price_hi / 1e6, 2)} ล.</b><span>ราคาอุปกรณ์ (บาท) ${EST}</span></div><div class="kpi"><b>${fmt(budget.w_avg)} W</b><span>ไฟระบบเซนเซอร์เฉลี่ย</span></div><div class="kpi"><b>${plantE ? fmt(plantE.mid) : '–'}</b><span>kWh/วัน โรงบำบัด ${EST}</span></div><div class="kpi"><b>${s.total ? fmt(s.total.kwp, 1) : fmt(s.sensors.kwp, 2)} kWp</b><span>โซลาร์รวม ${EST}</span></div></div>
-          ${design.diw_rule ? `<div class="warn">${esc(design.diw_rule)}</div>` : ''}</div>
+          ${design.diw_rule ? `<div class="warn">${esc(design.diw_rule)}</div>` : ''}</div><div id="mapslot"></div></div></div>
         <div class="card"><h2>2. ผังกระบวนการและตำแหน่งเซนเซอร์</h2><div class="sub">จุดเขียว = บังคับ · เทา = แนะนำ · แก้จำนวนในตารางแล้วกด "ออกแบบและคำนวณ" ใหม่</div>${p.desc ? `<p style="font-size:12.5px;margin:6px 0 0">${esc(p.desc)}</p>` : ''}${p.design_note ? `<div class="sub" style="margin-top:4px">เกณฑ์ออกแบบอ้างอิง: ${esc(p.design_note)}</div>` : ''}${flow}<details open><summary>รายการอุปกรณ์ (BOQ) ${design.items.length} รายการ</summary><div style="overflow-x:auto">${boq}</div></details><details><summary>เกณฑ์การเลือกและบำรุงรักษา</summary><ul style="font-size:12.5px;margin:6px 0 0 18px">${selectTips}</ul></details><div class="disclaimer">แบรนด์/รุ่นเป็นตัวอย่างข้อมูลสาธารณะ ณ ${CATALOG_VERSION} ไม่ใช่การรับรอง ต้องตรวจเอกสารรับรองรุ่นจริง (MCERTS/ISO/ATEX/NBTC) กับผู้จำหน่าย · ราคาเป็นช่วงตลาดโดยประมาณ ไม่รวมติดตั้ง/งานโยธา</div></div>
         <div class="card"><h2>3. พลังงานไฟฟ้าและโซลาร์เซลล์ <span class="est">ทุกตัวเลขเป็นค่าประมาณ</span></h2>${energyHtml}<details><summary>งบพลังงานรายอุปกรณ์</summary><div style="overflow-x:auto">${budgetTbl}</div></details></div>
         <div class="card"><h2>4. จำลองการส่งข้อมูล การแปลผล และการรายงาน</h2><div class="sub">อนุกรมเวลาจำลอง 7 วัน รายชั่วโมง (seed ${state.seed}) จากรูปแบบรายวันของระบบ ${esc(code)} · แปลผลด้วยเกณฑ์เดียวกับแดชบอร์ด · ไม่บันทึกลงฐานข้อมูล</div>${simHtml}</div>`;
+      syncMap(lat, lng);
       // กราฟพลังงาน
-      chartMake($('#cEnergy'), { type: 'bar', data: { labels: ['เซนเซอร์+สื่อสาร', 'โรงบำบัด (ต่ำ)', 'โรงบำบัด (กลาง)', 'โรงบำบัด (สูง)'], datasets: [{ label: 'kWh/วัน', data: [budget.kwh_day, plantE?.lo ?? 0, plantE?.mid ?? 0, plantE?.hi ?? 0], backgroundColor: ['#1d4ed8', '#a5d6a7', '#2e7d32', '#1b5e20'] }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'ไฟฟ้าต่อวัน (kWh) — โรงบำบัดตามช่วง benchmark', font: { family: 'Sarabun' } } }, scales: { y: { type: plantE && plantE.hi / Math.max(budget.kwh_day, .01) > 200 ? 'logarithmic' : 'linear' } } } });
+      chartMake($('#cEnergy'),{ type: 'bar', data: { labels: ['เซนเซอร์+สื่อสาร', 'โรงบำบัด (ต่ำ)', 'โรงบำบัด (กลาง)', 'โรงบำบัด (สูง)'], datasets: [{ label: 'kWh/วัน', data: [budget.kwh_day, plantE?.lo ?? 0, plantE?.mid ?? 0, plantE?.hi ?? 0], backgroundColor: ['#1d4ed8', '#a5d6a7', '#2e7d32', '#1b5e20'] }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'ไฟฟ้าต่อวัน (kWh) — โรงบำบัดตามช่วง benchmark', font: { family: 'Sarabun' } } }, scales: { y: { type: plantE && plantE.hi / Math.max(budget.kwh_day, .01) > 200 ? 'logarithmic' : 'linear' } } } });
       // กราฟจำลอง + timeline
       const drawSim = () => { const k = $('#simParam').value; const ser = series[k]; const key = sums[k].key; const colors = ser.map((p) => lvOf(levelFor(key, p.v)).color); charts.filter((c) => c.canvas.id === 'cSim').forEach((c) => { c.destroy(); charts.splice(charts.indexOf(c), 1); }); const info = ALL_PARAM_INFO[k];
         chartMake($('#cSim'), { type: 'line', data: { labels: ser.map((p) => new Date(p.t).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit' })), datasets: [{ label: info?.name ?? k, data: ser.map((p) => p.v), borderColor: '#7b8783', borderWidth: 1, pointRadius: 2.5, pointBackgroundColor: colors, pointBorderColor: colors, tension: .25 }, ...(info?.lines ?? []).map((ln) => ({ label: ln.l, data: ser.map(() => ln.v), borderColor: '#4a5450', borderDash: [6, 4], borderWidth: 1, pointRadius: 0 }))] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 } } } }, scales: { x: { ticks: { maxTicksLimit: 8, font: { family: 'Sarabun', size: 10 } } }, y: { title: { display: !!info?.unit, text: info?.unit ?? '' } } } } }); };
