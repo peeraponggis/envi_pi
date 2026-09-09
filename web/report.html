@@ -68,7 +68,9 @@
       .preview { padding: 0; border: 0; background: #fff; overflow: visible; }
       .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 12mm 14mm 16mm; page-break-after: always; }
       .page:last-child { page-break-after: auto; }
-      .page .ft { position: static; margin-top: 10px; }
+      /* ท้ายกระดาษต้องไม่ถูกดันไปอยู่แผ่นใหม่ตามลำพัง ให้เกาะไปกับเนื้อหาก่อนหน้าเสมอ */
+      .page .ft { position: static; margin-top: 8px; page-break-before: avoid; break-before: avoid; page-break-inside: avoid; break-inside: avoid; font-size: 9px; }
+      .page > *:last-child { margin-bottom: 0; }
       /* ตารางยาวให้ไหลข้ามแผ่นได้ แต่หัวตารางต้องซ้ำทุกแผ่น และห้ามตัดกลางแถว */
       table { page-break-inside: auto; }
       thead { display: table-header-group; }
