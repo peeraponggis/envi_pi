@@ -34,6 +34,7 @@
     .btn.primary { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
     .btn:disabled { opacity: .5; cursor: not-allowed; }
     .status { font-size: 12px; color: var(--ink-3); margin-top: 8px; }
+    .rightcol { display: grid; grid-template-rows: auto 1fr; gap: 10px; min-width: 0; align-content: start; }
     .preview { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-height: 60vh; overflow: auto; }
     .page { background: #fff; color: #1a1f1c; width: 210mm; min-height: 297mm; margin: 0 auto 18px; padding: 16mm 16mm 18mm; box-shadow: 0 2px 12px rgba(0,0,0,.12); position: relative; font-size: 11.5px; line-height: 1.5; }
     .page .hd { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #2e7d32; padding-bottom: 6px; margin-bottom: 12px; }
@@ -63,6 +64,7 @@
     @media print {
       header.bar, .left, .sheetnote { display: none !important; }
       body { background: #fff; } main { display: block; padding: 0; max-width: none; }
+      .rightcol { display: block; gap: 0; }
       .preview { padding: 0; border: 0; background: #fff; overflow: visible; }
       .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 12mm 14mm 16mm; page-break-after: always; }
       .page:last-child { page-break-after: auto; }
@@ -114,8 +116,10 @@
         <div class="status" id="status">เลือกการ์ดแล้วกด "สร้างพรีวิว" · PDF ใช้หน้าต่างพิมพ์ของเบราว์เซอร์ (เลือก Save as PDF) · XLSX แยกชีตต่อตาราง</div>
       </div>
     </div>
-    <div class="sheetnote" id="sheetNote" hidden></div>
-    <div class="preview" id="preview"><div class="empty">พรีวิวรายงานจะแสดงที่นี่เป็นหน้า A4 ตามที่จะพิมพ์จริง</div></div>
+    <div class="rightcol">
+      <div class="sheetnote" id="sheetNote" hidden></div>
+      <div class="preview" id="preview"><div class="empty">พรีวิวรายงานจะแสดงที่นี่เป็นหน้า A4 ตามที่จะพิมพ์จริง</div></div>
+    </div>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
