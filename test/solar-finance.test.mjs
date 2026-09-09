@@ -269,3 +269,40 @@ test('ทวนตัวอย่างการคำนวณสระเต�
   // โหมด typical ใช้ค่ากลางของช่วงออกซิเจน จึงใช้ไฟน้อยกว่าโหมดออกแบบ
   assert.ok(aerationEnergy('AL', { q_m3d: 6700, o2_mode: 'typical' }).kwh_o2 < r.kwh_o2);
 });
+
+test('วิธีได้มาของค่าแต่ละพารามิเตอร์ และบรรณานุกรม', async () => {
+  const { measureOf, measureTag, MEASURE_MODES, REFERENCES, REFERENCE_GROUPS, citationOf, PROCESS_TYPES, PROCESS_CODES } = await import('../web/js/sensor-catalog.js');
+  // บีโอดีตามวิธีมาตรฐานต้องบ่ม 5 วัน จึงเป็นผลแล็บเสมอ
+  for (const p of ['eff:BOD', 'in:BOD', 'eff:FOG']) {
+    assert.equal(measureOf(p).key, 'lab', p + ' ต้องเป็นผลแล็บ');
+    assert.equal(measureOf(p).lab_required, true);
+    assert.ok(measureTag(p).includes('ผลแล็บ'));
+  }
+  // ไนโตรเจนและฟอสฟอรัสรวมใช้เครื่องวิเคราะห์ที่ให้ค่าเป็นรอบ
+  for (const p of ['eff:TN', 'eff:TP']) assert.equal(measureOf(p).key, 'analyzer');
+  // ค่าที่วัดจากแสงต้องสอบเทียบกับแล็บ
+  for (const p of ['eff:COD', 'eff:TSS', 'MLSS', 'NH4N']) assert.equal(measureOf(p).key, 'surrogate');
+  // ค่าที่หัววัดอ่านได้ตรงถือเป็นออนไลน์ และไม่ต้องมีป้ายกำกับ
+  for (const p of ['DO', 'PH', 'ORP', 'Flow', 'Level', 'Temp', 'Cl2', 'TMP', 'Watt']) {
+    assert.equal(measureOf(p).key, 'online', p + ' วัดออนไลน์ได้');
+    assert.equal(measureTag(p), '');
+  }
+  assert.ok(/5 วัน/.test(measureOf('eff:BOD').note), 'ต้องอธิบายว่าบีโอดีต้องบ่ม 5 วัน');
+  for (const m of Object.values(MEASURE_MODES)) assert.ok(m.name && m.short && m.desc.length > 20);
+  // ทุกพารามิเตอร์ที่มีจุดวัดในระบบใดก็ตาม ต้องบอกวิธีได้มาได้
+  for (const c of PROCESS_CODES) for (const it of PROCESS_TYPES[c].monitor) assert.ok(measureOf(it.param).key, c + ':' + it.param);
+  // บรรณานุกรม
+  assert.ok(REFERENCES.length >= 20);
+  const kinds = new Set(REFERENCE_GROUPS.map((g) => g.kind));
+  for (const r of REFERENCES) {
+    assert.ok(kinds.has(r.kind), 'ชนิดต้องอยู่ในกลุ่มที่นิยามไว้: ' + r.title);
+    for (const k of ['author', 'year', 'title', 'src', 'use']) assert.ok(r[k] && String(r[k]).trim(), `${r.title}: ขาด ${k}`);
+    if (r.url) assert.ok(/^https?:\/\//.test(r.url), 'ลิงก์ต้องเป็น http(s): ' + r.url);
+    const c = citationOf(r);
+    assert.ok(c.startsWith(r.author) && c.includes('(' + r.year + ')') && c.endsWith('.'), 'รูปแบบบรรณานุกรม: ' + c);
+  }
+  // ทุกกลุ่มต้องมีอย่างน้อยหนึ่งรายการ และต้องอ้างประกาศทั้งสองฉบับ
+  for (const g of REFERENCE_GROUPS) assert.ok(REFERENCES.some((r) => r.kind === g.kind), 'กลุ่มว่าง: ' + g.name);
+  assert.ok(REFERENCES.some((r) => /มาตรฐานควบคุมการระบายน้ำทิ้ง/.test(r.title)));
+  assert.ok(REFERENCES.some((r) => /เกณฑ์การออกแบบระบบรวบรวมน้ำเสีย/.test(r.title)));
+});

@@ -83,6 +83,21 @@
     .box .big { font-size: 22px; font-weight: 700; color: var(--brand-dark); }
     .box .l { font-size: 12px; color: var(--ink-2); }
     .chart { position: relative; height: 260px; }
+    /* ส่วนจำลอง: ตัวเลือกอยู่นิ่ง กราฟกับคอนโซลอยู่คู่กัน */
+    .simctl { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); display: grid; gap: 8px; margin-bottom: 8px; }
+    .simctl label { grid-template-columns: 74px 1fr; }
+    .simgrid { display: grid; grid-template-columns: 1fr 320px; gap: 10px; align-items: stretch; }
+    .simgrid .chart { height: 300px; }
+    .conwrap { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .conhd { font-size: 11.5px; padding: 4px 8px; background: var(--surface-2); border-bottom: 1px solid var(--line); color: var(--ink-2); }
+    .conwrap pre.pl { flex: 1; max-height: none; border-radius: 0; margin: 0; }
+    @media (max-width: 1000px) { .simgrid { grid-template-columns: 1fr; } .simgrid .chart { height: 250px; } .conwrap pre.pl { max-height: 200px; } }
+    .lab { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 4px; background: var(--info-bg, #dbeafe); color: var(--info, #1d4ed8); vertical-align: middle; }
+    .btn.mini { font-size: 12px; padding: 3px 10px; margin-left: 8px; }
+    ol.bib { margin: 0 0 4px 20px; font-size: 12.5px; line-height: 1.6; }
+    ol.bib li { margin-bottom: 7px; text-indent: -18px; padding-left: 18px; }
+    ol.bib a { color: var(--brand); word-break: break-all; }
+    ol.bib .use { display: block; font-size: 11.5px; color: var(--ink-3); text-indent: 0; }
     /* timeline การส่งข้อมูล */
     .pipe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; align-items: start; margin: 8px 0; }
     .node { text-align: center; font-size: 12px; position: relative; }
@@ -113,7 +128,8 @@
           <label>ประเภทของระบบ <select id="sType"></select></label>
           <label>ความสามารถ <input id="sCap" type="number" min="1" step="100" value="5000" placeholder="ลบ.ม./วัน"></label>
           <label>น้ำเข้าจริง <input id="sInflow" type="number" min="0" step="100" placeholder="ลบ.ม./วัน (ถ้ามี)"></label>
-          <label>พิกัด <div class="row2"><input id="sLat" type="number" step="0.0001" placeholder="ละติจูด" value="14.0190"><input id="sLng" type="number" step="0.0001" placeholder="ลองจิจูด" value="100.5577"></div></label>
+          <label>พิกัด <input id="sLatLng" type="text" placeholder="วางจาก Google Maps ได้เลย เช่น 13.7563, 100.5018" value="14.0190, 100.5577"></label>
+          <input id="sLat" type="hidden" value="14.0190"><input id="sLng" type="hidden" value="100.5577">
           <label>สื่อสาร <select id="sComms"><option>4G</option><option>LoRaWAN</option><option>NB-IoT</option><option>Ethernet/Fiber</option></select></label>
           <label>ชื่อโครงการ <input id="sName" type="text" placeholder="เช่น ทน.เชียงใหม่ (ทางเลือก)"></label>
           <div class="hint" id="typeHint"></div>
@@ -175,12 +191,35 @@
   <script type="module">
     import { getClient, isConfigured, fetchStationsLatest, nearestStations, fetchStationMeta, fetchNasaPower, summarizeNasaPower, withCache, cacheKey, currentSession, onAuthChange, ago } from './js/envi-core.js';
     import { LV, lvOf, PLANT_TYPE } from './js/param-info.js';
-    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION, billEnergy, plantEnergyResolved, solarOption, epcOffer, ppaOffer, epcVsPpa, MOUNTS, FIN_DEFAULTS, aerationEnergy, THAI_SEWAGE } from './js/sensor-catalog.js';
+    import { PROCESS_TYPES, PROCESS_CODES, SENSOR_TYPES, COMMS, ALL_PARAM_INFO, STAGES, stageName, pointName, schematicSVG, brandsFor, designSystem, powerBudget, plantEnergy, measuredIntensity, solarSizing, batterySizing, pshFromDede, makeSeries, summarizeSeries, payloadFor, levelFor, designToURL, designFromURL, CATALOG_VERSION, billEnergy, plantEnergyResolved, solarOption, epcOffer, ppaOffer, epcVsPpa, MOUNTS, FIN_DEFAULTS, aerationEnergy, THAI_SEWAGE, REFERENCES, REFERENCE_GROUPS, citationOf, measureOf, measureTag, MEASURE_MODES } from './js/sensor-catalog.js';
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const fmt = (n, d = 0) => n == null || isNaN(n) ? '–' : Number(n).toLocaleString('th-TH', { maximumFractionDigits: d });
     const EST = '<span class="est">ค่าประมาณ</span>';
     /** แปลง **ตัวหนา** และขึ้นบรรทัดใหม่ในข้อความที่มาจากแคตตาล็อก (หนีอักขระก่อนเสมอ) */
+    /** แยกพิกัดจากข้อความช่องเดียว รองรับ "13.7563, 100.5018" · "13.7563,100.5018" · ลิงก์ Google Maps ที่มี @lat,lng */
+    function parseLatLng(v) {
+      const t = String(v ?? '').replace(/[()\u200b]/g, ' ');
+      const at = t.match(/@\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+      const m = at ?? t.match(/(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)/);
+      if (!m) return null;
+      const lat = +m[1], lng = +m[2];
+      if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      return { lat, lng };
+    }
+    /** อ่านช่องพิกัดรวมแล้วเขียนลงช่องซ่อน คืน true เมื่ออ่านได้ */
+    function syncLatLng() {
+      const el = $('#sLatLng'); if (!el) return false;
+      const p = parseLatLng(el.value);
+      el.style.borderColor = p || !el.value.trim() ? '' : 'var(--crit)';
+      if (p) { $('#sLat').value = p.lat; $('#sLng').value = p.lng; }
+      return !!p;
+    }
+    /** เขียนพิกัดกลับเข้าช่องรวม (ใช้ตอนเลือกโรงจริงหรือโหลดจากลิงก์) */
+    function setLatLng(lat, lng) {
+      $('#sLat').value = lat; $('#sLng').value = lng;
+      if ($('#sLatLng')) $('#sLatLng').value = `${lat}, ${lng}`;
+    }
     const mdBold = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
     const pill = (k) => `<span class="lv" style="background:${lvOf(k).color}">${lvOf(k).name}</span>`;
 
@@ -196,7 +235,7 @@
         const provs = [...new Set(plants.map((s) => s.province).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
         $('#sProv').innerHTML = '<option value="">— เลือกจังหวัด —</option>' + provs.map((p) => `<option>${esc(p)}</option>`).join('');
         $('#sProv').addEventListener('change', () => { const list = plants.filter((s) => s.province === $('#sProv').value); $('#lPlant').hidden = !list.length; $('#sPlant').innerHTML = '<option value="">— เลือกระบบ —</option>' + list.map((s) => `<option value="${s.id}">${esc(s.name_th)} · ${esc(s.meta?.plant_type ?? '?')} ${fmt(s.meta?.capacity)} m³/d</option>`).join(''); });
-        $('#sPlant').addEventListener('change', () => { const s = plants.find((x) => String(x.id) === $('#sPlant').value); if (!s) return; if (PROCESS_TYPES[s.meta?.plant_type]) $('#sType').value = s.meta.plant_type; $('#sCap').value = s.meta?.capacity ?? ''; $('#sInflow').value = s.meta?.avg_inflow ?? ''; $('#sLat').value = s.lat; $('#sLng').value = s.lng; $('#sName').value = s.name_th; typeHint(); $('#status').textContent = `เติมจากโรงจริง: ${s.name_th} · ${s.meta?.plant_type ?? 'ไม่ระบุชนิด (เลือกเอง)'} · ${fmt(s.meta?.capacity)} m³/d · กด "ออกแบบและคำนวณ"`; build().catch(() => {}); });
+        $('#sPlant').addEventListener('change', () => { const s = plants.find((x) => String(x.id) === $('#sPlant').value); if (!s) return; if (PROCESS_TYPES[s.meta?.plant_type]) $('#sType').value = s.meta.plant_type; $('#sCap').value = s.meta?.capacity ?? ''; $('#sInflow').value = s.meta?.avg_inflow ?? ''; setLatLng(s.lat, s.lng); $('#sName').value = s.name_th; typeHint(); $('#status').textContent = `เติมจากโรงจริง: ${s.name_th} · ${s.meta?.plant_type ?? 'ไม่ระบุชนิด (เลือกเอง)'} · ${fmt(s.meta?.capacity)} m³/d · กด "ออกแบบและคำนวณ"`; build().catch(() => {}); });
         // เมื่อเปลี่ยนประเภทของระบบเองหลังเลือกโรงจริง ให้ล้างการเลือกโรง (ถือว่าออกแบบเอง)
         $('#sType').addEventListener('change', () => { if ($('#sPlant').value && plants.find((x) => String(x.id) === $('#sPlant').value)?.meta?.plant_type !== $('#sType').value) { $('#sPlant').value = ''; } });
         $('#status').textContent = `โหลดโรงจริง DSPOT ${plants.length} ระบบ · POMS ${poms.length} โรงงาน (ใช้เทียบ kWh/m³ วัดจริง)`;
@@ -210,6 +249,7 @@
 
     async function build() {
       charts.forEach((c) => c.destroy()); charts = []; TABLES = [];
+      syncLatLng();
       const code = $('#sType').value, cap = +$('#sCap').value || 0, inflow = +$('#sInflow').value || null, lat = +$('#sLat').value, lng = +$('#sLng').value;
       design = designSystem(code, cap, { comms: $('#sComms').value });
       for (const it of design.items) { const k = `${it.stage}:${it.param ?? it.sensor}`; if (state.qty[k] != null) it.qty = state.qty[k]; }
@@ -339,7 +379,7 @@
       const flow = `<div class="schwrap">${schematicSVG(design)}</div>${flowNotes}` +
         `<details><summary>รายการหน่วยบำบัดและจุดวัดแบบย่อ</summary>${cards}</details>`;
       const boq = tbl('BOQ อุปกรณ์', [
-        ['ตำแหน่ง', (i) => esc(stageName(i.stage))], ['พารามิเตอร์/อุปกรณ์', (i) => `<b>${esc(i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name)}</b>${i.required ? ' <span class="est" style="background:var(--brand-soft);color:var(--brand-dark)">บังคับ</span>' : ''}<small>${esc(i.note)}</small>`, (i) => (i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name)],
+        ['ตำแหน่ง', (i) => esc(stageName(i.stage))], ['พารามิเตอร์/อุปกรณ์', (i) => `<b>${esc(i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name)}</b>${i.required ? ' <span class="est" style="background:var(--brand-soft);color:var(--brand-dark)">บังคับ</span>' : ''}${i.param && measureOf(i.param).key !== 'online' ? ` <span class="lab" title="${esc(measureOf(i.param).desc)}">${esc(measureOf(i.param).short)}</span>` : ''}<small>${esc(i.note)}</small>${i.param && measureOf(i.param).note ? `<small>${esc(measureOf(i.param).note)}</small>` : ''}`, (i) => (i.param ? pointName(i.stage, i.param) : SENSOR_TYPES[i.sensor].name)],
         ['เซนเซอร์/เทคโนโลยี', (i) => `${esc(SENSOR_TYPES[i.sensor].name)}<small>${esc(SENSOR_TYPES[i.sensor].tech)}</small>`, (i) => SENSOR_TYPES[i.sensor].tech],
         ['มาตรฐาน', (i) => `<div class="chips">${SENSOR_TYPES[i.sensor].stds.map((s) => `<span>${esc(s)}</span>`).join('')}</div>`, (i) => SENSOR_TYPES[i.sensor].stds.join(', ')],
         ['ตัวอย่างแบรนด์/รุ่น', (i) => brandsFor(i.sensor).map((b) => `${esc(b.brand)} ${esc(b.model)}<small>${b.certs.map(esc).join(' · ')}${b.note ? ' · ' + esc(b.note) : ''}</small>`).join('') || '–', (i) => brandsFor(i.sensor).map((b) => `${b.brand} ${b.model} [${b.certs.join('/')}]`).join('; ')],
@@ -447,16 +487,32 @@
         <div class="chart" style="height:240px;margin-top:8px"><canvas id="cCash"></canvas></div>
         ${chosen ? `<details><summary>กระแสเงินสดรายปีของ ${esc(chosen.o.name)}</summary><div style="overflow-x:auto">${cashTbl}</div></details>${how(chosen.o.name, [...chosen.o.steps, ...chosen.epc.steps])}` : ''}
         ${offerHtml}` : optTbl;
-      const simHtml = `<div class="pipe" id="pipe">${[['📟', 'เซนเซอร์', 'sensor'], ['🗄️', 'ดาต้าล็อกเกอร์/RTU', 'logger'], ['📡', 'เกตเวย์ ' + esc($('#sComms').value), 'mqtt'], ['☁️', 'Cloud (Supabase)', 'cloud'], ['📊', 'แดชบอร์ด/แจ้งเตือน', 'dashboard']].map(([ic, nm, k], i) => `<div class="node" data-k="${k}"><div class="ic">${ic}</div>${nm}</div>`).join('')}</div>
-        <div class="hint">ค่าตัวอย่างวิ่งทีละช่วงทุก 1.2 วินาที (${firstOut ? esc(ALL_PARAM_INFO[firstOut.param]?.name) : ''} = ${fmt(sampleVal, 2)})</div>
-        <pre class="pl" id="payload">${pl ? esc(JSON.stringify(pl.sensor, null, 1)) : ''}</pre>
-        <div class="opts" style="margin:8px 0"><label>ดูกราฟ <select id="simParam">${params.map((k) => `<option value="${esc(k)}">${esc(ALL_PARAM_INFO[k]?.name ?? k)}</option>`).join('')}</select></label><label>เหตุการณ์ <select id="simEvent"><option value="">ไม่มี</option><option value="spike">ค่าพุ่ง (spike) วันที่ 3</option><option value="drop">ค่าดิ่ง (drop) วันที่ 3</option></select></label></div>
-        <div class="chart"><canvas id="cSim"></canvas></div>${simTbl}`;
+      // ── การ์ด 5 บรรณานุกรม: แหล่งที่มาของข้อมูลและเครื่องมือที่ใช้พัฒนา ──
+      const refHtml = REFERENCE_GROUPS.map((g) => {
+        const list = REFERENCES.filter((r) => r.kind === g.kind).sort((a, b) => a.author.localeCompare(b.author, 'th'));
+        if (!list.length) return '';
+        return `<h3 style="font-size:13.5px;margin:12px 0 4px;color:var(--brand-dark)">${esc(g.name)}</h3><ol class="bib">` +
+          list.map((r) => `<li>${esc(citationOf(r))}${r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">สืบค้นจาก ${esc(r.url)}</a>` : ''}<span class="use">ใช้ใน: ${esc(r.use)}</span></li>`).join('') +
+          '</ol>';
+      }).join('');
+      const simHtml = `<div class="opts simctl"><label>ดูกราฟ <select id="simParam">${params.map((k) => `<option value="${esc(k)}">${esc((ALL_PARAM_INFO[k]?.name ?? k) + measureTag(k))}</option>`).join('')}</select></label><label>เหตุการณ์ <select id="simEvent"><option value="">ไม่มี</option><option value="spike">ค่าพุ่ง (spike) วันที่ 3</option><option value="drop">ค่าดิ่ง (drop) วันที่ 3</option></select></label></div>
+        <div id="simNote" class="hint" style="margin-bottom:6px"></div>
+        <div class="simgrid"><div class="chart"><canvas id="cSim"></canvas></div><div class="conwrap"><div class="conhd">ตัวอย่างข้อมูลที่ส่งออกจากเซนเซอร์</div><pre class="pl" id="payload">${pl ? esc(JSON.stringify(pl.sensor, null, 1)) : ''}</pre></div></div>
+        ${simTbl}
+        <details style="margin-top:8px"><summary>แอนิเมชันเส้นทางข้อมูลจากเซนเซอร์ถึงแดชบอร์ด</summary>
+        <div class="pipe" id="pipe">${[['📟', 'เซนเซอร์', 'sensor'], ['🗄️', 'ดาต้าล็อกเกอร์/RTU', 'logger'], ['📡', 'เกตเวย์ ' + esc($('#sComms').value), 'mqtt'], ['☁️', 'Cloud (Supabase)', 'cloud'], ['📊', 'แดชบอร์ด/แจ้งเตือน', 'dashboard']].map(([ic, nm, k], i) => `<div class="node" data-k="${k}"><div class="ic">${ic}</div>${nm}</div>`).join('')}</div>
+        <div class="hint">ค่าตัวอย่างวิ่งทีละช่วงทุก 1.2 วินาที (${firstOut ? esc(ALL_PARAM_INFO[firstOut.param]?.name) : ''} = ${fmt(sampleVal, 2)})</div></details>`;
       $('#out').innerHTML = `
         <div class="card"><h2>${esc($('#sName').value || 'ระบบใหม่')} · ${esc(p.name)}</h2><div class="sumgrid"><div><div class="sub">ความสามารถ ${fmt(cap)} m³/d${inflow ? ` · น้ำเข้าจริง ${fmt(inflow)} m³/d (${fmt(inflow / cap * 100)}%)` : ''} · พิกัด ${lat}, ${lng} · แคตตาล็อก ${CATALOG_VERSION}</div>
           <div class="kpis"><div class="kpi"><b>${design.items.filter((i) => i.param).reduce((a, i) => a + i.qty, 0)}</b><span>หัววัด (จุดวัด ${design.items.filter((i) => i.param).length})</span></div><div class="kpi"><b>${design.items.filter((i) => i.required && i.param).length}</b><span>จุดวัดบังคับ</span></div><div class="kpi"><b>${fmt(budget.price_lo / 1e6, 2)}–${fmt(budget.price_hi / 1e6, 2)} ล.</b><span>ราคาอุปกรณ์ (บาท) ${EST}</span></div><div class="kpi"><b>${fmt(budget.w_avg)} W</b><span>ไฟระบบเซนเซอร์เฉลี่ย</span></div><div class="kpi"><b>${plantE ? fmt(plantE.mid) : '–'}</b><span>kWh/วัน โรงบำบัด ${EST}</span></div><div class="kpi"><b>${s.total ? fmt(s.total.kwp, 1) : fmt(s.sensors.kwp, 2)} kWp</b><span>โซลาร์รวม ${EST}</span></div></div>
           ${design.diw_rule ? `<div class="warn">${esc(design.diw_rule)}</div>` : ''}</div><div id="mapslot"></div></div></div>
-        <div class="card"><h2>2. ผังกระบวนการและตำแหน่งเซนเซอร์</h2><div class="sub">จุดเขียว = บังคับ · เทา = แนะนำ · แก้จำนวนในตารางแล้วกด "ออกแบบและคำนวณ" ใหม่</div>${p.desc ? `<p style="font-size:12.5px;margin:6px 0 0">${mdBold(p.desc)}</p>` : ''}${p.design_note ? `<div class="sub" style="margin-top:4px">เกณฑ์ออกแบบอ้างอิง: ${mdBold(p.design_note)}</div>` : ''}${flow}<details open><summary>รายการอุปกรณ์ (BOQ) ${design.items.length} รายการ</summary><div style="overflow-x:auto">${boq}</div></details><details><summary>เกณฑ์การเลือกและบำรุงรักษา</summary><ul style="font-size:12.5px;margin:6px 0 0 18px">${selectTips}</ul></details><div class="disclaimer">แบรนด์/รุ่นเป็นตัวอย่างข้อมูลสาธารณะ ณ ${CATALOG_VERSION} ไม่ใช่การรับรอง ต้องตรวจเอกสารรับรองรุ่นจริง (MCERTS/ISO/ATEX/NBTC) กับผู้จำหน่าย · ราคาเป็นช่วงตลาดโดยประมาณ ไม่รวมติดตั้ง/งานโยธา</div></div>
+        <div class="card"><h2>2. ผังกระบวนการและตำแหน่งเซนเซอร์ <button class="btn mini" id="btnResetPlant" type="button" title="คืนค่าประเภทระบบ ความสามารถ น้ำเข้าจริง และพิกัด ตามทะเบียนของโรงจริงที่เลือก และล้างจำนวนอุปกรณ์ที่แก้ไว้">↺ คืนค่าโรงจริง</button></h2><div class="sub">จุดเขียว = บังคับ · เทา = แนะนำ · แก้จำนวนในตารางแล้วกด "ออกแบบและคำนวณ" ใหม่</div>${p.desc ? `<p style="font-size:12.5px;margin:6px 0 0">${mdBold(p.desc)}</p>` : ''}${p.design_note ? `<div class="sub" style="margin-top:4px">เกณฑ์ออกแบบอ้างอิง: ${mdBold(p.design_note)}</div>` : ''}${flow}<details open><summary>รายการอุปกรณ์ (BOQ) ${design.items.length} รายการ</summary><div style="overflow-x:auto">${boq}</div></details><details><summary>เกณฑ์การเลือกและบำรุงรักษา</summary><ul style="font-size:12.5px;margin:6px 0 0 18px">${selectTips}</ul></details><details><summary>ค่าไหนวัดออนไลน์ได้จริง ค่าไหนต้องส่งห้องปฏิบัติการ</summary><div style="overflow-x:auto">${tbl('วิธีได้มาของค่าแต่ละพารามิเตอร์', [
+          ['จุดวัด', (i) => esc(stageName(i.stage) + ' · ' + pointName(i.stage, i.param))],
+          ['วิธีได้มา', (i) => `<span class="lab"${measureOf(i.param).key === 'online' ? ' style="background:var(--brand-soft);color:var(--brand-dark)"' : ''}>${esc(measureOf(i.param).short)}</span>`, (i) => measureOf(i.param).short],
+          ['คำอธิบาย', (i) => esc(measureOf(i.param).desc) + (measureOf(i.param).note ? '<small>' + esc(measureOf(i.param).note) + '</small>' : ''), (i) => measureOf(i.param).desc],
+        ], [...new Map(design.items.filter((i) => i.param).map((i) => [i.stage + ':' + i.param, i])).values()])}</div>
+        <div class="hint" style="margin-top:6px">ค่าที่ใช้ตัดสินว่าผ่านมาตรฐานน้ำทิ้งหรือไม่ ต้องเป็นผลวิเคราะห์ตามวิธีมาตรฐานเสมอ (ข้อ 3 ของประกาศมาตรฐานน้ำทิ้งชุมชน) ส่วนเซนเซอร์ออนไลน์ใช้เฝ้าระวังและควบคุมการเดินระบบ · ค่าที่ต้องส่งห้องปฏิบัติการให้กรอกผลเข้าระบบเป็นงวด ไม่ใช่ค่าที่ไหลเข้ามาเองแบบเรียลไทม์</div></details>
+        <div class="disclaimer">แบรนด์/รุ่นเป็นตัวอย่างข้อมูลสาธารณะ ณ ${CATALOG_VERSION} ไม่ใช่การรับรอง ต้องตรวจเอกสารรับรองรุ่นจริง (MCERTS/ISO/ATEX/NBTC) กับผู้จำหน่าย · ราคาเป็นช่วงตลาดโดยประมาณ ไม่รวมติดตั้ง/งานโยธา</div></div>
         <div class="card"><h2>3. พลังงานไฟฟ้าและโซลาร์เซลล์</h2><div class="sub">ตัวเลขที่ติดป้าย <span class="est">ค่าประมาณ</span> กดดู "วิธีคิด" เพื่อเห็นสูตรและตัวเลขที่แทนแล้วทุกบรรทัด · ตัวเลขที่ติดป้าย <span class="meas">วัดจริง</span> มาจากใบแจ้งหนี้ค่าไฟที่กรอก</div>${energyHtml}
           <details><summary>งบพลังงานรายอุปกรณ์</summary><div style="overflow-x:auto">${budgetTbl}</div></details>
           ${how('ปริมาณไฟฟ้าของโรงบำบัด', fin?.plantRes?.steps ?? [])}
@@ -465,7 +521,8 @@
           <div class="sub">คิดทุกทางเลือกที่ขนาดเดียวกันเพื่อให้เทียบราคาและผลผลิตได้ตรง ๆ · จัดอันดับด้วยมูลค่าปัจจุบันสุทธิ ไม่ใช้อัตราผลตอบแทนภายในเพราะบางกรณีคำนวณไม่ได้</div>
           ${finHtml}
           <div class="disclaimer"><b>ที่มาของเกณฑ์ออกแบบและลักษณะน้ำเสีย:</b> ประกาศกรมควบคุมมลพิษ เรื่อง เกณฑ์การออกแบบระบบรวบรวมน้ำเสียและระบบบำบัดน้ำเสียรวมของชุมชน ประกาศ ณ วันที่ 5 มีนาคม 2553 (ราชกิจจานุเบกษา เล่ม 127 ตอนพิเศษ 72 ง หน้า 27 · 8 มิถุนายน 2553) · <b>มาตรฐานน้ำทิ้ง:</b> ประกาศกระทรวงทรัพยากรธรรมชาติและสิ่งแวดล้อม 7 เมษายน 2553 (ราชกิจจานุเบกษา เล่ม 127 ตอนพิเศษ 69 ง) · <b>ลำดับหน่วยบำบัดและการเดินระบบ:</b> คู่มือระบบบำบัดน้ำเสียชุมชน กรมควบคุมมลพิษ 2563<br>ราคาติดตั้ง ค่าดูแลรักษา อัตราแผงเสื่อม อัตราค่าไฟที่ขึ้นในอนาคต และเงื่อนไขสัญญาซื้อขายไฟฟ้า เป็นค่าประมาณจากแหล่งเชิงพาณิชย์ปี 2569 ไม่ใช่ราคากลางของราชการ · ตัวคูณราคาและผลผลิตของระบบทุ่นลอยน้ำเป็นค่าอ้างอิงสากล ไม่ใช่ตัวเลขที่เก็บจากโครงการในประเทศไทย · ส่วนลดค่าไฟ 20% ของสัญญาซื้อขายไฟฟ้าเป็นคนละตัวกับอัตราคิดลดทางการเงินที่ใช้คำนวณมูลค่าปัจจุบัน · ตัวเลขทั้งหมดใช้เพื่อวางแผนเบื้องต้น ต้องยืนยันกับผู้รับเหมาและการไฟฟ้าก่อนตัดสินใจ</div></div>
-        <div class="card"><h2>4. จำลองการส่งข้อมูล การแปลผล และการรายงาน</h2><div class="sub">อนุกรมเวลาจำลอง 7 วัน รายชั่วโมง (seed ${state.seed}) จากรูปแบบรายวันของระบบ ${esc(code)} · แปลผลด้วยเกณฑ์เดียวกับแดชบอร์ด · ไม่บันทึกลงฐานข้อมูล</div>${simHtml}</div>`;
+        <div class="card"><h2>4. จำลองการส่งข้อมูล การแปลผล และการรายงาน</h2><div class="sub">อนุกรมเวลาจำลอง 7 วัน รายชั่วโมง (seed ${state.seed}) จากรูปแบบรายวันของระบบ ${esc(code)} · แปลผลด้วยเกณฑ์เดียวกับแดชบอร์ด · ไม่บันทึกลงฐานข้อมูล</div>${simHtml}</div>
+        <div class="card" id="cardRef"><h2>5. แหล่งที่มาของข้อมูลและเครื่องมือที่ใช้พัฒนา</h2><div class="sub">จัดรูปแบบตามบรรณานุกรม · ทุกตัวเลขในโปรแกรมสืบกลับไปยังรายการใดรายการหนึ่งด้านล่างได้</div>${refHtml}<div class="disclaimer">ตัวเลขที่มาจากกฎหมายและประกาศเป็นค่าบังคับ · ตัวเลขจากเอกสารวิชาการเป็นค่าอ้างอิงสำหรับวางแผน · ราคาและเงื่อนไขทางการเงินเป็นค่าประมาณจากตลาดเชิงพาณิชย์ ไม่ใช่ราคากลางของราชการ · โปรแกรมนี้ใช้ประกอบการวางแผนเบื้องต้น ไม่ใช่แบบก่อสร้าง ต้องให้วิศวกรผู้ได้รับใบอนุญาตตรวจสอบก่อนนำไปใช้จริง</div></div>`;
       syncMap(lat, lng);
       // กราฟพลังงาน
       chartMake($('#cEnergy'),{ type: 'bar', data: { labels: ['เซนเซอร์+สื่อสาร', 'โรงบำบัด (ต่ำ)', 'โรงบำบัด (กลาง)', 'โรงบำบัด (สูง)'], datasets: [{ label: 'kWh/วัน', data: [budget.kwh_day, plantE?.lo ?? 0, plantE?.mid ?? 0, plantE?.hi ?? 0], backgroundColor: ['#1d4ed8', '#a5d6a7', '#2e7d32', '#1b5e20'] }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'ไฟฟ้าต่อวัน (kWh) — โรงบำบัดตามช่วง benchmark', font: { family: 'Sarabun' } } }, scales: { y: { type: plantE && plantE.hi / Math.max(budget.kwh_day, .01) > 200 ? 'logarithmic' : 'linear' } } } });
@@ -486,12 +543,39 @@
           { label: 'ค่าไฟตามสัญญา PPA', data: ppa.rows.map((r) => r.ppa_tariff_y), borderColor: '#1b5e20', pointRadius: 0, borderWidth: 2 }] },
           options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 } } }, title: { display: true, text: 'ค่าไฟต่อหน่วยตลอดอายุสัญญา (บาท/kWh)', font: { family: 'Sarabun' } } }, scales: { y: { ticks: { font: { family: 'Sarabun', size: 10 } } }, x: { title: { display: true, text: 'ปี', font: { family: 'Sarabun', size: 10 } }, ticks: { font: { family: 'Sarabun', size: 10 } } } } } });
       }
+      const rb = $('#btnResetPlant');
+      if (rb) {
+        const st0 = plants.find((x) => String(x.id) === $('#sPlant').value);
+        rb.disabled = !st0;
+        rb.title = st0 ? `คืนค่าตามทะเบียน DSPOT ของ ${st0.name_th}` : 'เลือกโรงจริงจากทะเบียน DSPOT ก่อน จึงจะคืนค่าได้';
+        rb.addEventListener('click', () => {
+          const st = plants.find((x) => String(x.id) === $('#sPlant').value);
+          if (!st) return;
+          if (PROCESS_TYPES[st.meta?.plant_type]) $('#sType').value = st.meta.plant_type;
+          $('#sCap').value = st.meta?.capacity ?? '';
+          $('#sInflow').value = st.meta?.avg_inflow ?? '';
+          setLatLng(st.lat, st.lng);
+          $('#sName').value = st.name_th;
+          state.qty = {}; state.event = null; state.opt = null;   // ล้างจำนวนอุปกรณ์และเหตุการณ์ที่แก้ไว้
+          typeHint();
+          $('#status').textContent = `คืนค่าตามทะเบียนของ ${st.name_th} แล้ว · จำนวนอุปกรณ์ที่แก้ไว้ถูกล้างกลับเป็นค่าออกแบบ`;
+          build().catch(() => {});
+        });
+      }
       if ($('#solScope')) $('#solScope').addEventListener('change', () => { state.scope = $('#solScope').value; state.opt = null; build().catch(() => {}); });
       if ($('#solOpt')) $('#solOpt').addEventListener('change', () => { state.opt = $('#solOpt').value; build().catch(() => {}); });
       // กราฟจำลอง + timeline
       const drawSim = () => { const k = $('#simParam').value; const ser = series[k]; const key = sums[k].key; const colors = ser.map((p) => lvOf(levelFor(key, p.v)).color); charts.filter((c) => c.canvas.id === 'cSim').forEach((c) => { c.destroy(); charts.splice(charts.indexOf(c), 1); }); const info = ALL_PARAM_INFO[k];
         chartMake($('#cSim'), { type: 'line', data: { labels: ser.map((p) => new Date(p.t).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit' })), datasets: [{ label: info?.name ?? k, data: ser.map((p) => p.v), borderColor: '#7b8783', borderWidth: 1, pointRadius: 2.5, pointBackgroundColor: colors, pointBorderColor: colors, tension: .25 }, ...(info?.lines ?? []).map((ln) => ({ label: ln.l, data: ser.map(() => ln.v), borderColor: '#4a5450', borderDash: [6, 4], borderWidth: 1, pointRadius: 0 }))] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 11 } } } }, scales: { x: { ticks: { maxTicksLimit: 8, font: { family: 'Sarabun', size: 10 } } }, y: { title: { display: !!info?.unit, text: info?.unit ?? '' } } } } }); };
-      $('#simParam').addEventListener('change', drawSim); drawSim();
+      /** อธิบายว่าค่าที่เลือกดูมาจากเซนเซอร์ออนไลน์หรือต้องส่งห้องปฏิบัติการ */
+      const simNote = () => {
+        const k = $('#simParam').value, m = measureOf(k), el = $('#simNote');
+        if (!el) return;
+        el.innerHTML = m.key === 'online'
+          ? `<span class="lab" style="background:var(--brand-soft);color:var(--brand-dark)">${esc(m.short)}</span> ${esc(m.desc)}`
+          : `<span class="lab">${esc(m.short)}</span> <b>${esc(m.name)}</b> — ${esc(m.desc)}${m.note ? '<br>' + esc(m.note) : ''}`;
+      };
+      $('#simParam').addEventListener('change', () => { drawSim(); simNote(); }); drawSim(); simNote();
       $('#simEvent').addEventListener('change', () => { state.event = $('#simEvent').value ? { type: $('#simEvent').value, at: 48 + 10, hours: 6, factor: $('#simEvent').value === 'drop' ? .25 : 4 } : null; build(); });
       $('#out').querySelectorAll('input.qty').forEach((inp) => inp.addEventListener('change', () => { state.qty[inp.dataset.k] = Math.max(0, +inp.value || 0); }));
       if (pl) { const nodes = [...document.querySelectorAll('#pipe .node')]; const order = ['sensor', 'logger', 'mqtt', 'cloud', 'dashboard']; let i = 0; clearInterval(state.timer); state.timer = setInterval(() => { nodes.forEach((n, j) => n.classList.toggle('on', j <= i)); $('#payload').textContent = JSON.stringify(pl[order[i]], null, 1); i = (i + 1) % 5; }, 1200); }
@@ -522,7 +606,7 @@
     $('#btnSave').addEventListener('click', async () => { if (!session || !design) return; const name = prompt('ชื่อแบบ', $('#sName').value || `${design.code} ${fmt(design.capacity)} m³/d`); if (!name) return; try { const sb = await getClient(); const { error } = await sb.rpc('save_sensor_design', { p_id: null, p_name: name, p_process_code: design.code, p_capacity: design.capacity, p_lat: +$('#sLat').value, p_lng: +$('#sLng').value, p_station_id: +$('#sPlant').value || null, p_design: { qs: currentQS(), summary: { w_avg: budget.w_avg, kwh_day_sensors: budget.kwh_day, kwh_day_plant: (energy.actual ?? energy.design)?.mid ?? null, kwp_total: solar.total?.kwp ?? solar.sensors.kwp, psh: solar.psh }, items: design.items }, p_catalog_version: CATALOG_VERSION }); if (error) throw error; $('#status').textContent = 'บันทึกแล้ว'; refreshSaved(); } catch (e) { $('#status').textContent = 'บันทึกไม่สำเร็จ: ' + (e.message ?? e); } });
     if (isConfigured()) { currentSession().then((s) => { session = s; $('#btnSave').disabled = !session || !design; refreshSaved(); }); onAuthChange((s) => { session = s; $('#btnSave').disabled = !session || !design; refreshSaved(); }); }
     // ── เปิดจากลิงก์ ──
-    function applyQS(qs) { const o = designFromURL(qs); if (o.type && PROCESS_TYPES[o.type]) $('#sType').value = o.type; if (o.cap) $('#sCap').value = o.cap; if (o.inflow) $('#sInflow').value = o.inflow; if (o.lat) $('#sLat').value = o.lat; if (o.lng) $('#sLng').value = o.lng; if (o.comms) $('#sComms').value = o.comms; if (o.name) $('#sName').value = o.name; if (o.seed) state.seed = o.seed; if (o.psh) $('#ePsh').value = o.psh; if (o.kwh) $('#eKwh').value = o.kwh; if (o.tariff) $('#eTariff').value = o.tariff; if (o.cost) $('#eCost').value = o.cost; if (o.pr) $('#ePr').value = o.pr; if (o.margin) $('#eMargin').value = o.margin; if (o.duty) $('#eDuty').value = o.duty;
+    function applyQS(qs) { const o = designFromURL(qs); if (o.type && PROCESS_TYPES[o.type]) $('#sType').value = o.type; if (o.cap) $('#sCap').value = o.cap; if (o.inflow) $('#sInflow').value = o.inflow; if (o.lat && o.lng) setLatLng(o.lat, o.lng); if (o.comms) $('#sComms').value = o.comms; if (o.name) $('#sName').value = o.name; if (o.seed) state.seed = o.seed; if (o.psh) $('#ePsh').value = o.psh; if (o.kwh) $('#eKwh').value = o.kwh; if (o.tariff) $('#eTariff').value = o.tariff; if (o.cost) $('#eCost').value = o.cost; if (o.pr) $('#ePr').value = o.pr; if (o.margin) $('#eMargin').value = o.margin; if (o.duty) $('#eDuty').value = o.duty;
       if (o.bkwh) $('#bKwh').value = o.bkwh; if (o.bbaht) $('#bBaht').value = o.bbaht; if (o.bmonths) $('#bMonths').value = o.bmonths;
       if (o.mounts != null) { const set = String(o.mounts).split(','); $('#mRoof').checked = set.includes('roof'); $('#mGround').checked = set.includes('ground'); $('#mFloat').checked = set.includes('floating'); }
       if (o.hybrid != null) $('#oHybrid').checked = String(o.hybrid) === '1';
