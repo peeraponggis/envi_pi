@@ -612,7 +612,7 @@ export function moduleTempKS({ instantGhi = 800, windSpeed = 1.5, airTemp = 30 }
  * ขนาดโซลาร์เซลล์ที่ต้องใช้ (ค่าประมาณ)
  *   kWp = kWh/วัน ÷ (PSH × PR) · PR = pr0 × (1 − tempCoef × max(0, Tmod − 25)) · พื้นที่ ≈ kWp × m²/kWp · ต้นทุน · payback อย่างง่าย
  */
-export function solarSizing({ kwh_day, psh = 4.8, airTemp = 30, windSpeed = 1.5, pr0 = 0.80, tempCoef = 0.004, area_per_kwp = 6.5, cost_per_kwp = 35000, tariff = 4.2, sizing_margin = 1.1 } = {}) {
+export function solarSizing({ kwh_day, psh = 4.8, airTemp = 30, windSpeed = 1.5, pr0 = 0.75, tempCoef = 0.004, area_per_kwp = 6.5, cost_per_kwp = 35000, tariff = 4.2, sizing_margin = 1.1 } = {}) {
   if (!kwh_day || !psh) return null;
   const tmod = moduleTempKS({ instantGhi: 800, windSpeed, airTemp });
   const pr = Math.max(0.5, pr0 * (1 - tempCoef * Math.max(0, tmod - 25)));
@@ -1120,7 +1120,7 @@ export function batteryBankSizing({ kwh_cycle = 0, dod = BATTERY_BENCH.dod, rte 
 }
 
 /** หนึ่งทางเลือกของระบบโซลาร์ (วิธีติดตั้ง × ออนกริดหรือไฮบริด) */
-export function solarOption({ key, name, kwh_day = 0, kwp = null, mount = 'roof', hybrid = false, night_fraction = 0.35, psh = 4.8, airTemp = 30, windSpeed = 1.5, pr0 = 0.80, tempCoef = 0.004, sizing_margin = 1.1, capex_override = null, battery = {} } = {}) {
+export function solarOption({ key, name, kwh_day = 0, kwp = null, mount = 'roof', hybrid = false, night_fraction = 0.35, psh = 4.8, airTemp = 30, windSpeed = 1.5, pr0 = 0.75, tempCoef = 0.004, sizing_margin = 1.1, capex_override = null, battery = {} } = {}) {
   const m = MOUNTS[mount] ?? MOUNTS.roof;
   const sz = solarSizing({ kwh_day, psh, airTemp, windSpeed, pr0, tempCoef, sizing_margin, area_per_kwp: m.area_per_kwp });
   if (!sz) return null;

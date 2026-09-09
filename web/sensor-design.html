@@ -168,7 +168,7 @@
           <label>PPA ขึ้น %/ปี <input id="pEsc" type="number" step="0.5" value="1"></label>
           <label>kWh/m³ <input id="eKwh" type="number" step="0.01" placeholder="ว่าง = ใช้ค่ากลาง benchmark"></label>
           <label>PSH <input id="ePsh" type="number" step="0.1" placeholder="ชม.แดด/วัน (ดึงจาก พพ. อัตโนมัติ)"></label>
-          <label>PR เริ่มต้น <input id="ePr" type="number" step="0.01" value="0.80"></label>
+          <label title="Performance Ratio — สัดส่วนไฟฟ้าที่ได้จริงเทียบกับที่แผงควรผลิตได้ตามสเปก รวมความสูญเสียจากอุณหภูมิ สายไฟ ฝุ่น อินเวอร์เตอร์ และเงา · ระบบติดตั้งใหม่ในไทยทั่วไปอยู่ที่ 0.75–0.80">อัตราส่วนสมรรถนะ <input id="ePr" type="number" step="0.01" min="0.5" max="0.9" value="0.75"></label>
           <label>บาท/kWp <input id="eCost" type="number" step="1000" placeholder="ว่าง = ใช้ราคาตามขนาดระบบ"></label>
           <label>ค่าไฟ บาท/kWh <input id="eTariff" type="number" step="0.1" value="4.2"></label>
           <label>เผื่อขนาด <input id="eMargin" type="number" step="0.05" value="1.10"></label>
@@ -278,7 +278,7 @@
         if (!psh) { try { const r = await withCache(cacheKey('nasa_power', lat, lng), () => fetchNasaPower(lat, lng), { sourceId: 'nasa_power' }); const s = summarizeNasaPower(r.payload); psh = s.ghi / 365; airTemp = s.airTemp ?? 30; windSpeed = s.windSpeed ?? 1.5; pshSrc = `NASA POWER ${s.year}`; } catch (e) { console.warn(e); } }
       }
       if (!psh) { psh = 4.8; pshSrc = 'ค่ากลางประเทศไทย 4.8 (ไม่มีข้อมูลตำแหน่ง)'; }
-      const solarOpts = { psh, airTemp, windSpeed, pr0: +$('#ePr').value || .8, cost_per_kwp: +$('#eCost').value || 35000, tariff: +$('#eTariff').value || 4.2, sizing_margin: +$('#eMargin').value || 1.1 };
+      const solarOpts = { psh, airTemp, windSpeed, pr0: +$('#ePr').value || .75, cost_per_kwp: +$('#eCost').value || 35000, tariff: +$('#eTariff').value || 4.2, sizing_margin: +$('#eMargin').value || 1.1 };
       const plantKwhDay = (energy.actual ?? energy.design)?.mid ?? 0;
       solar = { sensors: solarSizing({ kwh_day: budget.kwh_day, ...solarOpts }), plant: plantKwhDay ? solarSizing({ kwh_day: plantKwhDay, ...solarOpts }) : null, total: plantKwhDay ? solarSizing({ kwh_day: budget.kwh_day + plantKwhDay, ...solarOpts }) : null, psh, pshSrc, battery: batterySizing({ w_avg: budget.w_avg }) };
       // ── บิลค่าไฟจริง ทางเลือกโซลาร์ และข้อเสนอเชิงพาณิชย์ ──
@@ -412,7 +412,7 @@
         ${plantE ? eBox(`โรงบำบัด (${e.actual ? 'ตามน้ำเข้าจริง ' + fmt(e.actual.q) : 'ตามความสามารถ ' + fmt(e.design.q)} m³/d)`, s.plant, plantE.mid, `<div class="l">ช่วง ${fmt(plantE.lo)}–${fmt(plantE.hi)} kWh/วัน (benchmark ${e.kwh_m3.lo}–${e.kwh_m3.hi} kWh/m³)${e.design && e.actual ? ` · ตามความสามารถออกแบบ ${fmt(e.design.mid)} kWh/วัน` : ''}${measured ? `<br>วัดจริง POMS ${measured.n} โรงงาน: มัธยฐาน ${fmt(measured.median, 2)} kWh/m³ (P25–P75 ${fmt(measured.p25, 2)}–${fmt(measured.p75, 2)})` : ''}</div>`) : '<div class="box"><h4>โรงบำบัด</h4><div class="l">กรอกความสามารถหรือน้ำเข้าจริง</div></div>'}
         ${s.total ? eBox('รวมทั้งโครงการ', s.total, budget.kwh_day + plantE.mid, `<div class="l">แนะนำแยกวงจร: เซนเซอร์ใช้โซลาร์+แบตเป็นอิสระ (ทำงานแม้ไฟโรงดับ) ส่วนโรงบำบัดต่อกริดแบบ on-grid</div>`) : ''}
       </div>
-      <div class="hint" style="margin-top:8px">PSH ${s.psh.toFixed(2)} ชม./วัน จาก ${esc(s.pshSrc)} · PR ${s.sensors.pr.toFixed(2)} (อุณหภูมิแผงประมาณ ${fmt(s.sensors.tmod)} °C จากสูตร King/Sandia) · เผื่อขนาด ×${s.sensors.sizing_margin} · ${esc(e.source)}</div>
+      <div class="hint" style="margin-top:8px">PSH ${s.psh.toFixed(2)} ชม./วัน จาก ${esc(s.pshSrc)} · อัตราส่วนสมรรถนะที่ใช้จริง ${s.sensors.pr.toFixed(2)} (ตั้งต้น ${(+$('#ePr').value || .75).toFixed(2)} แล้วลดตามอุณหภูมิแผงที่ประมาณ ${fmt(s.sensors.tmod)} °C ด้วยสูตร King/Sandia) · เผื่อขนาด ×${s.sensors.sizing_margin} · ${esc(e.source)}</div>
       <div class="chart" style="height:220px;margin-top:8px"><canvas id="cEnergy"></canvas></div>`;
       const budgetTbl = tbl('งบพลังงานเซนเซอร์', [['อุปกรณ์', (i) => esc(i.name)], ['จำนวน', (i) => i.qty, null, 'n'], ['W/ตัว', (i) => `${i.w_each[0]}–${i.w_each[1]}`, null, 'n'], ['duty', (i) => i.duty, null, 'n'], ['W เฉลี่ย', (i) => fmt(i.w_avg, 1), null, 'n'], ['W สูงสุด', (i) => fmt(i.w_peak, 1), null, 'n'], ['ราคารวม (บาท)', (i) => `${fmt(i.price_lo)}–${fmt(i.price_hi)}`, null, 'n']], budget.items);
       // 4. จำลอง
@@ -440,7 +440,7 @@
         ['kWp', (r) => fmt(r.o.kwp, 1), null, 'n'],
         ['พื้นที่ m²', (r) => fmt(r.o.area_m2), null, 'n'],
         ['ผลผลิตปีที่ 1 kWh', (r) => fmt(r.o.kwh_year0), null, 'n'],
-        ['เงินลงทุน บาท', (r) => `${fmt(r.o.capex.total.lo)}–${fmt(r.o.capex.total.hi)}<small>ค่ากลาง ${fmt(r.o.capex.total.mid)}</small>`, (r) => Math.round(r.o.capex.total.mid), 'n'],
+        ['เงินลงทุน ต่ำ–สูง (บาท)', (r) => `<span title="ช่วงราคาตลาด ต่ำสุดถึงสูงสุด">${fmt(r.o.capex.total.lo)}–${fmt(r.o.capex.total.hi)}</span><small title="ค่ากลางของช่วง คือตัวเลขที่ใช้คำนวณคืนทุน NPV IRR LCOE และ ROI ในแถวนี้">ค่ากลางที่ใช้คำนวณ ${fmt(r.o.capex.total.mid)}</small>`, (r) => Math.round(r.o.capex.total.mid), 'n'],
         ['ประหยัดปีที่ 1', (r) => fmt(r.epc.rows[0]?.saving), null, 'n'],
         ['คืนทุน ปี', (r) => r.epc.payback_simple ? fmt(r.epc.payback_simple, 1) : 'ไม่คืนทุน', null, 'n'],
         ['คืนทุนคิดลด ปี', (r) => r.epc.payback_discounted ? fmt(r.epc.payback_discounted, 1) : 'ไม่คืนทุน', null, 'n'],
@@ -497,7 +497,8 @@
         <div class="l" style="margin-top:4px">เทียบช่วงอ้างอิงสากลที่ใช้คิดในกล่องด้านบน ${A.benchmark[0]}–${A.benchmark[1]} kWh/m³ → <b>${esc(A.vs_benchmark)}</b></div>
         <div class="l" style="margin-top:4px">เกณฑ์แนะนำการออกแบบฯ ของ คพ. ระบุว่าน้ำเสียชุมชนไทยเจือจางกว่าค่าอ้างอิงต่างประเทศมาก ระบบในอดีตจึงถูกออกแบบใหญ่เกินจริง ตัวเลขนี้จึงต่ำกว่าค่าอ้างอิงสากล · <b>เป็นเฉพาะไฟของเครื่องเติมอากาศ</b> ยังไม่รวมสถานีสูบน้ำเสีย ปั๊มสลัดจ์ และระบบจัดการสลัดจ์ ซึ่งทำให้ไฟรวมทั้งโรงสูงกว่านี้</div>
         ${how('หน่วยไฟเครื่องเติมอากาศตามเกณฑ์ไทย', A.steps)}</div>` : '';
-      const finHtml = offs.length ? `${optSel}<div style="overflow-x:auto">${optTbl}</div>
+      const midNote = '<div class="hint" style="margin-top:6px"><b>วิธีอ่านตาราง</b> · ช่องเงินลงทุนแสดง<b>ช่วงราคาตลาด</b>จากต่ำสุดถึงสูงสุด เพราะราคาติดตั้งจริงขึ้นกับยี่ห้ออุปกรณ์ ความยากของหน้างาน และการต่อรอง · บรรทัดสีเทาใต้ช่วงราคาคือ<b>ค่ากลางของช่วงนั้น</b> ซึ่งเป็นตัวเลขเดียวที่ระบบใช้คำนวณต่อทุกช่องในแถวเดียวกัน ทั้งประหยัดปีแรก คืนทุน มูลค่าปัจจุบันสุทธิ อัตราผลตอบแทนภายใน ต้นทุนต่อหน่วย และผลตอบแทนตลอดอายุ · ถ้าได้ราคาจริงจากผู้รับเหมาแล้ว ให้กรอกลงช่อง "บาท/kWp" ในแผงซ้าย ระบบจะใช้ราคานั้นแทนตารางช่วงราคาทันที</div>';
+      const finHtml = offs.length ? `${optSel}<div style="overflow-x:auto">${optTbl}</div>${midNote}
         <div class="two" style="margin-top:8px"><div class="chart" style="height:220px"><canvas id="cCapex"></canvas></div><div class="chart" style="height:220px"><canvas id="cNpv"></canvas></div></div>
         <div class="chart" style="height:240px;margin-top:8px"><canvas id="cCash"></canvas></div>
         ${chosen ? `<details><summary>กระแสเงินสดรายปีของ ${esc(chosen.o.name)}</summary><div style="overflow-x:auto">${cashTbl}</div></details>${how(chosen.o.name, [...chosen.o.steps, ...chosen.epc.steps])}` : ''}

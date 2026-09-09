@@ -316,7 +316,7 @@
       let psh = o.psh || null, pshSrc = 'กรอกเอง';
       if (!psh && o.lat && o.lng) { try { const near = await nearestStations(o.lat, o.lng, 15000, 'dede_solar', 1); if (near?.length) { psh = pshFromDede(await fetchStationMeta(near[0].station_id)); pshSrc = `พพ. ตำบล ${near[0].name_th}`; } } catch {} }
       if (!psh) { psh = 4.8; pshSrc = 'ค่ากลางประเทศไทย'; }
-      const opt = { psh, cost_per_kwp: o.cost || 35000, tariff: o.tariff || 4.2 };
+      const opt = { psh, pr0: +o.pr || 0.75, cost_per_kwp: o.cost || 35000, tariff: o.tariff || 4.2 };
       const plantE = energy.actual ?? energy.design; const sSens = solarSizing({ kwh_day: budget.kwh_day, ...opt }), sPlant = plantE ? solarSizing({ kwh_day: plantE.mid, ...opt }) : null, sTot = plantE ? solarSizing({ kwh_day: budget.kwh_day + plantE.mid, ...opt }) : null;
       const P = PROCESS_TYPES[code];
       const body = kp([[esc(P.name.split(' · ')[1] ?? code), `ระบบ ${code} · ${fmt(cap, 0)} m³/d${o.inflow ? ' · น้ำเข้าจริง ' + fmt(o.inflow, 0) : ''}`], [design.items.filter((i) => i.param).reduce((a, i) => a + i.qty, 0), 'หัววัด'], [fmt(budget.w_avg, 0) + ' W', 'ไฟระบบเซนเซอร์เฉลี่ย'], [sTot ? fmt(sTot.kwp, 1) + ' kWp' : fmt(sSens.kwp, 2) + ' kWp', 'โซลาร์รวม (ค่าประมาณ)']]) +
@@ -366,12 +366,12 @@
         [chosen.epc.irr == null ? '–' : fmt(chosen.epc.irr * 100, 1) + '%', 'ผลตอบแทนภายใน'],
       ]) +
         `<div class="note"><b>ที่มาของปริมาณไฟฟ้า:</b> ${plantRes.basis === 'bill' ? 'ใบแจ้งหนี้ค่าไฟจริง' : (plantRes.basis === 'actual' ? 'น้ำเข้าจริง × ค่าอ้างอิงของประเภทระบบ' : 'ความสามารถออกแบบ × ค่าอ้างอิงของประเภทระบบ')} = ${fmt(plantRes.kwh_day, 0)} kWh/วัน · อัตราค่าไฟ ${fmt(tariff, 2)} บาท/kWh · ชั่วโมงแดดเต็มที่ ${psh.toFixed(2)} ชม./วัน จาก ${esc(pshSrc)}${plantRes.in_band === false ? ' · <b>หน่วยไฟต่อลูกบาศก์เมตรอยู่นอกช่วงอ้างอิง</b>' : ''}</div>` +
-        '<h3>เปรียบเทียบทางเลือกโซลาร์ (คิดที่ขนาดเดียวกัน)</h3>' +
+        '<h3>เปรียบเทียบทางเลือกโซลาร์ (คิดที่ขนาดเดียวกัน)</h3>'+'<div class="note">เงินลงทุนที่แสดงเป็น<b>ค่ากลางของช่วงราคาตลาด</b> และเป็นตัวเลขที่ใช้คำนวณคืนทุน มูลค่าปัจจุบันสุทธิ อัตราผลตอบแทนภายใน และต้นทุนต่อหน่วยในแถวเดียวกัน · ราคาจริงขึ้นกับยี่ห้ออุปกรณ์ ความยากของหน้างาน และการต่อรอง</div>'+'' +
         table('เปรียบเทียบทางเลือกโซลาร์', [
           ['ทางเลือก', (r) => esc(r.o.name) + (r.o.key === best.o.key ? ' *' : '')],
           ['kWp', (r) => fmt(r.o.kwp, 1)], ['พื้นที่ m²', (r) => fmt(r.o.area_m2, 0)],
           ['ผลผลิตปีที่ 1 kWh', (r) => fmt(r.o.kwh_year0, 0)],
-          ['เงินลงทุน บาท', (r) => fmt(r.o.capex.total.mid, 0)],
+          ['เงินลงทุน ค่ากลาง บาท', (r) => fmt(r.o.capex.total.mid, 0)],
           ['ประหยัดปีที่ 1', (r) => fmt(r.epc.rows[0]?.saving, 0)],
           ['คืนทุน ปี', (r) => r.epc.payback_simple ? fmt(r.epc.payback_simple, 1) : 'ไม่คืนทุน'],
           ['NPV บาท', (r) => fmt(r.epc.npv, 0)],
