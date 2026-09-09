@@ -59,14 +59,25 @@
     .page .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .empty { color: var(--ink-3); text-align: center; padding: 60px 20px; font-size: 14px; }
     @media (max-width: 1000px) { main { grid-template-columns: 1fr; } .page { width: 100%; min-height: 0; padding: 14px; } .page .two { grid-template-columns: 1fr; } }
+    .sheetnote { font-size: 12px; background: var(--warn-bg, #fef9c3); color: var(--warn, #a16207); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; line-height: 1.5; }
     @media print {
-      header.bar, .left { display: none !important; }
+      header.bar, .left, .sheetnote { display: none !important; }
       body { background: #fff; } main { display: block; padding: 0; max-width: none; }
       .preview { padding: 0; border: 0; background: #fff; overflow: visible; }
       .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 12mm 14mm 16mm; page-break-after: always; }
       .page:last-child { page-break-after: auto; }
       .page .ft { position: static; margin-top: 10px; }
-      tr { page-break-inside: avoid; }
+      /* ตารางยาวให้ไหลข้ามแผ่นได้ แต่หัวตารางต้องซ้ำทุกแผ่น และห้ามตัดกลางแถว */
+      table { page-break-inside: auto; }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      /* บล็อกที่ตัดกลางแล้วอ่านไม่รู้เรื่อง */
+      .chartbox, canvas, .kpi, .box, .sch-print, .crit { page-break-inside: avoid; }
+      .kpis, .two { page-break-inside: auto; }
+      /* หัวข้อห้ามอยู่ท้ายแผ่นตามลำพัง */
+      h3 { page-break-after: avoid; break-after: avoid-page; }
+      .note { page-break-inside: avoid; orphans: 3; widows: 3; }
+      p, li { orphans: 3; widows: 3; }
       @page { size: A4 portrait; margin: 0; }
     }
   </style>
@@ -103,6 +114,7 @@
         <div class="status" id="status">เลือกการ์ดแล้วกด "สร้างพรีวิว" · PDF ใช้หน้าต่างพิมพ์ของเบราว์เซอร์ (เลือก Save as PDF) · XLSX แยกชีตต่อตาราง</div>
       </div>
     </div>
+    <div class="sheetnote" id="sheetNote" hidden></div>
     <div class="preview" id="preview"><div class="empty">พรีวิวรายงานจะแสดงที่นี่เป็นหน้า A4 ตามที่จะพิมพ์จริง</div></div>
   </main>
 
@@ -195,7 +207,7 @@
     const stackedByGroup = (rows, groupKey, title) => { const groups = [...new Set(rows.map((r) => r[groupKey]))].filter(Boolean).sort((a, b) => rows.filter((r) => r[groupKey] === b).length - rows.filter((r) => r[groupKey] === a).length).slice(0, 12); return { type: 'bar', data: { labels: groups.map((g) => String(g).replace(/^ภาค/, '')), datasets: LV.map((l) => ({ label: l.name, backgroundColor: l.color, data: groups.map((g) => rows.filter((r) => r[groupKey] === g && r.lv === l.key).length) })) }, options: { responsive: false, animation: false, plugins: { title: { display: true, text: title, font: { family: 'Sarabun', size: 12 } }, legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Sarabun', size: 10 } } } }, scales: { x: { stacked: true, ticks: { font: { family: 'Sarabun', size: 10 } } }, y: { stacked: true, ticks: { font: { size: 10 } } } } } }; };
     const byRegion = (rows) => { const regs = [...new Set(rows.map((r) => r.region))].sort(); const K = ['good', 'fair', 'poor', 'bad', 'none']; return `<table><thead><tr><th>ภาค</th>${K.map((k) => `<th>${lvOf(k).name}</th>`).join('')}<th>รวม</th></tr></thead><tbody>${regs.map((r) => { const g = rows.filter((x) => x.region === r); return `<tr><td>${esc(r)}</td>${K.map((k) => `<td>${g.filter((x) => x.lv === k).length || ''}</td>`).join('')}<td><b>${g.length}</b></td></tr>`; }).join('')}<tr><td><b>รวม</b></td>${K.map((k) => `<td><b>${rows.filter((x) => x.lv === k).length}</b></td>`).join('')}<td><b>${rows.length}</b></td></tr></tbody></table>`; };
     const bandNote = (key, extra = '') => { const i = PARAM_INFO[key]; return crit(`<b>${esc(i.name)}</b> — ${esc(i.desc)} · <b>เกณฑ์:</b> ${esc(i.std)}${i.bands.length ? ' · ระดับ: ' + i.bands.map(([k, t]) => `${lvOf(k).name} ${t}`).join(' · ') : ''}${extra}`); };
-    const pageWrap = (title, body, i, n, src) => `<div class="page"><div class="hd"><div><h2>${esc(title)}</h2><div style="font-size:11px;color:#4a5450">${esc($('#oOrg').value)}</div></div><div class="meta">จัดทำ ${thDT(new Date())}<br>ช่วงข้อมูล: ${rangeLabel()} · ขอบเขต: ${$('#oScope').value === 'all' ? 'ทั้งประเทศ' : esc($('#oScopeVal').value)}</div></div>${body}<div class="ft"><span>ที่มา: ${esc(src)} · ระบบ envi_pi ดึงข้อมูลอัตโนมัติจากหน่วยราชการ</span><span>หน้า ${i}/${n}</span></div></div>`;
+    const pageWrap = (title, body, i, n, src, nSheets = 1) => `<div class="page"><div class="hd"><div><h2>${esc(title)}</h2><div style="font-size:11px;color:#4a5450">${esc($('#oOrg').value)}</div></div><div class="meta">จัดทำ ${thDT(new Date())}<br>ช่วงข้อมูล: ${rangeLabel()} · ขอบเขต: ${$('#oScope').value === 'all' ? 'ทั้งประเทศ' : esc($('#oScopeVal').value)}</div></div>${body}<div class="ft"><span>ที่มา: ${esc(src)} · ระบบ envi_pi ดึงข้อมูลอัตโนมัติจากหน่วยราชการ</span><span>ส่วนที่ ${i} จาก ${n}${nSheets > 1 ? ` · ส่วนนี้ยาว ${nSheets} แผ่น A4` : ''}</span></div></div>`;
     const timeCol = ['เวลาวัด', (r) => r.observed_at ? thDT(r.observed_at) : '–'];
 
     // ── รายงานแต่ละการ์ด: คืน [ชื่อ, HTML, ที่มา] ──
@@ -398,6 +410,34 @@
         crit(`${cmp.winner === 'tie' ? 'ที่กรอบเวลาเท่ากัน สองแบบให้ผลใกล้เคียงกัน' : 'ที่กรอบเวลาเท่ากัน แบบ' + (cmp.winner === 'epc' ? 'ลงทุนเอง' : 'มีผู้ลงทุน') + 'ให้มูลค่าปัจจุบันสูงกว่า ' + fmt(Math.abs(cmp.delta_npv), 0) + ' บาท'} · ${esc(cmp.residual_note)} · ราคาติดตั้ง ค่าดูแลรักษา อัตราแผงเสื่อม และเงื่อนไขสัญญา เป็นค่าประมาณจากแหล่งเชิงพาณิชย์ปี 2569 ไม่ใช่ราคากลางของราชการ · ตัวคูณราคาและผลผลิตของระบบทุ่นลอยน้ำเป็นค่าอ้างอิงสากล ไม่ใช่ตัวเลขจากโครงการในไทย · ส่วนลดค่าไฟ ${fmt(ppa.discount_pct * 100, 0)}% ของสัญญาเป็นคนละตัวกับอัตราคิดลดทางการเงิน ${fmt(fo.discount * 100, 1)}% ที่ใช้คิดมูลค่าปัจจุบัน`);
       return [`ข้อเสนอราคาระบบโซลาร์ — ${PROCESS_TYPES[code].name}`, body, 'ฐานความรู้ envi_pi · ค่าประมาณเพื่อวางแผนเบื้องต้น'];
     };
+    /** ความสูงพื้นที่พิมพ์ต่อแผ่น A4 หลังหักขอบบนล่าง (12mm + 16mm) */
+    const SHEET_MM = 297 - 12 - 16;
+    /** วัดความสูงจริงของแต่ละส่วน แล้วเขียนจำนวนแผ่นลงท้ายกระดาษและแถบสรุปด้านบน */
+    function sheetInfo() {
+      const mm = 96 / 25.4;
+      const pgs = [...document.querySelectorAll('#preview .page')];
+      let total = 0;
+      pgs.forEach((p, i) => {
+        const inner = p.getBoundingClientRect().height / mm - 12 - 16;   // หักขอบบนล่างของกระดาษ
+        const n = Math.max(1, Math.ceil(inner / SHEET_MM));
+        total += n;
+        const tag = p.querySelector('.ft span:last-child');
+        if (tag) tag.textContent = `ส่วนที่ ${i + 1} จาก ${pgs.length}${n > 1 ? ` · ส่วนนี้ยาว ${n} แผ่น A4` : ''}`;
+      });
+      const el = $('#sheetNote');
+      if (el) {
+        el.hidden = !pgs.length;
+        const tips = [];
+        if (!$('#oOnlyBad').checked) tips.push('ติ๊ก "เฉพาะที่เกินเกณฑ์/วิกฤต" เพื่อตัดแถวที่ปกติออก ซึ่งลดจำนวนแผ่นได้มากที่สุด');
+        if ($('#oChart').checked) tips.push('ปิด "กราฟ"');
+        if ($('#oTable').checked) tips.push('ปิด "ตาราง"');
+        el.style.background = total > 10 ? 'var(--crit-bg, #ffe4e6)' : 'var(--warn-bg, #fef9c3)';
+        el.style.color = total > 10 ? 'var(--crit, #be123c)' : 'var(--warn, #a16207)';
+        el.innerHTML = pgs.length
+          ? `พิมพ์แล้วจะได้ประมาณ <b>${total} แผ่น A4</b> จาก ${pgs.length} ส่วน${total > 10 ? ' <b>ซึ่งยาวมาก</b>' : ''} · แต่ละส่วนขึ้นแผ่นใหม่เสมอ ส่วนที่ยาวเกินหนึ่งแผ่นจะไหลต่อโดยหัวตารางซ้ำให้ทุกแผ่น และไม่ตัดกลางแถว กลางกราฟ หรือกลางกล่องข้อความ${tips.length ? '<br>ถ้าต้องการให้สั้นลง: ' + tips.join(' · ') : ''}`
+          : '';
+      }
+    }
     async function preview() {
       const sel = [...document.querySelectorAll('#cards input:checked')].map((i) => i.value);
       if (!sel.length) { $('#status').textContent = 'ยังไม่ได้เลือกการ์ด'; return; }
@@ -406,6 +446,7 @@
         const d = await load(); TABLES.length = 0; CHARTS.length = 0;
         const pages = []; for (const id of sel) { $('#status').textContent = `กำลังสร้าง: ${CARDS.find((c) => c.id === id).name}…`; pages.push(await BUILD[id](d)); }
         $('#preview').innerHTML = pages.map(([title, body, src], i) => pageWrap(title, body, i + 1, pages.length, src)).join('');
+        sheetInfo();
         for (const c of CHARTS) { const el = document.getElementById(c.id); if (el) new Chart(el, c.spec); }
         $('#btnPrint').disabled = false; $('#btnCsv').disabled = false; $('#btnXlsx').disabled = false;
         $('#status').textContent = `พรีวิว ${pages.length} รายงาน · ${TABLES.length} ตาราง ${TABLES.reduce((a, t) => a + t.rows.length, 0)} แถว · ${CHARTS.length} กราฟ · พิมพ์ → เลือก Save as PDF`;
