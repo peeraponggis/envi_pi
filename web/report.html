@@ -419,13 +419,54 @@
     /** ความสูงพื้นที่พิมพ์ต่อแผ่น A4 หลังหักขอบบนล่าง (12mm + 16mm) */
     const SHEET_MM = 297 - 12 - 16;
     /** วัดความสูงจริงของแต่ละส่วน แล้วเขียนจำนวนแผ่นลงท้ายกระดาษและแถบสรุปด้านบน */
+    /** บล็อกที่ @media print สั่งห้ามตัดกลาง ต้องตรงกับสไตล์พิมพ์ด้านบน */
+    const NO_SPLIT = '.chartbox, canvas, .kpi, .box, .note, .crit, .sch-print, .ft';
+    /** ยกกฎใน @media print มาเป็นกฎบนจอ โดยจำกัดขอบเขตไว้ในกล่องวัดเท่านั้น */
+    function printRulesScoped(scope) {
+      const out = [];
+      for (const sheet of document.styleSheets) {
+        let rules; try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const r of rules) {
+          if (!r.media || ![...r.media].join(',').includes('print')) continue;
+          for (const x of r.cssRules || []) {
+            if (!x.selectorText) continue;
+            out.push(x.selectorText.split(',').map((sel) => scope + ' ' + sel.trim()).join(',') + '{' + x.style.cssText + '}');
+          }
+        }
+      }
+      return out.join('\n');
+    }
+    /** เดินทีละบล็อกแล้วนับว่ากินกี่แผ่น บล็อกห้ามตัดที่เหลือที่ไม่พอจะถูกดันไปแผ่นถัดไปทั้งก้อน */
+    function sheetsOf(page, mm) {
+      let y = 0, n = 1;
+      for (const b of page.children) {
+        const h = b.getBoundingClientRect().height / mm;
+        const solid = b.matches(NO_SPLIT);
+        if (solid && h <= SHEET_MM && y + h > SHEET_MM) { n++; y = 0; }
+        if (!solid && y + h > SHEET_MM) { n += Math.ceil((y + h - SHEET_MM) / SHEET_MM); y = (y + h) % SHEET_MM; }
+        else y += h;
+      }
+      return n;
+    }
     function sheetInfo() {
       const mm = 96 / 25.4;
+      const pv = $('#preview');
       const pgs = [...document.querySelectorAll('#preview .page')];
+      if (!pv || !pgs.length) { const e0 = $('#sheetNote'); if (e0) e0.hidden = true; return; }
+      // วัดในกล่องที่ใช้สไตล์พิมพ์และความกว้างกระดาษจริง (A4 210 มม. หักขอบซ้ายขวา 14 มม.)
+      // ถ้าวัดจากพรีวิวบนจอตรง ๆ จะได้ตัวเลขเกินจริง เพราะฟอนต์และความกว้างคนละชุดกับตอนพิมพ์
+      const box = document.createElement('div');
+      box.id = 'printsim';
+      box.style.cssText = 'position:absolute;left:-10000px;top:0;width:182mm;visibility:hidden';
+      box.innerHTML = pv.innerHTML;
+      const style = document.createElement('style');
+      style.textContent = printRulesScoped('#printsim') + '\n#printsim .page{width:182mm;padding:0;margin:0;min-height:0;box-shadow:none}';
+      document.body.append(style, box);
+      const counts = [...box.querySelectorAll('.page')].map((p) => sheetsOf(p, mm));
+      style.remove(); box.remove();
       let total = 0;
       pgs.forEach((p, i) => {
-        const inner = p.getBoundingClientRect().height / mm - 12 - 16;   // หักขอบบนล่างของกระดาษ
-        const n = Math.max(1, Math.ceil(inner / SHEET_MM));
+        const n = Math.max(1, counts[i] || 1);
         total += n;
         const tag = p.querySelector('.ft span:last-child');
         if (tag) tag.textContent = `ส่วนที่ ${i + 1} จาก ${pgs.length}${n > 1 ? ` · ส่วนนี้ยาว ${n} แผ่น A4` : ''}`;
