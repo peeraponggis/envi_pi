@@ -94,6 +94,14 @@
     @media (max-width: 1000px) { .simgrid { grid-template-columns: 1fr; } .simgrid .chart { height: 250px; } .conwrap pre.pl { max-height: 200px; } }
     .lab { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 4px; background: var(--info-bg, #dbeafe); color: var(--info, #1d4ed8); vertical-align: middle; }
     .btn.mini { font-size: 12px; padding: 3px 10px; margin-left: 8px; }
+    .refdlg { width: min(900px, 94vw); max-height: 88vh; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); overflow: hidden; }
+    .refdlg::backdrop { background: rgba(0, 0, 0, .45); }
+    .refhd { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); position: sticky; top: 0; }
+    .refhd h2 { font-size: 16px; color: var(--brand-dark); flex: 1; }
+    .refbody { padding: 12px 16px 18px; overflow-y: auto; max-height: calc(88vh - 52px); }
+    .devcard { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--brand-line, var(--line)); border-left: 3px solid var(--brand); border-radius: 8px; background: var(--brand-soft); font-size: 13px; }
+    .devcard b { color: var(--brand-dark); }
+    .devcard a { color: var(--brand-dark); }
     ol.bib { margin: 0 0 4px 20px; font-size: 12.5px; line-height: 1.6; }
     ol.bib li { margin-bottom: 7px; text-indent: -18px; padding-left: 18px; }
     ol.bib a { color: var(--brand); word-break: break-all; }
@@ -167,6 +175,9 @@
           <label>duty เซนเซอร์ <input id="eDuty" type="number" step="0.1" min="0.05" max="1" value="1.0"></label>
         </div>
       </div>
+      <div class="step" style="text-align:center">
+        <button class="btn" id="btnRef" type="button" style="width:100%">📚 แหล่งที่มาของข้อมูลและเครื่องมือที่ใช้พัฒนา</button>
+      </div>
       <div class="step"><h3><span class="no">4</span>สร้าง / ส่งออก</h3>
         <div class="actions">
           <button class="btn primary" id="btnBuild">ออกแบบและคำนวณ</button>
@@ -180,6 +191,10 @@
         <div id="saved" style="margin-top:8px"></div>
       </div>
     </div>
+    <dialog id="dlgRef" class="refdlg">
+      <div class="refhd"><h2>แหล่งที่มาของข้อมูลและเครื่องมือที่ใช้พัฒนา</h2><button class="btn mini" id="btnRefClose" type="button">✕ ปิด</button></div>
+      <div class="refbody" id="refBody"></div>
+    </dialog>
     <!-- กล่องแผนที่อยู่นอก #out เพราะการ์ดถูกเขียนทับด้วย innerHTML ทั้งก้อนทุกครั้งที่คำนวณใหม่ ถ้าอยู่ข้างในแผนที่จะตาย -->
     <div class="mapbox" id="mapbox" hidden><div class="mhd" id="mapHd"></div><div id="minimap"></div></div>
     <div class="right" id="out"><div class="card"><div class="sub">ผลการออกแบบจะแสดงที่นี่</div></div></div>
@@ -487,14 +502,6 @@
         <div class="chart" style="height:240px;margin-top:8px"><canvas id="cCash"></canvas></div>
         ${chosen ? `<details><summary>กระแสเงินสดรายปีของ ${esc(chosen.o.name)}</summary><div style="overflow-x:auto">${cashTbl}</div></details>${how(chosen.o.name, [...chosen.o.steps, ...chosen.epc.steps])}` : ''}
         ${offerHtml}` : optTbl;
-      // ── การ์ด 5 บรรณานุกรม: แหล่งที่มาของข้อมูลและเครื่องมือที่ใช้พัฒนา ──
-      const refHtml = REFERENCE_GROUPS.map((g) => {
-        const list = REFERENCES.filter((r) => r.kind === g.kind).sort((a, b) => a.author.localeCompare(b.author, 'th'));
-        if (!list.length) return '';
-        return `<h3 style="font-size:13.5px;margin:12px 0 4px;color:var(--brand-dark)">${esc(g.name)}</h3><ol class="bib">` +
-          list.map((r) => `<li>${esc(citationOf(r))}${r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">สืบค้นจาก ${esc(r.url)}</a>` : ''}<span class="use">ใช้ใน: ${esc(r.use)}</span></li>`).join('') +
-          '</ol>';
-      }).join('');
       const simHtml = `<div class="opts simctl"><label>ดูกราฟ <select id="simParam">${params.map((k) => `<option value="${esc(k)}">${esc((ALL_PARAM_INFO[k]?.name ?? k) + measureTag(k))}</option>`).join('')}</select></label><label>เหตุการณ์ <select id="simEvent"><option value="">ไม่มี</option><option value="spike">ค่าพุ่ง (spike) วันที่ 3</option><option value="drop">ค่าดิ่ง (drop) วันที่ 3</option></select></label></div>
         <div id="simNote" class="hint" style="margin-bottom:6px"></div>
         <div class="simgrid"><div class="chart"><canvas id="cSim"></canvas></div><div class="conwrap"><div class="conhd">ตัวอย่างข้อมูลที่ส่งออกจากเซนเซอร์</div><pre class="pl" id="payload">${pl ? esc(JSON.stringify(pl.sensor, null, 1)) : ''}</pre></div></div>
@@ -506,7 +513,7 @@
         <div class="card"><h2>${esc($('#sName').value || 'ระบบใหม่')} · ${esc(p.name)}</h2><div class="sumgrid"><div><div class="sub">ความสามารถ ${fmt(cap)} m³/d${inflow ? ` · น้ำเข้าจริง ${fmt(inflow)} m³/d (${fmt(inflow / cap * 100)}%)` : ''} · พิกัด ${lat}, ${lng} · แคตตาล็อก ${CATALOG_VERSION}</div>
           <div class="kpis"><div class="kpi"><b>${design.items.filter((i) => i.param).reduce((a, i) => a + i.qty, 0)}</b><span>หัววัด (จุดวัด ${design.items.filter((i) => i.param).length})</span></div><div class="kpi"><b>${design.items.filter((i) => i.required && i.param).length}</b><span>จุดวัดบังคับ</span></div><div class="kpi"><b>${fmt(budget.price_lo / 1e6, 2)}–${fmt(budget.price_hi / 1e6, 2)} ล.</b><span>ราคาอุปกรณ์ (บาท) ${EST}</span></div><div class="kpi"><b>${fmt(budget.w_avg)} W</b><span>ไฟระบบเซนเซอร์เฉลี่ย</span></div><div class="kpi"><b>${plantE ? fmt(plantE.mid) : '–'}</b><span>kWh/วัน โรงบำบัด ${EST}</span></div><div class="kpi"><b>${s.total ? fmt(s.total.kwp, 1) : fmt(s.sensors.kwp, 2)} kWp</b><span>โซลาร์รวม ${EST}</span></div></div>
           ${design.diw_rule ? `<div class="warn">${esc(design.diw_rule)}</div>` : ''}</div><div id="mapslot"></div></div></div>
-        <div class="card"><h2>2. ผังกระบวนการและตำแหน่งเซนเซอร์ <button class="btn mini" id="btnResetPlant" type="button" title="คืนค่าประเภทระบบ ความสามารถ น้ำเข้าจริง และพิกัด ตามทะเบียนของโรงจริงที่เลือก และล้างจำนวนอุปกรณ์ที่แก้ไว้">↺ คืนค่าโรงจริง</button></h2><div class="sub">จุดเขียว = บังคับ · เทา = แนะนำ · แก้จำนวนในตารางแล้วกด "ออกแบบและคำนวณ" ใหม่</div>${p.desc ? `<p style="font-size:12.5px;margin:6px 0 0">${mdBold(p.desc)}</p>` : ''}${p.design_note ? `<div class="sub" style="margin-top:4px">เกณฑ์ออกแบบอ้างอิง: ${mdBold(p.design_note)}</div>` : ''}${flow}<details open><summary>รายการอุปกรณ์ (BOQ) ${design.items.length} รายการ</summary><div style="overflow-x:auto">${boq}</div></details><details><summary>เกณฑ์การเลือกและบำรุงรักษา</summary><ul style="font-size:12.5px;margin:6px 0 0 18px">${selectTips}</ul></details><details><summary>ค่าไหนวัดออนไลน์ได้จริง ค่าไหนต้องส่งห้องปฏิบัติการ</summary><div style="overflow-x:auto">${tbl('วิธีได้มาของค่าแต่ละพารามิเตอร์', [
+        <div class="card"><h2>2. ผังกระบวนการและตำแหน่งเซนเซอร์ <button class="btn mini" id="btnResetPlant" type="button" title="คืนค่าประเภทระบบ ความสามารถ น้ำเข้าจริง และพิกัด ตามทะเบียนของโรงจริงที่เลือก และล้างจำนวนอุปกรณ์ที่แก้ไว้">↺ คืนค่าโรงจริง</button></h2><div class="sub">จุดเขียว = บังคับ · เทา = แนะนำ · แก้จำนวนในตารางแล้วกด "ออกแบบและคำนวณ" ใหม่</div>${p.desc ? `<p style="font-size:12.5px;margin:6px 0 0">${mdBold(p.desc)}</p>` : ''}${p.design_note ? `<div class="sub" style="margin-top:4px">เกณฑ์ออกแบบอ้างอิง: ${mdBold(p.design_note)}</div>` : ''}${flow}<details><summary>รายการอุปกรณ์ (BOQ) ${design.items.length} รายการ</summary><div style="overflow-x:auto">${boq}</div></details><details><summary>เกณฑ์การเลือกและบำรุงรักษา</summary><ul style="font-size:12.5px;margin:6px 0 0 18px">${selectTips}</ul></details><details><summary>ค่าไหนวัดออนไลน์ได้จริง ค่าไหนต้องส่งห้องปฏิบัติการ</summary><div style="overflow-x:auto">${tbl('วิธีได้มาของค่าแต่ละพารามิเตอร์', [
           ['จุดวัด', (i) => esc(stageName(i.stage) + ' · ' + pointName(i.stage, i.param))],
           ['วิธีได้มา', (i) => `<span class="lab"${measureOf(i.param).key === 'online' ? ' style="background:var(--brand-soft);color:var(--brand-dark)"' : ''}>${esc(measureOf(i.param).short)}</span>`, (i) => measureOf(i.param).short],
           ['คำอธิบาย', (i) => esc(measureOf(i.param).desc) + (measureOf(i.param).note ? '<small>' + esc(measureOf(i.param).note) + '</small>' : ''), (i) => measureOf(i.param).desc],
@@ -521,8 +528,7 @@
           <div class="sub">คิดทุกทางเลือกที่ขนาดเดียวกันเพื่อให้เทียบราคาและผลผลิตได้ตรง ๆ · จัดอันดับด้วยมูลค่าปัจจุบันสุทธิ ไม่ใช้อัตราผลตอบแทนภายในเพราะบางกรณีคำนวณไม่ได้</div>
           ${finHtml}
           <div class="disclaimer"><b>ที่มาของเกณฑ์ออกแบบและลักษณะน้ำเสีย:</b> ประกาศกรมควบคุมมลพิษ เรื่อง เกณฑ์การออกแบบระบบรวบรวมน้ำเสียและระบบบำบัดน้ำเสียรวมของชุมชน ประกาศ ณ วันที่ 5 มีนาคม 2553 (ราชกิจจานุเบกษา เล่ม 127 ตอนพิเศษ 72 ง หน้า 27 · 8 มิถุนายน 2553) · <b>มาตรฐานน้ำทิ้ง:</b> ประกาศกระทรวงทรัพยากรธรรมชาติและสิ่งแวดล้อม 7 เมษายน 2553 (ราชกิจจานุเบกษา เล่ม 127 ตอนพิเศษ 69 ง) · <b>ลำดับหน่วยบำบัดและการเดินระบบ:</b> คู่มือระบบบำบัดน้ำเสียชุมชน กรมควบคุมมลพิษ 2563<br>ราคาติดตั้ง ค่าดูแลรักษา อัตราแผงเสื่อม อัตราค่าไฟที่ขึ้นในอนาคต และเงื่อนไขสัญญาซื้อขายไฟฟ้า เป็นค่าประมาณจากแหล่งเชิงพาณิชย์ปี 2569 ไม่ใช่ราคากลางของราชการ · ตัวคูณราคาและผลผลิตของระบบทุ่นลอยน้ำเป็นค่าอ้างอิงสากล ไม่ใช่ตัวเลขที่เก็บจากโครงการในประเทศไทย · ส่วนลดค่าไฟ 20% ของสัญญาซื้อขายไฟฟ้าเป็นคนละตัวกับอัตราคิดลดทางการเงินที่ใช้คำนวณมูลค่าปัจจุบัน · ตัวเลขทั้งหมดใช้เพื่อวางแผนเบื้องต้น ต้องยืนยันกับผู้รับเหมาและการไฟฟ้าก่อนตัดสินใจ</div></div>
-        <div class="card"><h2>4. จำลองการส่งข้อมูล การแปลผล และการรายงาน</h2><div class="sub">อนุกรมเวลาจำลอง 7 วัน รายชั่วโมง (seed ${state.seed}) จากรูปแบบรายวันของระบบ ${esc(code)} · แปลผลด้วยเกณฑ์เดียวกับแดชบอร์ด · ไม่บันทึกลงฐานข้อมูล</div>${simHtml}</div>
-        <div class="card" id="cardRef"><h2>5. แหล่งที่มาของข้อมูลและเครื่องมือที่ใช้พัฒนา</h2><div class="sub">จัดรูปแบบตามบรรณานุกรม · ทุกตัวเลขในโปรแกรมสืบกลับไปยังรายการใดรายการหนึ่งด้านล่างได้</div>${refHtml}<div class="disclaimer">ตัวเลขที่มาจากกฎหมายและประกาศเป็นค่าบังคับ · ตัวเลขจากเอกสารวิชาการเป็นค่าอ้างอิงสำหรับวางแผน · ราคาและเงื่อนไขทางการเงินเป็นค่าประมาณจากตลาดเชิงพาณิชย์ ไม่ใช่ราคากลางของราชการ · โปรแกรมนี้ใช้ประกอบการวางแผนเบื้องต้น ไม่ใช่แบบก่อสร้าง ต้องให้วิศวกรผู้ได้รับใบอนุญาตตรวจสอบก่อนนำไปใช้จริง</div></div>`;
+        <div class="card"><h2>4. จำลองการส่งข้อมูล การแปลผล และการรายงาน</h2><div class="sub">อนุกรมเวลาจำลอง 7 วัน รายชั่วโมง (seed ${state.seed}) จากรูปแบบรายวันของระบบ ${esc(code)} · แปลผลด้วยเกณฑ์เดียวกับแดชบอร์ด · ไม่บันทึกลงฐานข้อมูล</div>${simHtml}</div>`;
       syncMap(lat, lng);
       // กราฟพลังงาน
       chartMake($('#cEnergy'),{ type: 'bar', data: { labels: ['เซนเซอร์+สื่อสาร', 'โรงบำบัด (ต่ำ)', 'โรงบำบัด (กลาง)', 'โรงบำบัด (สูง)'], datasets: [{ label: 'kWh/วัน', data: [budget.kwh_day, plantE?.lo ?? 0, plantE?.mid ?? 0, plantE?.hi ?? 0], backgroundColor: ['#1d4ed8', '#a5d6a7', '#2e7d32', '#1b5e20'] }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'ไฟฟ้าต่อวัน (kWh) — โรงบำบัดตามช่วง benchmark', font: { family: 'Sarabun' } } }, scales: { y: { type: plantE && plantE.hi / Math.max(budget.kwh_day, .01) > 200 ? 'logarithmic' : 'linear' } } } });
@@ -590,6 +596,25 @@
       ['ค่าไฟ PPA ปีแรก บาท/kWh', fin?.ppa?.ppa_tariff_1 ?? null], ['ประหยัดรวมตลอดสัญญา PPA บาท', fin?.ppa?.total_saving ?? null],
       ['ที่มาของค่าไฟที่ใช้คิด', fin?.plantRes?.basis === 'bill' ? 'ใบแจ้งหนี้ค่าไฟจริง' : (fin?.plantRes?.basis === 'actual' ? 'น้ำเข้าจริง × ค่าอ้างอิง' : 'ความสามารถออกแบบ × ค่าอ้างอิง')],
       ['อัตราค่าไฟที่ใช้ บาท/kWh', fin?.tariff ?? null], ['เซนเซอร์ kWh/วัน', budget.kwh_day], ['โรงบำบัด kWh/วัน (กลาง)', (energy.actual ?? energy.design)?.mid ?? ''], ['PSH', solar.psh, solar.pshSrc], ['kWp เซนเซอร์', solar.sensors.kwp], ['kWp โรงบำบัด', solar.plant?.kwp ?? ''], ['kWp รวม', solar.total?.kwp ?? ''], ['หมายเหตุ', 'ทุกค่าเป็นค่าประมาณ · แบรนด์เป็นตัวอย่าง ไม่ใช่การรับรอง']]), 'สรุป'); const used = new Set(); for (const t of TABLES) { let n = t.title.slice(0, 28); while (used.has(n)) n += '_'; used.add(n); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([t.cols, ...t.rows]), n); } XLSX.writeFile(wb, `envi_pi_sensor_design_${design.code}_${new Date().toISOString().slice(0, 10)}.xlsx`); });
+    // ── หน้าต่างแหล่งที่มาของข้อมูล (สร้างครั้งเดียวตอนโหลดหน้า เพราะเนื้อหาไม่ขึ้นกับผลการออกแบบ) ──
+    (function buildRefDialog() {
+      const body = $('#refBody'); if (!body) return;
+      const groups = REFERENCE_GROUPS.map((g) => {
+        const list = REFERENCES.filter((r) => r.kind === g.kind).sort((a, b) => a.author.localeCompare(b.author, 'th'));
+        if (!list.length) return '';
+        return `<h3 style="font-size:13.5px;margin:14px 0 4px;color:var(--brand-dark)">${esc(g.name)}</h3><ol class="bib">` +
+          list.map((r) => `<li>${esc(citationOf(r))}${r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">สืบค้นจาก ${esc(r.url)}</a>` : ''}<span class="use">ใช้ใน: ${esc(r.use)}</span></li>`).join('') +
+          '</ol>';
+      }).join('');
+      body.innerHTML = `<div class="sub">จัดรูปแบบตามบรรณานุกรม · ทุกตัวเลขในโปรแกรมสืบกลับไปยังรายการใดรายการหนึ่งด้านล่างได้</div>${groups}
+        <div class="disclaimer">ตัวเลขที่มาจากกฎหมายและประกาศเป็นค่าบังคับ · ตัวเลขจากเอกสารวิชาการเป็นค่าอ้างอิงสำหรับวางแผน · ราคาและเงื่อนไขทางการเงินเป็นค่าประมาณจากตลาดเชิงพาณิชย์ ไม่ใช่ราคากลางของราชการ · โปรแกรมนี้ใช้ประกอบการวางแผนเบื้องต้น ไม่ใช่แบบก่อสร้าง ต้องให้วิศวกรผู้ได้รับใบอนุญาตตรวจสอบก่อนนำไปใช้จริง</div>
+        <div class="devcard"><b>ผู้พัฒนาโปรแกรม</b><br>ดร.พีระพงษ์ ภัทรพันธุ์ชัย · <a href="mailto:giskku@gmail.com">giskku@gmail.com</a><br><span style="color:var(--ink-2)">ระบบข้อมูลสิ่งแวดล้อม envi_pi · แคตตาล็อกรุ่น ${esc(CATALOG_VERSION)}</span></div>`;
+      const dlg = $('#dlgRef');
+      $('#btnRef').addEventListener('click', () => (dlg.showModal ? dlg.showModal() : dlg.setAttribute('open', '')));
+      $('#btnRefClose').addEventListener('click', () => (dlg.close ? dlg.close() : dlg.removeAttribute('open')));
+      // คลิกนอกกรอบเพื่อปิด
+      dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    })();
     const currentQS = () => designToURL({ type: $('#sType').value, cap: +$('#sCap').value, inflow: +$('#sInflow').value || null, lat: +$('#sLat').value, lng: +$('#sLng').value, comms: $('#sComms').value, name: $('#sName').value, seed: state.seed, psh: +$('#ePsh').value || null, kwh: +$('#eKwh').value || null, tariff: +$('#eTariff').value, cost: +$('#eCost').value || null, pr: +$('#ePr').value, margin: +$('#eMargin').value, duty: +$('#eDuty').value,
       bkwh: +$('#bKwh').value || null, bbaht: +$('#bBaht').value || null, bmonths: +$('#bMonths').value || null,
       mounts: [['roof', $('#mRoof').checked], ['ground', $('#mGround').checked], ['floating', $('#mFloat').checked]].filter((m) => m[1]).map((m) => m[0]).join(','),
