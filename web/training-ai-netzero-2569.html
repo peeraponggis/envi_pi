@@ -2248,6 +2248,7 @@ const CH_CSS = `.s0{fill:var(--brand);stroke:var(--brand)}.s1{fill:var(--info);s
 .bd{fill:var(--warn-bg)}.rf{stroke:var(--crit);stroke-dasharray:7 5;stroke-width:2;fill:none}
 .rf2{stroke:var(--good);stroke-dasharray:7 5;stroke-width:2;fill:none}
 .tx{fill:var(--ink-2);font-size:13px}.tx3{fill:var(--ink-3);font-size:12px}
+.tx,.tx3{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .r{text-anchor:end}.m{text-anchor:middle}.bl{font-weight:600;fill:var(--brand-dark)}`;
 
 /**
@@ -2256,7 +2257,8 @@ const CH_CSS = `.s0{fill:var(--brand);stroke:var(--brand)}.s1{fill:var(--info);s
  */
 function ch(c) {
   const W = c.w ?? 620, H = c.h ?? 330;
-  const P = Object.assign({ t: 16, r: 18, b: 52, l: 64 }, c.pad || {});
+  // เว้นที่ด้านล่างเพิ่มเมื่อมีทั้งคำอธิบายสัญลักษณ์และชื่อแกน ไม่งั้นสองอย่างนี้ทับกัน
+  const P = Object.assign({ t: 16, r: 18, b: (c.legend && c.xLabel) ? 76 : 52, l: 64 }, c.pad || {});
   const iw = W - P.l - P.r, ih = H - P.t - P.b;
   const labels = c.labels || [];
   const all = c.series.flatMap((s) => s.v).filter((v) => v != null);
@@ -2278,7 +2280,8 @@ function ch(c) {
       o.push(`<text class="tx r" x="${P.l - 7}" y="${(y + h * 0.72).toFixed(1)}">${esc(t)}</text>`);
       o.push(`<text class="tx bl" x="${(sx(v) + 6).toFixed(1)}" y="${(y + h * 0.72).toFixed(1)}">${fmt(v, c.dec ?? 0)}${esc(c.suffix || '')}</text>`);
     });
-    (c.refLines || []).forEach((r) => o.push(`<line class="rf" x1="${sx(r.y).toFixed(1)}" y1="${P.t}" x2="${sx(r.y).toFixed(1)}" y2="${P.t + ih}"/><text class="tx3" x="${(sx(r.y) + 5).toFixed(1)}" y="${P.t + 11}">${esc(r.label)}</text>`));
+    (c.refLines || []).forEach((r, ri) => { const rx = sx(r.y), right = rx > P.l + iw * 0.62;
+      o.push(`<line class="rf" x1="${rx.toFixed(1)}" y1="${P.t}" x2="${rx.toFixed(1)}" y2="${P.t + ih}"/><text class="tx3 ${right ? 'r' : ''}" x="${(rx + (right ? -3 : 3)).toFixed(1)}" y="${P.t - 8 - (ri % 2) * 14}">${esc(r.label)}</text>`); });
     o.push(`<line class="ax0" x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${P.t + ih}"/>`);
   } else {
     (c.bands || []).forEach((b) => o.push(`<rect class="bd" x="${P.l}" y="${sy(b.to).toFixed(1)}" width="${iw}" height="${(sy(b.from) - sy(b.to)).toFixed(1)}"/><text class="tx3 r" x="${W - P.r - 4}" y="${(sy(b.to) - 5).toFixed(1)}">${esc(b.label)}</text>`));
@@ -2300,7 +2303,7 @@ function ch(c) {
         o.push(`<path class="li ${s.c || ('s' + si)}" d="${d}"><title>${esc(s.name || '')}</title></path>`);
       }
     });
-    (c.refLines || []).forEach((r) => o.push(`<line class="${r.ok ? 'rf2' : 'rf'}" x1="${P.l}" y1="${sy(r.y).toFixed(1)}" x2="${W - P.r}" y2="${sy(r.y).toFixed(1)}"/><text class="tx3" x="${P.l + 5}" y="${(sy(r.y) - 5).toFixed(1)}">${esc(r.label)}</text>`));
+    (c.refLines || []).forEach((r) => o.push(`<line class="${r.ok ? 'rf2' : 'rf'}" x1="${P.l}" y1="${sy(r.y).toFixed(1)}" x2="${W - P.r}" y2="${sy(r.y).toFixed(1)}"/><text class="tx3" x="${P.l + 5}" y="${(sy(r.y) - 7).toFixed(1)}">${esc(r.label)}</text>`));
     o.push(`<line class="ax0" x1="${P.l}" y1="${sy(min).toFixed(1)}" x2="${W - P.r}" y2="${sy(min).toFixed(1)}"/>`);
     if (c.xType === 'linear') {
       const ticks = c.xTicks || 6;
@@ -2314,8 +2317,9 @@ function ch(c) {
     }
   }
   if (c.yLabel) o.push(`<text class="tx3" transform="translate(13,${(P.t + ih / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">${esc(c.yLabel)}</text>`);
-  if (c.xLabel) o.push(`<text class="tx3 m" x="${(P.l + iw / 2).toFixed(1)}" y="${H - 6}">${esc(c.xLabel)}</text>`);
-  if (c.legend) c.legend.forEach((l, i) => o.push(`<rect class="ba ${l.c}" x="${P.l + i * 190}" y="${H - 15}" width="13" height="13" rx="2"/><text class="tx3" x="${P.l + i * 190 + 18}" y="${H - 4}">${esc(l.t)}</text>`));
+  if (c.xLabel) o.push(`<text class="tx3 m" x="${(P.l + iw / 2).toFixed(1)}" y="${P.t + ih + (c.xType === 'linear' ? 40 : 50)}">${esc(c.xLabel)}</text>`);
+  if (c.legend) { const step = Math.min(210, (W - P.l - P.r) / c.legend.length);
+    c.legend.forEach((l, i) => o.push(`<rect class="ba ${l.c}" x="${(P.l + i * step).toFixed(1)}" y="${H - 15}" width="13" height="13" rx="2"/><text class="tx3" x="${(P.l + i * step + 18).toFixed(1)}" y="${H - 4}">${esc(l.t)}</text>`)); }
   return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.alt || '')}"><style>${CH_CSS}</style>${o.join('')}</svg>`;
 }
 
@@ -2336,9 +2340,8 @@ function donut(rings, alt) {
       if (p.v / tot > 0.07) o.push(`<text class="m" x="${(cx + rm * Math.cos(am)).toFixed(1)}" y="${(cy + rm * Math.sin(am) + 4).toFixed(1)}" style="fill:#fff;font-size:12px;font-weight:600">${fmt(100 * p.v / tot, 0)}%</text>`);
       a0 = a1;
     });
-    o.push(`<text class="tx3 m" x="${cx}" y="${ri === 0 ? cy + 4 : H - 42 - ri * 0}">${esc(ri === 0 ? 'เฉพาะ' : '')}</text>`);
   });
-  o.push(`<text class="m" x="${cx}" y="${cy - 2}" style="fill:var(--ink-3);font-size:11px">เฉพาะเครื่อง</text><text class="m" x="${cx}" y="${cy + 11}" style="fill:var(--ink-3);font-size:11px">เติมอากาศ</text>`);
+  o.push(`<text class="m" x="${cx}" y="${cy - 4}" style="fill:var(--ink-3);font-size:10.5px">วงใน</text><text class="m" x="${cx}" y="${cy + 8}" style="fill:var(--ink-3);font-size:10.5px">เฉพาะเครื่อง</text><text class="m" x="${cx}" y="${cy + 19}" style="fill:var(--ink-3);font-size:10.5px">เติมอากาศ</text>`);
   rings[1].parts.forEach((p, i) => o.push(`<rect class="ba ${p.c}" x="${20 + i * 150}" y="${H - 28}" width="13" height="13" rx="2"/><text class="tx3" x="${38 + i * 150}" y="${H - 17}">${esc(p.t)}</text>`));
   o.push(`<text class="tx3" x="20" y="${H - 2}">วงใน ${fmt(rings[0].parts.reduce((s, p) => s + p.v, 0))} tCO₂e/ปี · วงนอก ${fmt(rings[1].parts.reduce((s, p) => s + p.v, 0))} tCO₂e/ปี</text>`);
   return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}"><style>${CH_CSS}</style>${o.join('')}</svg>`;
@@ -2358,6 +2361,13 @@ const DG_CSS = `.dg text{fill:var(--ink-2);font-size:13px}
 .dg .ar.ctl{stroke:var(--info);stroke-dasharray:3 3}
 .dg .ar.no{stroke:var(--crit)}`;
 let dgN = 0;
+/** ตัดข้อความยาวเป็นสองบรรทัดที่ช่องว่างใกล้กึ่งกลาง ไม่ตัดกลางคำ */
+function cut2(t) {
+  if (t.length <= 34) return [t, ''];
+  let at = -1, best = 1e9;
+  for (let i = 0; i < t.length; i++) if (t[i] === ' ' && Math.abs(i - t.length / 2) < best) { best = Math.abs(i - t.length / 2); at = i; }
+  return at < 0 ? [t.slice(0, 32), t.slice(32)] : [t.slice(0, at), t.slice(at + 1)];
+}
 /** กรอบ SVG ของแผนภาพ · สร้าง marker หัวลูกศรแยก id ต่อแผนภาพ เพื่อไม่ให้ id ชนกันทั้งหน้า */
 function dg(body, w = 1140, h = 500, alt = '') {
   const id = 'ah' + (++dgN);
@@ -2375,12 +2385,12 @@ const label = (x, y, t, cls = 's m') => `<text class="${cls}" x="${x}" y="${y}">
 
 const DIAGS = {
   d1: () => dg(
-    box(40, 60, 470, 400, 'โรงงานเอกชนที่ขึ้นทะเบียน POMS', [], 'ok').replace('</text>', '</text>') +
+    `<rect class="bx ok" x="40" y="60" width="470" height="400" rx="9"/><text class="t m" x="275" y="92">โรงงานเอกชนที่ขึ้นทะเบียน POMS</text>` +
     [['เซนเซอร์วัดน้ำทิ้งที่จุดระบาย', 0], ['เกตเวย์ส่งข้อมูลอัตโนมัติ', 1], ['กรมโรงงานอุตสาหกรรม', 2], ['รายงานทุก 15 นาที', 3]]
       .map(([t, i]) => box(110, 110 + i * 72, 330, 52, t, [], i === 3 ? 'hl' : '')).join('') +
     [0, 1, 2].map((i) => arrow(275, 162 + i * 72, 275, 106 + (i + 1) * 72)).join('') +
     `<text class="t m" x="275" y="440" style="font-size:30px;fill:var(--good)">35,040 ค่า ต่อปี</text>` +
-    box(630, 60, 470, 400, 'ระบบบำบัดน้ำเสียรวมชุมชนในฐาน DSPOT', [], 'bad') +
+    `<rect class="bx bad" x="630" y="60" width="470" height="400" rx="9"/><text class="t m" x="865" y="92">ระบบบำบัดน้ำเสียรวมชุมชนในฐาน DSPOT</text>` +
     box(700, 110, 330, 52, 'เก็บตัวอย่างน้ำด้วยมือ') + arrow(865, 162, 865, 178) +
     box(700, 182, 330, 52, 'ส่งห้องปฏิบัติการวิเคราะห์') + arrow(865, 234, 865, 250) +
     box(700, 254, 330, 52, 'บันทึกผลลงฐานข้อมูล ปีละครั้ง', [], 'hl') +
@@ -2411,7 +2421,7 @@ const DIAGS = {
      ['เครื่องเติมอากาศและโบลเวอร์', 'หัวกระจายอากาศอุดตัน สายพานหย่อน ตลับลูกปืนร้อน', 'ความดันลมด้านส่ง · กำลังไฟ · อัตราอากาศต่อหน่วยไฟ'],
      ['ปั๊มสลัดจ์เวียนกลับ', 'ท่ออุดตัน อัตราไหลลดลงเงียบ ๆ', 'อัตราการไหลบนสายสลัดจ์ · กระแสมอเตอร์'],
      ['เครื่องรีดตะกอน', 'ผ้ากรองตัน ลูกกลิ้งสึก', 'ความชื้นกากตะกอน · กระแสมอเตอร์ · รอบการล้าง']]
-      .map(([a, b, c], i) => box(30, 52 + i * 92, 340, 78, a, [], 'hl') + box(390, 52 + i * 92, 340, 78, '', [b], '') + `<text class="s m" x="560" y="${84 + i * 92}">${esc(b.slice(0, 32))}</text><text class="s m" x="560" y="${99 + i * 92}">${esc(b.slice(32))}</text>` + box(750, 52 + i * 92, 360, 78, '', [], 'ok') + `<text class="s m" x="930" y="${84 + i * 92}">${esc(c.split(' · ')[0])}</text><text class="s m" x="930" y="${99 + i * 92}">${esc(c.split(' · ').slice(1).join(' · '))}</text>` + arrow(730, 91 + i * 92, 746, 91 + i * 92)).join('') +
+      .map(([a, b, c], i) => box(30, 52 + i * 92, 340, 78, a, [], 'hl') + box(390, 52 + i * 92, 340, 78, '', [], '') + `<text class="s m" x="560" y="${84 + i * 92}">${esc(cut2(b)[0])}</text><text class="s m" x="560" y="${99 + i * 92}">${esc(cut2(b)[1])}</text>` + box(750, 52 + i * 92, 360, 78, '', [], 'ok') + `<text class="s m" x="930" y="${84 + i * 92}">${esc(c.split(' · ')[0])}</text><text class="s m" x="930" y="${99 + i * 92}">${esc(c.split(' · ').slice(1).join(' · '))}</text>` + arrow(730, 91 + i * 92, 746, 91 + i * 92)).join('') +
     `<rect class="bx wn" x="30" y="428" width="1080" height="34" rx="8"/><text class="s m" x="570" y="450">สัญญาณนำทุกตัวในคอลัมน์ขวาวัดได้จากตู้ควบคุมที่มีอยู่แล้ว · สิ่งที่ขาดคือการเก็บค่าไว้ ไม่ใช่การวัด</text>`,
     1140, 474, 'โหมดการเสียของอุปกรณ์หลักและสัญญาณนำที่ใช้ทำนายได้'),
 
@@ -2442,9 +2452,9 @@ const DIAGS = {
       .map(([t, s, lat, cls], i) => box(170, 30 + i * 76, 780, 62, t, s, cls) + `<text class="s r" x="1120" y="${66 + i * 76}">${esc(lat)}</text>` + `<text class="s" x="20" y="${66 + i * 76}">${esc(['กระบวนการ', 'สนาม', 'ควบคุม', 'กันชน', 'ข้อมูล', 'วิเคราะห์'][i])}</text>`).join('') +
     [0, 1, 2, 3, 4].map((i) => arrow(420, 92 + i * 76, 420, 26 + (i + 1) * 76)).join('') +
     [1, 2, 3, 4].map((i) => arrow(700, 30 + (i + 1) * 76 - 4, 700, 92 + i * 76 + 4, 'ctl', 'i')).join('') +
-    label(360, 110, 'ข้อมูลขึ้น', 's r') + label(760, 110, 'คำแนะนำลง', 's') +
-    `<rect class="bx bad" x="620" y="258" width="170" height="30" rx="7"/><text class="s m" x="705" y="277">ต้องมีคนอนุมัติก่อนสั่ง</text>`,
-    1140, 500, 'สถาปัตยกรรมหกชั้นจากกระบวนการบำบัดถึงแบบจำลองวิเคราะห์'),
+    `<rect class="bx bad" x="792" y="264" width="150" height="28" rx="7"/><text class="s m" x="867" y="282">ต้องมีคนอนุมัติก่อนสั่ง</text>` +
+    `<rect class="bx" x="170" y="496" width="780" height="28" rx="7"/><text class="s m" x="560" y="514">ลูกศรซ้ายคือข้อมูลที่ไหลขึ้น · ลูกศรขวาเส้นประคือคำแนะนำที่ไหลลง และต้องผ่านเขตกันชนเสมอ</text>`,
+    1140, 536, 'สถาปัตยกรรมหกชั้นจากกระบวนการบำบัดถึงแบบจำลองวิเคราะห์'),
 
   d6: () => dg(
     `<rect class="zn" x="30" y="60" width="430" height="360" rx="14"/><text class="t" x="46" y="86">เครือข่ายควบคุม</text><text class="s" x="46" y="104">ปิดจากอินเทอร์เน็ต · ความพร้อมใช้งานสำคัญที่สุด</text>` +
@@ -2459,7 +2469,7 @@ const DIAGS = {
     arrow(420, 160, 496, 160) + arrow(624, 160, 696, 160) +
     `<path class="ar no" d="M 696 240 L 624 240" marker-end="url(#@AH)"/>` +
     `<path class="ar no" d="M 640 225 L 680 255 M 680 225 L 640 255"/>` +
-    label(660, 215, 'ห้ามเขียนค่ากลับโดยตรง', 's m') +
+    label(660, 288, 'ห้ามเขียนค่ากลับโดยตรง', 's m') +
     `<rect class="bx wn" x="30" y="440" width="1080" height="40" rx="8"/><text class="s m" x="570" y="459">ถ้าแบบจำลองจะปรับค่าตั้ง ต้องส่งเป็นข้อเสนอให้ผู้ควบคุมกดยืนยันที่หน้าจอในโรง และต้องบันทึกว่าใครยืนยันเมื่อไร</text><text class="s m" x="570" y="474">ระบบที่หยุดเดินเมื่ออินเทอร์เน็ตขาด คือระบบที่ออกแบบผิดตั้งแต่ต้น</text>`,
     1140, 500, 'การแยกเครือข่ายควบคุมออกจากเครือข่ายสำนักงานด้วยเขตกันชน'),
 
@@ -2467,7 +2477,7 @@ const DIAGS = {
     const U = [['บ่อสูบ', 'น้ำเสีย', ['ระดับ', 'อัตราไหล']], ['ตะแกรง', 'ดักขยะ', []], ['ตะแกรง', 'ละเอียด', []], ['รางดัก', 'กรวดทราย', []],
       ['บ่อปรับ', 'การไหล', ['ระดับ']], ['ถังเติมอากาศ', '', ['DO', 'MLSS', 'อากาศ', 'ORP']], ['ถังตกตะกอน', '', ['ชั้นตะกอน']],
       ['บ่อสัมผัส', 'คลอรีน', ['คลอรีนคงเหลือ']], ['น้ำทิ้ง', '', ['pH', 'TSS', 'อัตราไหล']]];
-    const w = 112, gap = 15, y = 96, h = 86;
+    const w = 107, gap = 14, y = 96, h = 86;
     let s = '';
     U.forEach(([a, b, pins], i) => {
       const x = 24 + i * (w + gap);
@@ -2482,8 +2492,8 @@ const DIAGS = {
       if (i < U.length - 1) s += arrow(x + w, y + h / 2, x + w + gap - 2, y + h / 2);
     });
     const xC = 24 + 6 * (w + gap), xA = 24 + 5 * (w + gap);
-    s += `<path class="ar dash" d="M ${xC + w / 2} ${y + h} L ${xC + w / 2} ${y + h + 46} L ${xA + w / 2} ${y + h + 46} L ${xA + w / 2} ${y + h + 4}" marker-end="url(#@AHw)"/>`;
-    s += label((xA + xC) / 2 + w / 2, y + h + 42, 'สูบสลัดจ์เวียนกลับ 0.5–1.0 ของอัตราน้ำเข้า · วัดอัตราไหลบนสายนี้', 's m');
+    s += `<path class="ar dash" d="M ${xC + w / 2} ${y + h} L ${xC + w / 2} ${y + h + 52} L ${xA + w / 2} ${y + h + 52} L ${xA + w / 2} ${y + h + 4}" marker-end="url(#@AHw)"/>`;
+    s += label(560, y + h + 70, 'สูบสลัดจ์เวียนกลับ 0.5–1.0 ของอัตราน้ำเข้า · วัดอัตราไหลบนสายนี้', 's m');
     s += `<path class="ar dash" d="M ${xC + w / 2 + 26} ${y + h} L ${xC + w / 2 + 26} ${y + h + 96} L ${932} ${y + h + 96}" marker-end="url(#@AHw)"/>`;
     s += box(940, y + h + 72, 176, 48, 'สลัดจ์ส่วนเกิน', ['ไปทำข้นและรีดน้ำ'], 'wn');
     s += label(890, y + h + 88, 'คุมอายุสลัดจ์ 20–30 วัน', 's r');
@@ -2503,7 +2513,7 @@ const DIAGS = {
     box(276, 50, 320, 62, 'อัตราไหลเข้า และซีโอดีเข้า', ['ป้อนไปข้างหน้าเพื่อปรับก่อนค่าตก'], 'inf') +
     arrow(436, 112, 436, 186, 'ctl', 'i') +
     box(696, 50, 410, 62, 'แบบจำลองบนคลาวด์', ['เสนอค่าตั้งใหม่รายกะ โดยคนอนุมัติก่อน'], 'inf') +
-    `<path class="ar ctl" d="M 696 81 L 180 81 L 120 81 L 120 186" marker-end="url(#@AHi)"/>` +
+    `<path class="ar ctl" d="M 760 46 L 760 28 L 120 28 L 120 186" marker-end="url(#@AHi)"/>` +
     `<rect class="bx bad" x="26" y="370" width="1080" height="56" rx="8"/><text class="s m" x="566" y="392">ต้องมีทุกครั้ง · ขีดจำกัดล่างของอากาศที่จะไม่ลดต่ำกว่า ไม่ว่าแบบจำลองจะสั่งอะไร</text><text class="s m" x="566" y="412">เมื่อหัววัดเสียหรือค่าค้าง ให้ถอยกลับไปโหมดตั้งเวลาเดิม ไม่ใช่หยุดเครื่อง และบันทึกทุกครั้งที่ค่าตั้งถูกเปลี่ยน</text>`,
     1140, 450, 'ลูปควบคุมการเติมอากาศด้วยค่าออกซิเจนละลายจริง'),
 
@@ -2524,16 +2534,16 @@ const DIAGS = {
     const c = CO2_MID;
     return dg(
       `<rect class="zn" x="20" y="24" width="1100" height="440" rx="18" stroke="var(--info)"/><text class="t" x="36" y="48" style="fill:var(--info)">ขอบเขตที่ 3 · ทางอ้อมอื่น ๆ</text>` +
-      `<rect class="zn" x="150" y="86" width="840" height="340" rx="16" stroke="var(--warn)"/><text class="t" x="166" y="110" style="fill:var(--warn)">ขอบเขตที่ 2 · ไฟฟ้าที่ซื้อ</text>` +
+      `<rect class="zn" x="150" y="86" width="840" height="310" rx="16" stroke="var(--warn)"/><text class="t" x="166" y="110" style="fill:var(--warn)">ขอบเขตที่ 2 · ไฟฟ้าที่ซื้อ</text>` +
       `<rect class="zn" x="330" y="148" width="480" height="230" rx="14" stroke="var(--crit)"/><text class="t" x="346" y="172" style="fill:var(--crit)">ขอบเขตที่ 1 · ปล่อยจากกิจกรรมของโรงเอง</text>` +
       box(356, 192, 200, 72, 'มีเทน', [fmt(c.ch4) + ' กก./วัน', fmt(c.tCh4) + ' tCO₂e/ปี'], 'bad') +
       box(586, 192, 200, 72, 'ไนตรัสออกไซด์', [fmt(c.n2o, 1) + ' กก./วัน', fmt(c.tN2o) + ' tCO₂e/ปี'], 'bad') +
       box(356, 286, 200, 64, 'เครื่องยนต์สำรอง', ['น้ำมันดีเซล'], '') +
       box(586, 286, 200, 64, 'ยานพาหนะของโรง', [], '') +
-      box(170, 330, 150, 76, 'ไฟฟ้าที่ซื้อ', [fmt(c.tElec) + ' tCO₂e/ปี'], 'wn') +
-      box(830, 330, 150, 76, 'ค่าสัมประสิทธิ์', [fmt(CRIT.efGrid, 4) + ' กก./หน่วย', 'grid mix 2022–2024'], 'wn') +
+      box(170, 306, 150, 76, 'ไฟฟ้าที่ซื้อ', [fmt(c.tElec) + ' tCO₂e/ปี'], 'wn') +
+      box(830, 306, 150, 76, 'ค่าสัมประสิทธิ์', [fmt(CRIT.efGrid, 4) + ' กก./หน่วย', 'grid mix 2022–2024'], 'wn') +
       [['ต้นน้ำเชื้อเพลิงของไฟฟ้า', 40], ['สารเคมี', 230], ['ขนและกำจัดตะกอน', 420], ['ก่อสร้าง', 610], ['เดินทางพนักงาน', 800], ['อุปกรณ์ที่ซื้อ', 990]]
-        .map(([t, x]) => `<rect class="bx inf" x="${x}" y="412" width="130" height="38" rx="8"/><text class="s m" x="${x + 65}" y="435">${esc(t)}</text>`).join('') +
+        .map(([t, x]) => `<rect class="bx inf" x="${x}" y="410" width="130" height="40" rx="8"/><text class="s m" x="${x + 65}" y="428">${esc(t.split(' ')[0])}</text><text class="s m" x="${x + 65}" y="441">${esc(t.split(' ').slice(1).join(' '))}</text>`).join('') +
       `<rect class="bx ok" x="150" y="${24}" width="0" height="0"/>` +
       label(570, 476, 'คาร์บอนไดออกไซด์จากการย่อยสลายสารอินทรีย์ในน้ำเสียไม่นับรวม เพราะเป็นคาร์บอนจากชีวมวลที่หมุนเวียนในธรรมชาติ', 's m'),
       1140, 500, 'ขอบเขตการปล่อยก๊าซเรือนกระจกสามขอบเขตของโรงบำบัดน้ำเสีย');
@@ -2544,10 +2554,10 @@ const DIAGS = {
     [['2569', 0], ['2572', .2], ['2575', .36], ['2580', .56], ['2590', .82], ['2593', 1]]
       .map(([t, f]) => `<line x1="${60 + f * 1040}" y1="412" x2="${60 + f * 1040}" y2="428" stroke="var(--ink-3)" stroke-width="2"/><text class="s m" x="${60 + f * 1040}" y="448">${esc(t)}</text>`).join('') +
     [['คลื่นที่ 1 · วัดและคุม', ['ขอบิลค่าไฟ ตั้งค่าออกซิเจนให้ถูก', 'หยุดจ่ายสารที่ไม่จำเป็น', 'แทบไม่ต้องลงทุน'], 60, 300, 'ok'],
-     ['คลื่นที่ 2 · ผลิตไฟและเปลี่ยนเครื่อง', ['โซลาร์ขนาดพอดีกับภาระ', 'เปลี่ยนเครื่องเติมอากาศประสิทธิภาพสูง', 'คืนทุน 4–5 ปี'], 300, 220, 'hl'],
-     ['คลื่นที่ 3 · ควบคุมด้วยแบบจำลอง', ['ปรับค่าตั้งตามภาระที่พยากรณ์', 'ลดไนโตรเจนด้วยการคุม ORP', 'ต้องมีข้อมูลสะสมและทีม'], 560, 140, 'inf'],
-     ['คลื่นที่ 4 · พลังงานจากตะกอน', ['ย่อยตะกอนแบบไร้อากาศ', 'นำธาตุอาหารกลับมาใช้', 'เหมาะกับโรงใหญ่'], 820, 60, 'wn']]
-      .map(([t, s, x, y, cls]) => box(x, y, 290, 104, t, s, cls) + `<path class="ar" d="M ${+x + 145} ${+y + 104} L ${+x + 145} 414" marker-end="url(#@AH)"/>`).join('') +
+     ['คลื่นที่ 2 · ผลิตไฟและเปลี่ยนเครื่อง', ['โซลาร์ขนาดพอดี', 'เปลี่ยนเครื่องเติมอากาศ', 'คืนทุน 4–5 ปี'], 320, 220, 'hl'],
+     ['คลื่นที่ 3 · ควบคุมด้วยแบบจำลอง', ['ปรับค่าตั้งตามภาระที่พยากรณ์', 'ลดไนโตรเจนด้วย ORP', 'ต้องมีข้อมูลสะสมและทีม'], 580, 140, 'inf'],
+     ['คลื่นที่ 4 · พลังงานจากตะกอน', ['ย่อยตะกอนแบบไร้อากาศ', 'นำธาตุอาหารกลับมาใช้', 'เหมาะกับโรงใหญ่'], 840, 60, 'wn']]
+      .map(([t, s, x, y, cls]) => box(x, y, 228, 104, t, s, cls) + `<path class="ar" d="M ${+x + 114} ${+y + 104} L ${+x + 114} 414" marker-end="url(#@AH)"/>`).join('') +
     `<rect class="bx wn" x="60" y="462" width="1040" height="32" rx="8"/><text class="s m" x="580" y="483">สองคลื่นแรกใช้ความรู้จากหัวข้อ 1 ถึง 3 ของวันนี้ทั้งหมด และคลื่นที่หนึ่งเริ่มได้ทันทีโดยไม่ต้องรองบประมาณ</text>`,
     1140, 510, 'เส้นทางการลดคาร์บอนสี่ระยะจากปี 2569 ถึง 2593'),
 };
@@ -2656,18 +2666,18 @@ function buildSteps() {
 const CHARTS = {
   c1: () => ch({ kind: 'hbar', w: 620, h: 330, pad: { l: 186, r: 80 }, labels: ['พพ. รังสีอาทิตย์ รายตำบล', 'POMS เซนเซอร์โรงงาน', 'DSPOT ระบบบำบัดชุมชน', 'Air4Thai คุณภาพอากาศ', 'GISTDA ฝุ่นดาวเทียม', 'IWIS คุณภาพน้ำแม่น้ำ'], series: [{ v: [7416, 796, 216, 173, 77, 64], cls: ['s4', 's0', 's3', 's1', 's2', 's0'] }], unit: 'จุด', alt: 'จำนวนจุดวัดของแหล่งข้อมูลสิ่งแวดล้อมไทยหกแหล่ง' }),
   c2: () => ch({ kind: 'bar', w: 620, h: 340, labels: PLANTS.map((p) => p.n), series: [{ v: PLANTS.map((p) => p.bod[0]), c: 's0' }], max: 120, dec: 1, bands: [{ from: CRIT.sewage.bodRange[0], to: CRIT.sewage.bodRange[1], label: 'ช่วงเกณฑ์ ตารางที่ 2.2' }], refLines: [{ y: CRIT.sewage.bod, label: 'ค่าแนะนำสำหรับออกแบบ 80' }], yLabel: 'บีโอดีน้ำเข้า มก./ล.', valueLabels: true, alt: 'บีโอดีน้ำเข้าจริงของแปดโรงเทียบช่วงเกณฑ์ออกแบบ' }),
-  c3: () => { const xs = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4]; const f = (d) => 1 / (1 - Math.exp(-d / 1.15)); const base = f(2); return ch({ kind: 'line', w: 620, h: 330, xType: 'linear', xMin: 0.5, xMax: 4, xDec: 1, xTicks: 7, labels: xs.map(String), series: [{ name: 'หน่วยไฟต่อวัน เทียบที่จุดตั้ง 2.0', x: xs, v: xs.map((d) => 100 * f(d) / base), c: 's2' }, { name: 'บีโอดีน้ำออก มก./ล. คูณห้าเพื่อให้เห็นรูปร่าง', x: xs, v: [14.0, 7.2, 5.0, 4.3, 4.1, 4.0, 4.0, 3.9].map((v) => v * 5), c: 's0' }], max: 180, refLines: [{ y: 100, label: 'หน่วยไฟที่จุดตั้ง 2.0 มก./ล.', ok: true }], xLabel: 'จุดตั้งออกซิเจนละลาย มก./ล.', legend: [{ c: 's2', t: 'หน่วยไฟ ร้อยละเทียบฐาน' }, { c: 's0', t: 'บีโอดีน้ำออก (คูณ 5)' }], alt: 'ความสัมพันธ์ระหว่างจุดตั้งออกซิเจนกับหน่วยไฟและคุณภาพน้ำออก' }); },
+  c3: () => { const xs = [1, 1.5, 2, 2.5, 3, 3.5, 4]; const f = (d) => 1 / (1 - Math.exp(-d / 1.15)); const base = f(2); return ch({ kind: 'line', w: 620, h: 330, xType: 'linear', xMin: 1, xMax: 4, xDec: 1, xTicks: 6, labels: xs.map(String), series: [{ name: 'หน่วยไฟต่อวัน เทียบที่จุดตั้ง 2.0', x: xs, v: xs.map((d) => 100 * f(d) / base), c: 's2' }, { name: 'บีโอดีน้ำออก มก./ล. คูณห้าเพื่อให้เห็นรูปร่าง', x: xs, v: [7.2, 5.0, 4.3, 4.1, 4.0, 4.0, 3.9].map((v) => v * 5), c: 's0' }], max: 180, refLines: [{ y: 100, label: 'หน่วยไฟที่จุดตั้ง 2.0 มก./ล.', ok: true }], xLabel: 'จุดตั้งออกซิเจนละลาย มก./ล.', legend: [{ c: 's2', t: 'หน่วยไฟ ร้อยละเทียบฐาน' }, { c: 's0', t: 'บีโอดีน้ำออก (คูณ 5)' }], alt: 'ความสัมพันธ์ระหว่างจุดตั้งออกซิเจนกับหน่วยไฟและคุณภาพน้ำออก' }); },
   c4: () => ch({ kind: 'hbar', w: 620, h: 250, pad: { l: 200, r: 90, b: 40 }, labels: ['เครื่องเติมอากาศ (คำนวณในสไลด์)', 'สถานีสูบน้ำเสีย (อ้างอิงสากล)', 'ระบบจัดการตะกอน (อ้างอิงสากล)', 'อาคารและอื่น ๆ (อ้างอิงสากล)'], series: [{ v: [A_DIN.kwh, 2300, 1400, 900], cls: ['s0', 's1', 's1', 's4'] }], unit: 'หน่วย/วัน', alt: 'สัดส่วนการใช้ไฟฟ้าของโรงบำบัด' }),
   c5: () => { const ks = Object.keys(CRIT.sae).map((k) => ({ k, n: CRIT.sae[k].n, v: A_DIN.o2 / saeField(k) })).sort((a, b) => a.v - b.v); return ch({ kind: 'hbar', w: 620, h: 340, pad: { l: 168, r: 86 }, labels: ks.map((x) => x.n), series: [{ v: ks.map((x) => x.v), cls: ks.map((x, i) => i === 0 ? 's0' : i === ks.length - 1 ? 's3' : 's2') }], unit: 'หน่วย/วัน', alt: 'หน่วยไฟต่อวันของโรงดินแดงเมื่อเปลี่ยนชนิดเครื่องเติมอากาศ' }); },
   c6: () => { const xs = []; for (let t = 0; t <= 24; t++) xs.push(t); const pv = xs.map((t) => (t >= 6 && t <= 18) ? SOL.peak * Math.sin(Math.PI * (t - 6) / 12) : 0); return ch({ kind: 'line', w: 620, h: 340, xType: 'linear', xMin: 0, xMax: 24, xTicks: 8, labels: xs.map(String), series: [{ name: 'ผลิตจากแผงเซลล์แสงอาทิตย์', kind: 'area', x: xs, v: pv, c: 's2' }, { name: 'ภาระของโรง คงที่ตลอดวัน', x: xs, v: xs.map(() => SOL.load), c: 's0' }], max: SOL.peak * 1.15, yLabel: 'กิโลวัตต์', xLabel: 'ชั่วโมงของวัน', legend: [{ c: 's2', t: 'ผลิตจากโซลาร์' }, { c: 's0', t: 'ภาระของโรง ' + fmt(SOL.load, 1) + ' kW' }], alt: 'เส้นผลิตของโซลาร์เทียบภาระคงที่ของโรงบำบัดตลอดวัน' }); },
-  c7: () => { const n = 16, xs = []; for (let y = 0; y <= 15; y++) xs.push(y); const e = GEN ? GEN.epcCum : null, p = GEN ? GEN.ppaCum : null; const ec = e || xs.map((y) => -11.25 + y * 2.3), pc = p || xs.map((y) => y * 0.9); return ch({ kind: 'line', w: 560, h: 260, pad: { l: 58, b: 44 }, xType: 'linear', xMin: 0, xMax: 15, xTicks: 5, labels: xs.map(String), series: [{ name: 'ลงทุนเอง', x: xs, v: ec.slice(0, n), c: 's0' }, { name: 'มีผู้ลงทุน', x: xs, v: pc.slice(0, n), c: 's1' }], min: Math.min(-13, Math.min(...ec.slice(0, n))), max: Math.max(...ec.slice(0, n)) * 1.1, refLines: [{ y: 0, label: 'จุดคุ้มทุน', ok: true }], yLabel: 'ล้านบาท', xLabel: 'ปีที่', legend: [{ c: 's0', t: 'ลงทุนเอง' }, { c: 's1', t: 'มีผู้ลงทุน' }], alt: 'กระแสเงินสดสะสมของแบบลงทุนเองเทียบแบบมีผู้ลงทุน' }); },
+  c7: () => { const n = 16, xs = []; for (let y = 0; y <= 15; y++) xs.push(y); const e = GEN ? GEN.epcCum : null, p = GEN ? GEN.ppaCum : null; const ec = e || xs.map((y) => -11.25 + y * 2.3), pc = p || xs.map((y) => y * 0.9); return ch({ kind: 'line', w: 640, h: 290, pad: { l: 62 }, xType: 'linear', xMin: 0, xMax: 15, xTicks: 5, labels: xs.map(String), series: [{ name: 'ลงทุนเอง', x: xs, v: ec.slice(0, n), c: 's0' }, { name: 'มีผู้ลงทุน', x: xs, v: pc.slice(0, n), c: 's1' }], min: Math.min(-13, Math.min(...ec.slice(0, n))), max: Math.max(...ec.slice(0, n)) * 1.1, refLines: [{ y: 0, label: 'จุดคุ้มทุน', ok: true }], yLabel: 'ล้านบาท', xLabel: 'ปีที่', legend: [{ c: 's0', t: 'ลงทุนเอง' }, { c: 's1', t: 'มีผู้ลงทุน' }], alt: 'กระแสเงินสดสะสมของแบบลงทุนเองเทียบแบบมีผู้ลงทุน' }); },
   c8: () => { const rows = FLEET.filter((f) => f.p.rai).map(({ p, a }) => { const kwp = p.rai * 1600 * CRIT.solar.usable / CRIT.solar.m2PerKwp; return { n: p.n, pct: 100 * kwp * CRIT.solar.psh * SOL.pr * 365 / (a.kwh * 365) }; }).sort((x, y) => y.pct - x.pct); return ch({ kind: 'hbar', w: 620, h: 320, pad: { l: 120, r: 70 }, labels: rows.map((r) => r.n), series: [{ v: rows.map((r) => r.pct), cls: rows.map((r) => r.pct > 20 ? 's0' : r.pct > 10 ? 's2' : 's3') }], dec: 1, suffix: '%', unit: '%', alt: 'สัดส่วนที่โซลาร์ชดเชยไฟเครื่องเติมอากาศได้ของแต่ละโรง' }); },
-  c9: () => { const rows = [...PLANTS].sort((a, b) => a.pct - b.pct); return ch({ kind: 'hbar', w: 620, h: 330, pad: { l: 120, r: 70 }, labels: rows.map((p) => p.n), series: [{ v: rows.map((p) => p.pct), cls: rows.map((p) => p.pct > 85 ? 's3' : p.pct > 70 ? 's2' : 's0') }], max: 105, dec: 2, suffix: '%', refLines: [{ y: 100, label: 'ความสามารถออกแบบ' }, { y: 85, label: 'เขตเฝ้าระวัง', ok: true }], unit: '%', alt: 'สัดส่วนการใช้งานของทั้งแปดโรง' }); },
+  c9: () => { const rows = [...PLANTS].sort((a, b) => a.pct - b.pct); return ch({ kind: 'hbar', w: 620, h: 344, pad: { t: 36, l: 120, r: 70 }, labels: rows.map((p) => p.n), series: [{ v: rows.map((p) => p.pct), cls: rows.map((p) => p.pct > 85 ? 's3' : p.pct > 70 ? 's2' : 's0') }], max: 105, dec: 2, suffix: '%', refLines: [{ y: 100, label: 'ความสามารถออกแบบ' }, { y: 85, label: 'เขตเฝ้าระวัง', ok: true }], unit: '%', alt: 'สัดส่วนการใช้งานของทั้งแปดโรง' }); },
   c10: () => donut([
     { name: 'นับไฟเฉพาะเครื่องเติมอากาศ', parts: [{ t: 'ไนตรัสออกไซด์', v: CO2_LO.tN2o, c: 's2' }, { t: 'มีเทน', v: CO2_LO.tCh4, c: 's3' }, { t: 'ไฟฟ้า', v: CO2_LO.tElec, c: 's0' }] },
     { name: 'ใช้ช่วงอ้างอิงทั้งโรง', parts: [{ t: 'ไนตรัสออกไซด์', v: CO2_MID.tN2o, c: 's2' }, { t: 'มีเทน', v: CO2_MID.tCh4, c: 's3' }, { t: 'ไฟฟ้า', v: CO2_MID.tElec, c: 's0' }] },
   ], 'สัดส่วนคาร์บอนของโรงดินแดงในสองขอบเขตข้อมูลไฟฟ้า'),
-  c11: () => ch({ kind: 'hbar', w: 620, h: 290, pad: { l: 210, r: 80 }, labels: MEASURES.map((m) => m.n.length > 34 ? m.n.slice(0, 32) + '…' : m.n), series: [{ v: MEASURES.map((m) => m.c), cls: ['s0', 's1', 's2', 's4'] }], unit: 'tCO₂e/ปี', alt: 'เปรียบเทียบปริมาณคาร์บอนที่แต่ละมาตรการลดได้' }),
+  c11: () => ch({ kind: 'hbar', w: 700, h: 300, pad: { l: 330, r: 86 }, labels: MEASURES.map((m) => m.n), series: [{ v: MEASURES.map((m) => m.c), cls: ['s0', 's1', 's2', 's4'] }], unit: 'tCO₂e/ปี', alt: 'เปรียบเทียบปริมาณคาร์บอนที่แต่ละมาตรการลดได้' }),
   c12: () => { const rows = [...FLEET].sort((a, b) => b.a.kwh - a.a.kwh); return ch({ kind: 'hbar', w: 620, h: 330, pad: { l: 120, r: 86 }, labels: rows.map((f) => f.p.n), series: [{ v: rows.map((f) => f.a.kwh), cls: rows.map((f, i) => i < 2 ? 's3' : 's0') }], unit: 'หน่วย/วัน', alt: 'หน่วยไฟเครื่องเติมอากาศรายวันของทั้งแปดโรง' }); },
 };
 /**
