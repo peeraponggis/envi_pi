@@ -1679,19 +1679,19 @@ body.no-nav #notes { right: 0; }
   <header><h2>คำนวณจริง · คาร์บอนของโรงดินแดงหนึ่งปี</h2><span class="badge calc">คำนวณในสไลด์</span><span class="no"></span></header>
   <div class="body cols-2 wide-r">
     <div>
-      <table class="tb sm" id="tCarbon">
+      <table class="tb xs" id="tCarbon">
         <thead><tr><th>แหล่งปล่อย</th><th class="n">ปริมาณ</th><th class="n">tCO₂e/ปี</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="box bad" style="margin-top:11px"><h3>คำตอบขึ้นกับว่ามีบิลค่าไฟหรือไม่</h3>
-        ถ้ารู้แค่หน่วยไฟของเครื่องเติมอากาศที่คิดจากเกณฑ์ไทย ไฟฟ้าจะดูเป็นเพียง <b data-calc="co2.shareLo">10</b>% ของทั้งหมด<br>
-        ถ้าใช้ช่วงอ้างอิงหน่วยไฟของทั้งโรง ไฟฟ้ากลายเป็น <b data-calc="co2.shareMid">63</b>% และเป็นก้อนใหญ่ที่สุด<br><br>
-        <b>ข้อสรุปเชิงปฏิบัติ · ไปขอบิลค่าไฟของโรงมาก่อนทำอย่างอื่น</b> เพราะตัวเลขนี้เปลี่ยนลำดับความสำคัญของมาตรการทั้งหมด
+      <p class="hint" style="margin:5px 0 0">กรณีใช้ช่วงอ้างอิงทั้งโรง คิดเป็น <b id="gPerM3">343</b> กรัมคาร์บอนไดออกไซด์เทียบเท่าต่อลูกบาศก์เมตรที่บำบัด</p>
+      <div class="box bad" style="margin-top:9px"><h3>คำตอบขึ้นกับว่ามีบิลค่าไฟหรือไม่</h3>
+        นับไฟเฉพาะเครื่องเติมอากาศ ไฟฟ้าเป็นเพียง <b data-calc="co2.shareLo">10</b>% · ใช้ช่วงอ้างอิงทั้งโรง ไฟฟ้ากลายเป็น <b data-calc="co2.shareMid">62</b>% และเป็นก้อนใหญ่ที่สุด<br>
+        <b>ไปขอบิลค่าไฟของโรงมาก่อนทำอย่างอื่น</b> เพราะตัวเลขนี้เปลี่ยนลำดับความสำคัญของมาตรการทั้งหมด
       </div>
     </div>
     <div>
       <figure data-chart="c10"></figure>
-      <p class="hint" style="margin-top:6px">วงในคือกรณีที่นับไฟฟ้าเฉพาะเครื่องเติมอากาศ วงนอกคือกรณีที่ใช้ช่วงอ้างอิงของทั้งโรง · สองวงนี้คือโรงเดียวกัน ต่างกันแค่ขอบเขตของข้อมูลไฟฟ้า</p>
+      <p class="hint" style="margin-top:4px">วงในนับไฟเฉพาะเครื่องเติมอากาศ วงนอกใช้ช่วงอ้างอิงทั้งโรง · โรงเดียวกัน ต่างกันแค่ขอบเขตข้อมูลไฟฟ้า</p>
     </div>
   </div>
   <footer class="src">ภาระบีโอดีและไนโตรเจนจากฐาน DSPOT รายงานปี 2568 · ค่าสัมประสิทธิ์มีเทนและไนตรัสออกไซด์จาก IPCC 2019 · ค่าสัมประสิทธิ์ไฟฟ้าจากไฟล์ EF CFO (AR5) ขององค์การบริหารจัดการก๊าซเรือนกระจก ฉบับกุมภาพันธ์ 2569 บังคับใช้ตั้งแต่ 1 ม.ค. 2569 · ไฟฟ้าแบบ grid mix ปี 2022–2024 ขอบเขตที่ 2 เท่ากับ <b data-calc="co2.ef">0.4750</b> และส่วนต้นน้ำของเชื้อเพลิงอีก <b data-calc="co2.efS3">0.0812</b> กก.CO₂e ต่อหน่วย <span class="badge gov">ข้อมูลราชการไทย</span></footer>
@@ -2605,8 +2605,9 @@ function buildTables() {
       ['รวม กรณีใช้ช่วงอ้างอิงทั้งโรง', '', CO2_MID.total, 'sum'],
     ];
     tc.innerHTML = r.map(([t, q, v, cls]) => `<tr${cls ? ' class="sum"' : ''}><td>${esc(t)}</td><td class="n">${q}</td><td class="n"><b>${fmt(v)}</b></td></tr>`).join('')
-      + `<tr><td>ขอบเขตที่ 3 · ต้นน้ำของเชื้อเพลิงที่ใช้ผลิตไฟฟ้า <span class="hint">รายงานแยก ไม่รวมในยอดข้างบน</span></td><td class="n">${fmt(CRIT.efGridS3, 4)} กก./หน่วย</td><td class="n">${fmt(DIN.q * 0.45 * CRIT.efGridS3 * 365 / 1000)}</td></tr>`
-      + `<tr><td colspan="3" class="hint">คิดเป็น ${fmt(1e6 * CO2_MID.total / 365 / DIN.q, 0)} กรัมคาร์บอนไดออกไซด์เทียบเท่าต่อลูกบาศก์เมตรที่บำบัด ในกรณีที่ใช้ช่วงอ้างอิงทั้งโรง</td></tr>`;
+      + `<tr><td>ขอบเขตที่ 3 · ต้นน้ำเชื้อเพลิงของไฟฟ้า <span class="hint">รายงานแยก</span></td><td class="n">${fmt(CRIT.efGridS3, 4)} กก./หน่วย</td><td class="n">${fmt(DIN.q * 0.45 * CRIT.efGridS3 * 365 / 1000)}</td></tr>`
+      ;
+    const gq = $('#gPerM3'); if (gq) gq.textContent = fmt(1e6 * CO2_MID.total / 365 / DIN.q, 0);
   }
 
   const tm = $('#tMeasure tbody');
@@ -2672,13 +2673,13 @@ const CHARTS = {
 /**
  * ย่อเนื้อหาของสไลด์ที่สูงเกินกรอบ 720 พิกเซลให้พอดี
  * เวทีเป็นขนาดคงที่ ถ้าปล่อยให้เลื่อนผู้ฟังจะไม่เห็นส่วนล่าง
- * ย่อทีละ 2% ไม่เกิน 22% แล้วถ้ายังไม่พอก็ปล่อยให้เลื่อนตามเดิม
+ * ย่อทีละ 2% ไม่เกิน 28% แล้วถ้ายังไม่พอก็ปล่อยให้เลื่อนตามเดิม
  */
 function autoFit(slide) {
   const b = slide.querySelector('.body');
   if (!b || slide.dataset.fit) return;
   b.style.zoom = '';
-  for (let z = 100; z >= 78; z -= 2) {
+  for (let z = 100; z >= 72; z -= 2) {
     b.style.zoom = z === 100 ? '' : (z / 100);
     if (b.scrollHeight - b.clientHeight <= 2) break;
   }
@@ -2709,6 +2710,8 @@ function injectCalc() {
 const SLIDES = $$('#stage > .slide');
 const SECN = { open: 'เปิดงาน', t1: 'หัวข้อ 1 · AI กับงานสิ่งแวดล้อม', br1: 'พักเบรก', t2: 'หัวข้อ 2 · พลังงานสะอาดและโซลาร์', br2: 'พักกลางวัน', t3: 'หัวข้อ 3 · ควบคุมด้วย AI เรียลไทม์', br3: 'พักเบรก', t4: 'หัวข้อ 4 · Net Zero 2050', end: 'ปิดงาน' };
 let cur = 0, notesOn = false, t0 = null, buf = '';
+/** จอเล็กใช้โหมดเอกสาร คือเปิดทุกสไลด์เรียงต่อกันให้เลื่อนอ่าน */
+const DOC = () => matchMedia('(max-width: 859px)').matches;
 
 function buildTOC() {
   const o = [];
@@ -2748,7 +2751,9 @@ function markAgenda() {
 
 function go(n, push = true) {
   cur = clamp(n, 0, SLIDES.length - 1);
-  SLIDES.forEach((s, i) => s.classList.toggle('on', i === cur));
+  // โหมดเอกสารบนจอเล็กเปิดทุกสไลด์ไว้ การกดสารบัญจึงต้องเลื่อนไปหา ไม่ใช่ซ่อนแผ่นอื่น
+  if (DOC()) SLIDES[cur].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else SLIDES.forEach((s, i) => s.classList.toggle('on', i === cur));
   renderFigures(SLIDES[cur]);
   autoFit(SLIDES[cur]);
   if (push) { const h = '#p' + (cur + 1); if (location.hash !== h) history.replaceState(null, '', h); }
